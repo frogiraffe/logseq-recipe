@@ -62,8 +62,8 @@ Draft Recipe is not yet published to the Logseq Marketplace. To use it, build
 it locally and load it as an unpacked plugin:
 
 ```bash
-git clone <this repository>
-cd logseq-draft-recipe
+git clone https://github.com/frogiraffe/logseq-recipe.git
+cd logseq-recipe
 corepack enable
 corepack prepare pnpm@10.33.0 --activate
 pnpm install
