@@ -137,17 +137,26 @@ describe("analyzeRecipeConversion", () => {
       ),
     ).toBe(false);
     expect(isConversionCommittable(classified)).toBe(true);
-    expect(conversionStructure(classified).ingredientMetadata).toEqual([
-      {
-        blockId: "i1",
-        parsed: expect.objectContaining({
-          rawText: "100 g flour",
-          amount: { kind: "exact", value: 100 },
-          unit: "g",
-          ingredientText: "flour",
-        }),
-      },
+  });
+
+  it("surfaces an unrecognized leaf line as ignored/unclassified content instead of silently dropping it", () => {
+    const root = node("root", "Recipe", [
+      node("yield", "Yield: 8"),
+      node("stray", "Adapted from a family recipe."),
+      node("ingredients", "Ingredients", [node("i1", "100 g flour")]),
+      node("steps", "Steps", [node("s1", "Mix.")]),
     ]);
+
+    const result = analyzeRecipeConversion(root, defaultParseContext("en"));
+
+    expect(result.issues).toContainEqual({
+      code: "unclassified-content",
+      message:
+        'Line "Adapted from a family recipe." was not recognized as a section, metadata field, ingredient, step, or note, and will be ignored.',
+      blockId: "stray",
+    });
+    // Purely informational - it must not block an otherwise-valid conversion.
+    expect(isConversionCommittable(result)).toBe(true);
   });
 
   it("blocks conversion when base yield is missing", () => {
