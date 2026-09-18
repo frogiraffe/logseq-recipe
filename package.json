@@ -1,0 +1,56 @@
+{
+  "name": "logseq-recipe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
+  "author": "frogiraffe",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frogiraffe/logseq-recipe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/frogiraffe/logseq-recipe/issues"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "main": "dist/index.html",
+  "logseq": {
+    "id": "logseq-recipe",
+    "title": "Logseq Recipe",
+    "icon": "./logo.svg"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src test vite.config.ts",
+    "format": "biome format --write src test vite.config.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "package": "bash scripts/package.sh",
+    "package:verify": "bash scripts/verify-package.sh"
+  },
+  "dependencies": {
+    "@logseq/libs": "0.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "happy-dom": "20.14.3",
+    "typescript": "5.9.3",
+    "vite": "7.2.4",
+    "vite-plugin-logseq": "1.1.2",
+    "vitest": "3.2.4"
+  }
+}

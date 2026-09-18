@@ -1,0 +1,23 @@
+.draft-recipe-app {
+  --ls-primary-text-color: #1f2937;
+  --ls-secondary-text-color: #6b7280;
+  --ls-primary-background-color: #ffffff;
+  --ls-secondary-background-color: #f3f4f6;
+  --ls-tertiary-background-color: #e5e7eb;
+  --ls-border-color: #d1d5db;
+  --ls-link-text-color: #2563eb;
+  --ls-error-color: #dc2626;
+  --ls-font-family:
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.draft-recipe-app[data-theme-mode="dark"] {
+  --ls-primary-text-color: #e5e7eb;
+  --ls-secondary-text-color: #9ca3af;
+  --ls-primary-background-color: #111827;
+  --ls-secondary-background-color: #1f2937;
+  --ls-tertiary-background-color: #374151;
+  --ls-border-color: #4b5563;
+  --ls-link-text-color: #60a5fa;
+  --ls-error-color: #f87171;
+}
