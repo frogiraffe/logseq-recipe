@@ -81,6 +81,7 @@ function fakeHost() {
   const pageRenames: Array<{ from: string; to: string }> = [];
   const pageDeletions: string[] = [];
   let pageEntity: unknown = null;
+  const otherPagesByTitle = new Map<string, unknown>();
 
   return {
     tree,
@@ -96,9 +97,12 @@ function fakeHost() {
     setPageEntity(entity: unknown) {
       pageEntity = entity;
     },
+    setOtherPage(title: string, entity: unknown) {
+      otherPagesByTitle.set(title, entity);
+    },
     editor: {
       getBlock: async (id: string) => (id === "recipe-1" ? tree : null),
-      getPage: async (_id: string) => pageEntity,
+      getPage: async (id: string) => otherPagesByTitle.get(id) ?? pageEntity,
       getPageBlocksTree: async (_id: string) => [] as unknown[],
       getBlockProperty: async (id: string, key: string) =>
         values.get(`${id}:${key}`),
@@ -641,6 +645,30 @@ describe("Logseq recipe repository", () => {
       await expect(
         repository.renameRecipe("recipe-1", "   "),
       ).rejects.toThrow();
+    });
+
+    it("rejects renaming a page-root recipe onto a title that already exists", async () => {
+      const host = fakeHost();
+      host.setPageEntity({ originalName: "Cookie" });
+      host.setOtherPage("Existing Page", { originalName: "Existing Page" });
+      const repository = repositoryFor(host);
+
+      await expect(
+        repository.renameRecipe("recipe-1", "Existing Page"),
+      ).rejects.toThrow(/already exists/);
+      expect(host.pageRenames).toEqual([]);
+    });
+
+    it("allows renaming a page-root recipe when the target title is unused", async () => {
+      const host = fakeHost();
+      host.setPageEntity({ originalName: "Cookie" });
+      const repository = repositoryFor(host);
+
+      await repository.renameRecipe("recipe-1", "Brand New Title");
+
+      expect(host.pageRenames).toEqual([
+        { from: "Cookie", to: "Brand New Title" },
+      ]);
     });
 
     it("writes base yield and yield unit as separate optional property updates", async () => {

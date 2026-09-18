@@ -737,6 +737,12 @@ export function createLogseqRecipeRepository(
       if (!trimmed) throw new RangeError("Recipe title is required.");
       const name = pageName(await host.editor.getPage(id));
       if (name) {
+        if (trimmed !== name) {
+          const collision = pageName(await host.editor.getPage(trimmed));
+          if (collision && collision !== name) {
+            throw new Error(`A Logseq page named "${trimmed}" already exists.`);
+          }
+        }
         await host.editor.renamePage(name, trimmed);
       } else {
         await host.editor.updateBlock(id, trimmed);

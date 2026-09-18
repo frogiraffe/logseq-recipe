@@ -146,6 +146,50 @@ describe("ingredient conversion registry", () => {
     expect(result).toBeCloseTo(1, 10);
   });
 
+  describe("specificity: a compound name never inherits a generic word's density", () => {
+    it("matches bread flour to its own rule, not generic flour", () => {
+      expect(builtInIngredientConversionProvider.find("bread flour")?.key).toBe(
+        "bread-flour",
+      );
+    });
+
+    it("matches whole wheat flour to its own rule, not generic flour", () => {
+      expect(
+        builtInIngredientConversionProvider.find("whole wheat flour")?.key,
+      ).toBe("whole-wheat-flour");
+    });
+
+    it("returns no rule for almond flour instead of guessing all-purpose flour's density", () => {
+      expect(
+        builtInIngredientConversionProvider.find("almond flour"),
+      ).toBeNull();
+    });
+
+    it("returns no rule for peanut butter instead of guessing butter's density", () => {
+      expect(
+        builtInIngredientConversionProvider.find("peanut butter"),
+      ).toBeNull();
+    });
+
+    it("returns no rule for milk powder instead of guessing liquid milk's density", () => {
+      expect(
+        builtInIngredientConversionProvider.find("milk powder"),
+      ).toBeNull();
+    });
+
+    it("still matches the bare generic word on its own", () => {
+      expect(builtInIngredientConversionProvider.find("flour")?.key).toBe(
+        "all-purpose-flour",
+      );
+      expect(builtInIngredientConversionProvider.find("butter")?.key).toBe(
+        "butter",
+      );
+      expect(builtInIngredientConversionProvider.find("milk")?.key).toBe(
+        "milk",
+      );
+    });
+  });
+
   it.each([0, -1, Number.POSITIVE_INFINITY, Number.NaN])(
     "ignores invalid per-recipe conversion weight %s",
     (gramsPerVolumeUnit) => {

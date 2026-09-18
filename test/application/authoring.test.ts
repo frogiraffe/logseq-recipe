@@ -94,6 +94,21 @@ describe("recipe authoring", () => {
     expect(fake.writes.some((write) => write.key === "unit")).toBe(false);
   });
 
+  it("writes the recipe marker only after every other structural write, so a partial failure never leaves an incomplete page discoverable as a recipe", async () => {
+    const fake = fakeHost();
+
+    await createRecipeInLogseq(
+      fake.host,
+      { title: "Cookie", baseYield: 8, yieldUnit: "cookies", locale: "en" },
+      { jsonProperty: false },
+    );
+
+    const markerIndex = fake.writes.findIndex(
+      (write) => write.key === "recipe_marker",
+    );
+    expect(markerIndex).toBe(fake.writes.length - 1);
+  });
+
   it("refuses to mutate a pre-existing page with the requested recipe title", async () => {
     const fake = fakeHost({}, { Cookie: { id: 55, uuid: "existing-cookie" } });
 
@@ -259,6 +274,40 @@ describe("recipe authoring", () => {
         { id: "steps", key: "section_role", value: "steps" },
       ]),
     );
+  });
+
+  it("writes the recipe marker only after section roles and ingredient metadata during conversion", async () => {
+    const fake = fakeHost();
+    await markExistingRecipeInLogseq(
+      fake.host,
+      {
+        rootId: "existing-root",
+        locale: "en",
+        sourceMeasurementSystem: "us",
+        sectionRoles: [
+          { blockId: "ingredients", role: "ingredients" },
+          { blockId: "steps", role: "steps" },
+        ],
+        ingredientMetadata: [
+          {
+            blockId: "ingredient-1",
+            parsed: {
+              rawText: "1 cup flour",
+              amount: { kind: "exact", value: 1 },
+              unit: "cup_us",
+              ingredientText: "flour",
+              confidence: "exact",
+            },
+          },
+        ],
+      },
+      { jsonProperty: false },
+    );
+
+    const markerIndex = fake.writes.findIndex(
+      (write) => write.id === "existing-root" && write.key === "recipe_marker",
+    );
+    expect(markerIndex).toBe(fake.writes.length - 1);
   });
 
   it("writes one hidden canonical ingredient payload during conversion", async () => {

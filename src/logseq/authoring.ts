@@ -140,7 +140,6 @@ async function writeRootMetadata(
   meta: RecipeMeta,
   capabilities: AuthoringCapabilities,
 ): Promise<void> {
-  await host.upsertBlockProperty(rootId, PROPERTY_KEYS.recipeMarker, true);
   await host.upsertBlockProperty(
     rootId,
     PROPERTY_KEYS.schemaVersion,
@@ -151,6 +150,18 @@ async function writeRootMetadata(
     PROPERTY_KEYS.recipeMeta,
     metaStorageValue(meta, capabilities),
   );
+}
+
+// The marker is what makes a page discoverable as a recipe (listRecipeIds
+// queries by its presence). Writing it only after every other structural
+// write succeeds means a failure partway through Create/Convert leaves an
+// incomplete page that the plugin still treats as "not a recipe" rather
+// than a broken one it might try to load.
+async function markRecipeComplete(
+  host: RecipeAuthoringHost,
+  rootId: string,
+): Promise<void> {
+  await host.upsertBlockProperty(rootId, PROPERTY_KEYS.recipeMarker, true);
 }
 
 export async function writeOptionalRootFields(
@@ -326,6 +337,7 @@ export async function createRecipeInLogseq(
     );
   }
 
+  await markRecipeComplete(host, rootId);
   return { rootId, sections: sectionIds };
 }
 
@@ -348,4 +360,5 @@ export async function markExistingRecipeInLogseq(
   }
 
   await writeIngredientMetadata(host, structure);
+  await markRecipeComplete(host, structure.rootId);
 }
