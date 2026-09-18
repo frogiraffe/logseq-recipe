@@ -193,6 +193,17 @@ export function RecipeEditor({
       return false;
     }
   }
+  function minutesPatchValue(
+    text: string,
+    original: number | undefined,
+  ): number | null | undefined {
+    const value = parseMinutesField(text);
+    if (value === undefined) return original !== undefined ? null : undefined;
+    return value !== original ? value : undefined;
+  }
+  function noBlankItems(items: EditableItem[]): boolean {
+    return items.every((item) => item.text.trim() !== "");
+  }
 
   const formValid =
     Boolean(title.trim()) &&
@@ -200,15 +211,32 @@ export function RecipeEditor({
     minutesFieldValid(prepMinutesText) &&
     minutesFieldValid(chillMinutesText) &&
     minutesFieldValid(cookMinutesText) &&
-    sourceUrlValid(sourceUrl);
+    sourceUrlValid(sourceUrl) &&
+    noBlankItems(ingredients) &&
+    noBlankItems(steps) &&
+    noBlankItems(notes);
 
   function save() {
     if (!formValid) return;
 
-    const prepMinutes = parseMinutesField(prepMinutesText);
-    const chillMinutes = parseMinutesField(chillMinutesText);
-    const cookMinutes = parseMinutesField(cookMinutesText);
+    const prepMinutes = minutesPatchValue(prepMinutesText, recipe.prepMinutes);
+    const chillMinutes = minutesPatchValue(
+      chillMinutesText,
+      recipe.chillMinutes,
+    );
+    const cookMinutes = minutesPatchValue(cookMinutesText, recipe.cookMinutes);
     const trimmedSourceUrl = sourceUrl.trim();
+    const sourceUrlPatch: string | null | undefined =
+      trimmedSourceUrl === (recipe.sourceUrl ?? "")
+        ? undefined
+        : trimmedSourceUrl ||
+          (recipe.sourceUrl !== undefined ? null : undefined);
+    const trimmedYieldUnit = yieldUnit.trim();
+    const yieldUnitPatch: string | null | undefined =
+      trimmedYieldUnit === (recipe.yieldUnit ?? "")
+        ? undefined
+        : trimmedYieldUnit ||
+          (recipe.yieldUnit !== undefined ? null : undefined);
 
     const remainingIds = new Set(ingredients.map((item) => item.id));
     const scaleModeChanges = Object.entries(scaleModeById)
@@ -227,21 +255,11 @@ export function RecipeEditor({
     const patch: RecipeEditPatch = {
       ...(title.trim() !== recipe.title ? { title: title.trim() } : {}),
       ...(baseYield !== recipe.baseYield ? { baseYield } : {}),
-      ...(yieldUnit.trim() !== (recipe.yieldUnit ?? "")
-        ? { yieldUnit: yieldUnit.trim() }
-        : {}),
-      ...(prepMinutes !== undefined && prepMinutes !== recipe.prepMinutes
-        ? { prepMinutes }
-        : {}),
-      ...(chillMinutes !== undefined && chillMinutes !== recipe.chillMinutes
-        ? { chillMinutes }
-        : {}),
-      ...(cookMinutes !== undefined && cookMinutes !== recipe.cookMinutes
-        ? { cookMinutes }
-        : {}),
-      ...(trimmedSourceUrl && trimmedSourceUrl !== (recipe.sourceUrl ?? "")
-        ? { sourceUrl: trimmedSourceUrl }
-        : {}),
+      ...(yieldUnitPatch !== undefined ? { yieldUnit: yieldUnitPatch } : {}),
+      ...(prepMinutes !== undefined ? { prepMinutes } : {}),
+      ...(chillMinutes !== undefined ? { chillMinutes } : {}),
+      ...(cookMinutes !== undefined ? { cookMinutes } : {}),
+      ...(sourceUrlPatch !== undefined ? { sourceUrl: sourceUrlPatch } : {}),
       ingredients: sectionDiff(
         recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
         ingredients,
@@ -336,23 +354,21 @@ export function RecipeEditor({
         moveUpLabel={messages.moveUp}
         moveDownLabel={messages.moveDown}
         onChange={setIngredients}
-        renderItemExtra={(item) =>
-          item.id.startsWith("new:") ? null : (
-            <label className="draft-recipe-scale-toggle">
-              <input
-                type="checkbox"
-                checked={scaleModeById[item.id] === "fixed"}
-                onChange={(event) =>
-                  setScaleModeById((current) => ({
-                    ...current,
-                    [item.id]: event.currentTarget.checked ? "fixed" : "linear",
-                  }))
-                }
-              />
-              {messages.doesNotScale}
-            </label>
-          )
-        }
+        renderItemExtra={(item) => (
+          <label className="draft-recipe-scale-toggle">
+            <input
+              type="checkbox"
+              checked={scaleModeById[item.id] === "fixed"}
+              onChange={(event) =>
+                setScaleModeById((current) => ({
+                  ...current,
+                  [item.id]: event.currentTarget.checked ? "fixed" : "linear",
+                }))
+              }
+            />
+            {messages.doesNotScale}
+          </label>
+        )}
       />
       <EditableSection
         title={messages.steps}
@@ -373,6 +389,13 @@ export function RecipeEditor({
         onChange={setNotes}
       />
 
+      {(!noBlankItems(ingredients) ||
+        !noBlankItems(steps) ||
+        !noBlankItems(notes)) && (
+        <p className="draft-recipe-validation-error" role="alert">
+          {messages.blankItemError}
+        </p>
+      )}
       <div className="draft-recipe-actions">
         <button type="button" onClick={onCancel}>
           {messages.cancel}

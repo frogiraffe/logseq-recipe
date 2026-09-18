@@ -90,4 +90,5 @@ export const enMessages: UiMessages = {
   moveUp: "Move up",
   moveDown: "Move down",
   doesNotScale: "Doesn't scale with servings",
+  blankItemError: "Remove empty items or fill them in before saving.",
 };

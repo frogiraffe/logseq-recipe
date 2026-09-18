@@ -74,6 +74,9 @@ function fakeHost() {
       writes.push({ id, key, value });
       properties.set(`${id}:${key}`, value);
     },
+    removeBlockProperty: async (id: string, key: string) => {
+      properties.delete(`${id}:${key}`);
+    },
     getProperty: async (_key: string) => ({
       ident: ":plugin.property.logseq-recipe/recipe_marker",
     }),
@@ -134,6 +137,7 @@ function fakeHost() {
     createPageCalls,
     writes,
     pagesByTitle,
+    properties,
   };
 }
 
@@ -197,6 +201,42 @@ describe("duplicateRecipe", () => {
 
     // The original recipe is untouched.
     expect(fake.root.children).toHaveLength(3);
+  });
+
+  it("preserves a manually corrected ingredient's canonical structure instead of reparsing raw text", async () => {
+    const fake = fakeHost();
+    // The parser alone could never derive this from "a pinch of salt" - it's
+    // exactly the kind of correction Convert Preview lets a user apply.
+    fake.properties.set(
+      `${fake.ingredient1.uuid}:ingredient_meta`,
+      JSON.stringify({
+        version: 1,
+        locale: "en",
+        sourceMeasurementSystem: "us",
+        parsed: {
+          rawText: "2 eggs",
+          amount: { kind: "exact", value: 3 },
+          unit: "egg",
+          ingredientText: "large eggs, corrected",
+          confidence: "exact",
+        },
+      }),
+    );
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    const duplicated = await repository.duplicateRecipe(fake.root.uuid);
+
+    const correctedIngredient = duplicated.ingredients.find(
+      (i) => i.rawText === "2 eggs",
+    );
+    expect(correctedIngredient).toMatchObject({
+      amount: { kind: "exact", value: 3 },
+      unit: "egg",
+      ingredientText: "large eggs, corrected",
+    });
   });
 
   it("avoids a title collision by appending an incrementing suffix", async () => {

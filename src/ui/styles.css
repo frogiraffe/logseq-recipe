@@ -87,6 +87,11 @@
   border-radius: 12px;
 }
 
+.draft-recipe-validation-error {
+  color: var(--ls-error-color, #d1453b);
+  margin: 4px 0;
+}
+
 .draft-recipe-app-toolbar,
 .draft-recipe-recipes-toolbar,
 .draft-recipe-actions,

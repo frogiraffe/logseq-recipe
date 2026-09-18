@@ -22,7 +22,7 @@ describe("sectionDiff", () => {
     );
 
     expect(diff).toEqual({
-      added: ["vanilla"],
+      added: [{ tempId: "new:1", text: "vanilla" }],
       updated: [{ id: "b", text: "brown sugar" }],
       removed: ["c"],
     });
@@ -93,7 +93,7 @@ describe("commitRecipeEdit", () => {
       baseYield: 6,
       yieldUnit: "cookies",
       ingredients: {
-        added: ["butter"],
+        added: [{ tempId: "new:1", text: "butter" }],
         updated: [{ id: "i1", text: "120 g flour" }],
         removed: ["i2"],
       },
@@ -115,7 +115,11 @@ describe("commitRecipeEdit", () => {
 
     await commitRecipeEdit(repository, "r1", {
       ingredients: { added: [], updated: [], removed: [] },
-      steps: { added: ["Mix well."], updated: [], removed: [] },
+      steps: {
+        added: [{ tempId: "new:1", text: "Mix well." }],
+        updated: [],
+        removed: [],
+      },
       notes: { added: [], updated: [], removed: [] },
     });
 
@@ -169,6 +173,40 @@ describe("commitRecipeEdit", () => {
 
     expect(calls).toEqual(["reorder:i2,i1", "reorder:n2,n1"]);
   });
+
+  it("maps a new item's temp id to its real created id before reordering", async () => {
+    const { repository, calls } = fakeRepository();
+
+    await commitRecipeEdit(repository, "r1", {
+      ingredients: {
+        added: [{ tempId: "new:1", text: "butter" }],
+        updated: [],
+        removed: [],
+      },
+      steps: { added: [], updated: [], removed: [] },
+      notes: { added: [], updated: [], removed: [] },
+      ingredientOrder: ["i1", "new:1"],
+    });
+
+    expect(calls).toEqual(["add:ingredients:butter", "reorder:i1,new-butter"]);
+  });
+
+  it("maps a new item's temp id to its real created id before applying a scale-mode change", async () => {
+    const { repository, calls } = fakeRepository();
+
+    await commitRecipeEdit(repository, "r1", {
+      ingredients: {
+        added: [{ tempId: "new:1", text: "salt" }],
+        updated: [],
+        removed: [],
+      },
+      steps: { added: [], updated: [], removed: [] },
+      notes: { added: [], updated: [], removed: [] },
+      ingredientScaleModeChanges: [{ id: "new:1", scaleMode: "fixed" }],
+    });
+
+    expect(calls).toEqual(["add:ingredients:salt", "scaleMode:new-salt:fixed"]);
+  });
 });
 
 describe("orderDiff", () => {
@@ -187,9 +225,27 @@ describe("orderDiff", () => {
     ).toBeUndefined();
   });
 
-  it("ignores newly added items and removed items", () => {
+  it("ignores removed items that simply vanished from the list", () => {
     expect(
-      orderDiff([{ id: "a" }, { id: "b" }], [{ id: "a" }, { id: "new:1" }]),
+      orderDiff([{ id: "a" }, { id: "b" }], [{ id: "a" }]),
     ).toBeUndefined();
+  });
+
+  it("reports the full order (temp ids included) when a new item is added, even without reordering", () => {
+    expect(
+      orderDiff(
+        [{ id: "a" }, { id: "b" }],
+        [{ id: "a" }, { id: "b" }, { id: "new:1" }],
+      ),
+    ).toEqual(["a", "b", "new:1"]);
+  });
+
+  it("reports the full order when a new item is inserted in the middle", () => {
+    expect(
+      orderDiff(
+        [{ id: "a" }, { id: "b" }],
+        [{ id: "a" }, { id: "new:1" }, { id: "b" }],
+      ),
+    ).toEqual(["a", "new:1", "b"]);
   });
 });

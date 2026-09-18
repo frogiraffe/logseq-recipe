@@ -20,11 +20,11 @@ export interface RecipeRepository {
     id: string,
     patch: {
       baseYield?: number;
-      yieldUnit?: string;
-      prepMinutes?: number;
-      chillMinutes?: number;
-      cookMinutes?: number;
-      sourceUrl?: string;
+      yieldUnit?: string | null;
+      prepMinutes?: number | null;
+      chillMinutes?: number | null;
+      cookMinutes?: number | null;
+      sourceUrl?: string | null;
     },
   ): Promise<void>;
   addSectionItem(

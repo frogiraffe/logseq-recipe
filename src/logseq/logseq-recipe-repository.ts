@@ -4,6 +4,12 @@ import {
   ingredientMetaMatchesContext,
 } from "../application/ingredient-meta";
 import { decodeRecipeMeta } from "../application/recipe-meta";
+import {
+  replaceLeadingNumber,
+  type ScannedMetadataLine,
+  scanRecipeMetadataLines,
+  splitLabelValue,
+} from "../application/recipe-metadata";
 import type { RecipeRepository } from "../application/recipe-repository";
 import type {
   ExistingRecipeStructure,
@@ -47,6 +53,7 @@ export interface LogseqRecipeHost {
       key: string,
       value: unknown,
     ): Promise<unknown>;
+    removeBlockProperty(id: string, key: string): Promise<unknown>;
     getProperty(key: string): Promise<unknown>;
     updateBlock(id: string, content: string): Promise<unknown>;
     removeBlock(id: string): Promise<unknown>;
@@ -218,6 +225,72 @@ async function readProperty(
   key: string,
 ): Promise<unknown> {
   return host.editor.getBlockProperty(rootId, key);
+}
+
+async function resolveContext(
+  host: LogseqRecipeHost,
+  options: LogseqRecipeRepositoryOptions,
+  rootId: string,
+): Promise<ParseContext> {
+  const metaRaw = await readProperty(host, rootId, PROPERTY_KEYS.recipeMeta);
+  const meta = decodeRecipeMeta(unwrapBlockPropertyValue(metaRaw));
+  const userConfigs = await host.app.getUserConfigs();
+  const locale: RecipeLocale = resolveParserLocale(
+    meta.parserLocale,
+    options.settings,
+    userConfigs.preferredLanguage,
+  );
+  return {
+    ...defaultParseContext(locale),
+    ...(meta.sourceMeasurementSystem
+      ? { sourceMeasurementSystem: meta.sourceMeasurementSystem }
+      : {}),
+  };
+}
+
+function metadataLineChildren(
+  root: RecipeBlockSnapshot,
+): Array<{ id: string; title: string }> {
+  return root.children
+    .filter((child) => !child.isPropertyValue)
+    .map((child) => ({ id: child.uuid, title: child.title }));
+}
+
+/**
+ * Root metadata fields (yield/prep/chill/cook/source) may be authored as
+ * plain readable lines under the recipe root (e.g. "Porsiyon: 12"). Those
+ * lines - not the hidden property cache - are the source of truth: a native
+ * edit to the visible line must win over a stale hidden value, and the
+ * hidden property is refreshed to match so it never silently disagrees with
+ * what the user can see. Recipes authored purely through the plugin's
+ * Create Recipe flow have no such line for a field; the hidden property
+ * remains authoritative for those until a visible line is introduced.
+ */
+function resolveMetadataField<T>(
+  line: ScannedMetadataLine<T> | undefined,
+  propertyValue: T | undefined,
+): T | undefined {
+  if (line === undefined) return propertyValue;
+  return line.value ?? undefined;
+}
+
+async function syncScalarProperty(
+  host: LogseqRecipeHost,
+  rootId: string,
+  key: string,
+  resolvedValue: string | number | undefined,
+  currentRaw: unknown,
+): Promise<void> {
+  const current = unwrapBlockPropertyValue(currentRaw);
+  if (resolvedValue === undefined) {
+    if (current !== undefined && current !== null) {
+      await host.editor.removeBlockProperty(rootId, key);
+    }
+    return;
+  }
+  if (current !== resolvedValue) {
+    await host.editor.upsertBlockProperty(rootId, key, resolvedValue);
+  }
 }
 
 async function parsedIngredientForBlock(
@@ -420,16 +493,97 @@ export function createLogseqRecipeRepository(
     }));
 
     const cover = decodeCoverRef(coverRaw);
-    const yieldUnit = propertyString(yieldUnitRaw);
-    const prepMinutes = propertyNumber(prepRaw);
-    const chillMinutes = propertyNumber(chillRaw);
-    const cookMinutes = propertyNumber(cookRaw);
-    const sourceUrl = propertyString(sourceUrlRaw);
+
+    const metadataLines = scanRecipeMetadataLines(
+      metadataLineChildren(root),
+      context,
+    );
+    const baseYieldFromProperty = propertyNumber(baseYieldRaw);
+    const baseYield =
+      metadataLines.yield !== undefined
+        ? (metadataLines.yield.value?.baseYield ??
+          baseYieldFromProperty ??
+          Number.NaN)
+        : (baseYieldFromProperty ?? Number.NaN);
+    const yieldUnit =
+      metadataLines.yield !== undefined
+        ? metadataLines.yield.value?.yieldUnit
+        : propertyString(yieldUnitRaw);
+    const prepMinutes = resolveMetadataField(
+      metadataLines.prep,
+      propertyNumber(prepRaw),
+    );
+    const chillMinutes = resolveMetadataField(
+      metadataLines.chill,
+      propertyNumber(chillRaw),
+    );
+    const cookMinutes = resolveMetadataField(
+      metadataLines.cook,
+      propertyNumber(cookRaw),
+    );
+    const sourceUrl = resolveMetadataField(
+      metadataLines.source,
+      propertyString(sourceUrlRaw),
+    );
+
+    if (canSynchronizeIngredientMetadata) {
+      const syncs: Array<Promise<void>> = [
+        syncScalarProperty(
+          host,
+          root.uuid,
+          PROPERTY_KEYS.yieldUnit,
+          yieldUnit,
+          yieldUnitRaw,
+        ),
+        syncScalarProperty(
+          host,
+          root.uuid,
+          PROPERTY_KEYS.prepMinutes,
+          prepMinutes,
+          prepRaw,
+        ),
+        syncScalarProperty(
+          host,
+          root.uuid,
+          PROPERTY_KEYS.chillMinutes,
+          chillMinutes,
+          chillRaw,
+        ),
+        syncScalarProperty(
+          host,
+          root.uuid,
+          PROPERTY_KEYS.cookMinutes,
+          cookMinutes,
+          cookRaw,
+        ),
+        syncScalarProperty(
+          host,
+          root.uuid,
+          PROPERTY_KEYS.sourceUrl,
+          sourceUrl,
+          sourceUrlRaw,
+        ),
+      ];
+      // baseYield is required: never clear it just because it briefly failed
+      // to parse (e.g. a mid-edit typo on the visible line).
+      if (Number.isFinite(baseYield)) {
+        syncs.push(
+          syncScalarProperty(
+            host,
+            root.uuid,
+            PROPERTY_KEYS.baseYield,
+            baseYield,
+            baseYieldRaw,
+          ),
+        );
+      }
+      await Promise.all(syncs);
+    }
 
     const recipe: Recipe = {
       id: root.uuid,
       title: root.title,
-      baseYield: propertyNumber(baseYieldRaw) ?? Number.NaN,
+      baseYield,
       ...(yieldUnit ? { yieldUnit } : {}),
       ...(cover ? { cover } : {}),
       ...(prepMinutes !== undefined ? { prepMinutes } : {}),
@@ -593,60 +747,149 @@ export function createLogseqRecipeRepository(
       id: string,
       patch: {
         baseYield?: number;
-        yieldUnit?: string;
-        prepMinutes?: number;
-        chillMinutes?: number;
-        cookMinutes?: number;
-        sourceUrl?: string;
+        yieldUnit?: string | null;
+        prepMinutes?: number | null;
+        chillMinutes?: number | null;
+        cookMinutes?: number | null;
+        sourceUrl?: string | null;
       },
     ): Promise<void> {
-      if (patch.baseYield !== undefined) {
-        if (!Number.isFinite(patch.baseYield) || patch.baseYield <= 0) {
-          throw new RangeError("Recipe base yield must be positive.");
-        }
-        await host.editor.upsertBlockProperty(
-          id,
-          PROPERTY_KEYS.baseYield,
-          patch.baseYield,
-        );
+      if (
+        patch.baseYield !== undefined &&
+        (!Number.isFinite(patch.baseYield) || patch.baseYield <= 0)
+      ) {
+        throw new RangeError("Recipe base yield must be positive.");
       }
-      if (patch.yieldUnit !== undefined) {
-        await host.editor.upsertBlockProperty(
-          id,
-          PROPERTY_KEYS.yieldUnit,
-          patch.yieldUnit.trim(),
-        );
-      }
-
-      async function writeNonNegativeMinutes(
-        key: string,
-        value: number | undefined,
-      ): Promise<void> {
-        if (value === undefined) return;
-        if (!Number.isFinite(value) || value < 0) {
+      for (const value of [
+        patch.prepMinutes,
+        patch.chillMinutes,
+        patch.cookMinutes,
+      ]) {
+        if (value != null && (!Number.isFinite(value) || value < 0)) {
           throw new RangeError("Recipe time fields must be zero or positive.");
         }
-        await host.editor.upsertBlockProperty(id, key, value);
       }
-      await writeNonNegativeMinutes(
+
+      const root = await loadRoot(host, id);
+      if (!root) throw new Error(`Recipe not found: ${id}`);
+      const context = await resolveContext(host, options, id);
+      const lines = scanRecipeMetadataLines(
+        metadataLineChildren(root),
+        context,
+      );
+
+      // A clearing (null) patch removes the hidden property AND the visible
+      // line, if any - otherwise the very next load would resurrect the old
+      // value from that line (visible content is the source of truth).
+      async function rewriteOrClearLine(
+        key: string,
+        line: ScannedMetadataLine<unknown> | undefined,
+        clear: boolean,
+        valueText: () => string,
+      ): Promise<void> {
+        if (clear) {
+          await host.editor.removeBlockProperty(id, key);
+          if (line) await host.editor.removeBlock(line.blockId);
+          return;
+        }
+        if (line) {
+          const pair = splitLabelValue(line.title);
+          const label = pair ? pair.label : line.title;
+          await host.editor.updateBlock(
+            line.blockId,
+            `${label}: ${valueText()}`,
+          );
+        }
+      }
+
+      if (patch.baseYield !== undefined || patch.yieldUnit !== undefined) {
+        const originalBaseYield = propertyNumber(
+          await readProperty(host, id, PROPERTY_KEYS.baseYield),
+        );
+        if (patch.baseYield !== undefined) {
+          await host.editor.upsertBlockProperty(
+            id,
+            PROPERTY_KEYS.baseYield,
+            patch.baseYield,
+          );
+        }
+        const trimmedUnit =
+          patch.yieldUnit === null
+            ? undefined
+            : patch.yieldUnit !== undefined
+              ? patch.yieldUnit.trim() || undefined
+              : lines.yield?.value?.yieldUnit;
+        if (patch.yieldUnit !== undefined) {
+          if (trimmedUnit) {
+            await host.editor.upsertBlockProperty(
+              id,
+              PROPERTY_KEYS.yieldUnit,
+              trimmedUnit,
+            );
+          } else {
+            await host.editor.removeBlockProperty(id, PROPERTY_KEYS.yieldUnit);
+          }
+        }
+        if (lines.yield) {
+          const finalBaseYield = patch.baseYield ?? originalBaseYield;
+          const valueText =
+            `${finalBaseYield ?? ""}${trimmedUnit ? ` ${trimmedUnit}` : ""}`.trim();
+          const pair = splitLabelValue(lines.yield.title);
+          const label = pair ? pair.label : lines.yield.title;
+          await host.editor.updateBlock(
+            lines.yield.blockId,
+            `${label}: ${valueText}`,
+          );
+        }
+      }
+
+      async function applyMinutesField(
+        key: string,
+        value: number | null | undefined,
+        line: ScannedMetadataLine<number> | undefined,
+      ): Promise<void> {
+        if (value === undefined) return;
+        await rewriteOrClearLine(key, line, value === null, () => {
+          const pair = line ? splitLabelValue(line.title) : null;
+          return pair
+            ? replaceLeadingNumber(pair.value, value as number)
+            : String(value);
+        });
+        if (value !== null) {
+          await host.editor.upsertBlockProperty(id, key, value);
+        }
+      }
+      await applyMinutesField(
         PROPERTY_KEYS.prepMinutes,
         patch.prepMinutes,
+        lines.prep,
       );
-      await writeNonNegativeMinutes(
+      await applyMinutesField(
         PROPERTY_KEYS.chillMinutes,
         patch.chillMinutes,
+        lines.chill,
       );
-      await writeNonNegativeMinutes(
+      await applyMinutesField(
         PROPERTY_KEYS.cookMinutes,
         patch.cookMinutes,
+        lines.cook,
       );
 
       if (patch.sourceUrl !== undefined) {
-        await host.editor.upsertBlockProperty(
-          id,
+        const trimmedUrl = patch.sourceUrl?.trim() || null;
+        await rewriteOrClearLine(
           PROPERTY_KEYS.sourceUrl,
-          patch.sourceUrl.trim(),
+          lines.source,
+          trimmedUrl === null,
+          () => trimmedUrl ?? "",
         );
+        if (trimmedUrl !== null) {
+          await host.editor.upsertBlockProperty(
+            id,
+            PROPERTY_KEYS.sourceUrl,
+            trimmedUrl,
+          );
+        }
       }
     },
 

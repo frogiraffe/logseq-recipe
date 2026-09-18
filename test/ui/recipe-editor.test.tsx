@@ -118,12 +118,13 @@ describe("RecipeEditor", () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         ingredients: {
-          added: ["2 eggs"],
+          added: [{ tempId: "new:1", text: "2 eggs" }],
           updated: [{ id: "ingredient-1", text: "130 g butter" }],
           removed: [],
         },
         steps: { added: [], updated: [], removed: ["step-1"] },
         notes: { added: [], updated: [], removed: ["note-1"] },
+        ingredientOrder: ["ingredient-1", "new:1"],
       }),
     );
   });

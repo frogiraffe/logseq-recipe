@@ -90,4 +90,5 @@ export const trMessages: UiMessages = {
   moveUp: "Yukarı taşı",
   moveDown: "Aşağı taşı",
   doesNotScale: "Porsiyonla ölçeklenmez",
+  blankItemError: "Kaydetmeden önce boş satırları kaldırın veya doldurun.",
 };

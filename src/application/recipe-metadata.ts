@@ -16,7 +16,7 @@ export type ParsedRecipeMetadataLine =
   | { field: "prep" | "chill" | "cook"; value: number | null }
   | { field: "source"; value: string | null };
 
-function splitLabelValue(
+export function splitLabelValue(
   text: string,
 ): { label: string; value: string } | null {
   const index = text.indexOf(":");
@@ -25,6 +25,21 @@ function splitLabelValue(
   const value = text.slice(index + 1).trim();
   if (!label || !value) return null;
   return { label, value };
+}
+
+/**
+ * Rewrites just the number inside a metadata line's value, keeping whatever
+ * unit word the user originally wrote (e.g. "15 dk" -> "20 dk") so a plugin
+ * UI edit doesn't have to know locale-specific duration unit spelling.
+ */
+export function replaceLeadingNumber(text: string, value: number): string {
+  const match = text.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match || match.index === undefined) return String(value);
+  return (
+    text.slice(0, match.index) +
+    String(value) +
+    text.slice(match.index + match[0].length)
+  );
 }
 
 function metadataField(
@@ -97,4 +112,55 @@ export function parseRecipeMetadataLine(
     return { field, value: parseSource(pair.value) };
   }
   return { field, value: parseExactMinutes(pair.value, context) };
+}
+
+export interface ScannedMetadataLine<T> {
+  blockId: string;
+  title: string;
+  /** null means a line was found but its value could not be parsed. */
+  value: T | null;
+}
+
+export interface ScannedRecipeMetadataLines {
+  yield?: ScannedMetadataLine<YieldMetadataValue>;
+  prep?: ScannedMetadataLine<number>;
+  chill?: ScannedMetadataLine<number>;
+  cook?: ScannedMetadataLine<number>;
+  source?: ScannedMetadataLine<string>;
+}
+
+/**
+ * Finds the visible metadata lines (Yield/Prep/Chill/Cook/Source) among a
+ * recipe root's direct children. These lines are the recipe's readable,
+ * user-editable source of truth for these fields; hidden root properties are
+ * a cache that must follow them, not the other way around.
+ */
+export function scanRecipeMetadataLines(
+  children: ReadonlyArray<{ id: string; title: string }>,
+  context: ParseContext,
+): ScannedRecipeMetadataLines {
+  const result: ScannedRecipeMetadataLines = {};
+  for (const child of children) {
+    const parsed = parseRecipeMetadataLine(child.title, context);
+    if (!parsed) continue;
+    const line = { blockId: child.id, title: child.title, value: parsed.value };
+    switch (parsed.field) {
+      case "yield":
+        result.yield = line as ScannedMetadataLine<YieldMetadataValue>;
+        break;
+      case "prep":
+        result.prep = line as ScannedMetadataLine<number>;
+        break;
+      case "chill":
+        result.chill = line as ScannedMetadataLine<number>;
+        break;
+      case "cook":
+        result.cook = line as ScannedMetadataLine<number>;
+        break;
+      case "source":
+        result.source = line as ScannedMetadataLine<string>;
+        break;
+    }
+  }
+  return result;
 }

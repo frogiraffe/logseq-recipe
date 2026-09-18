@@ -1,4 +1,7 @@
-import { encodeIngredientMeta } from "../application/ingredient-meta";
+import {
+  decodeIngredientMeta,
+  encodeIngredientMeta,
+} from "../application/ingredient-meta";
 import type { RecipeRepository } from "../application/recipe-repository";
 import type {
   ExistingRecipeStructure,
@@ -14,6 +17,7 @@ import {
   type RecipeAuthoringHost,
   writeOptionalRootFields,
 } from "./authoring";
+import { unwrapBlockPropertyValue } from "./block-reader";
 import {
   createLogseqRecipeRepository,
   currentLogseqRecipeHost,
@@ -118,13 +122,32 @@ export function createDraftRecipeRepository(
           "ingredients",
           ingredient.rawText,
         );
+        // getRecipe() above already reconciled the source's ingredient_meta
+        // (see parsedIngredientForBlock), so it holds the exact canonical
+        // structure in use right now - including any manual correction the
+        // parser alone could never reproduce. Copy it verbatim instead of
+        // reparsing rawText, which would silently discard that correction.
+        const storedRaw = unwrapBlockPropertyValue(
+          await host.editor.getBlockProperty(
+            ingredient.id,
+            PROPERTY_KEYS.ingredientMeta,
+          ),
+        );
+        const stored = decodeIngredientMeta(storedRaw);
+        const canonical =
+          stored && stored.parsed.rawText === ingredient.rawText
+            ? stored.parsed
+            : parseIngredient(ingredient.rawText, context);
+        const canonicalContext = stored
+          ? {
+              locale: stored.locale,
+              sourceMeasurementSystem: stored.sourceMeasurementSystem,
+            }
+          : context;
         await host.editor.upsertBlockProperty(
           blockId,
           PROPERTY_KEYS.ingredientMeta,
-          encodeIngredientMeta(
-            parseIngredient(ingredient.rawText, context),
-            context,
-          ),
+          encodeIngredientMeta(canonical, canonicalContext),
         );
         if (ingredient.scaleMode === "fixed") {
           await readRepository.setIngredientScaleMode(blockId, "fixed");

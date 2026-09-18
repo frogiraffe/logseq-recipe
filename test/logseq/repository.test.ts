@@ -71,6 +71,7 @@ function fakeHost() {
   const writes: Array<{ id: string; key: string; value: unknown }> = [];
   const blockUpdates: Array<{ id: string; content: string }> = [];
   const blockRemovals: string[] = [];
+  const propertyRemovals: Array<{ id: string; key: string }> = [];
   const insertedBlocks: Array<{ parentId: string; content: string }> = [];
   const movedBlocks: Array<{
     srcBlock: string;
@@ -87,6 +88,7 @@ function fakeHost() {
     writes,
     blockUpdates,
     blockRemovals,
+    propertyRemovals,
     insertedBlocks,
     movedBlocks,
     pageRenames,
@@ -103,6 +105,10 @@ function fakeHost() {
       upsertBlockProperty: async (id: string, key: string, value: unknown) => {
         writes.push({ id, key, value });
         values.set(`${id}:${key}`, value);
+      },
+      removeBlockProperty: async (id: string, key: string) => {
+        propertyRemovals.push({ id, key });
+        values.delete(`${id}:${key}`);
       },
       getProperty: async (_key: string) => ({
         ident: ":plugin.property.logseq-recipe/recipe_marker",
@@ -814,6 +820,122 @@ describe("Logseq recipe repository", () => {
 
       expect(host.pageDeletions).toEqual(["Cookie"]);
       expect(host.blockRemovals).toEqual([]);
+    });
+  });
+
+  describe("root metadata line as source of truth", () => {
+    it("prefers a visibly-edited yield line over a stale hidden base_yield property, and refreshes the property", async () => {
+      const host = fakeHost();
+      host.tree.children.push({
+        id: 10,
+        uuid: "yield-line",
+        title: "Porsiyon: 12",
+        children: [],
+      });
+      // The hidden property is still the old value - as if the user only
+      // ever edited the visible line natively in Logseq.
+      const repository = repositoryFor(host);
+
+      const recipe = await repository.getRecipe("recipe-1");
+
+      expect(recipe?.baseYield).toBe(12);
+      expect(recipe?.yieldUnit).toBeUndefined();
+      expect(host.values.get("recipe-1:base_yield")).toBe(12);
+      // yield_unit was cleared because the visible line no longer specifies one.
+      expect(
+        host.propertyRemovals.some(
+          (r) => r.id === "recipe-1" && r.key === "yield_unit",
+        ),
+      ).toBe(true);
+    });
+
+    it("prefers a visible prep-time line over a stale hidden prep_minutes property", async () => {
+      const host = fakeHost();
+      host.tree.children.push({
+        id: 10,
+        uuid: "prep-line",
+        title: "Hazırlık: 20 dk",
+        children: [],
+      });
+      host.values.set("recipe-1:prep_minutes", 5);
+      const repository = repositoryFor(host);
+
+      const recipe = await repository.getRecipe("recipe-1");
+
+      expect(recipe?.prepMinutes).toBe(20);
+      expect(host.values.get("recipe-1:prep_minutes")).toBe(20);
+    });
+
+    it("falls back to the hidden property when no visible line exists (plugin-created recipe)", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      const recipe = await repository.getRecipe("recipe-1");
+
+      expect(recipe?.baseYield).toBe(8);
+      expect(recipe?.yieldUnit).toBe("cookies");
+    });
+
+    it("clears yield_unit and rewrites the visible line when the unit is cleared via the edit patch", async () => {
+      const host = fakeHost();
+      host.tree.children.push({
+        id: 10,
+        uuid: "yield-line",
+        title: "Porsiyon: 8 kurabiye",
+        children: [],
+      });
+      const repository = repositoryFor(host);
+
+      await repository.updateRecipeFields("recipe-1", { yieldUnit: null });
+
+      expect(
+        host.propertyRemovals.some(
+          (r) => r.id === "recipe-1" && r.key === "yield_unit",
+        ),
+      ).toBe(true);
+      expect(host.blockUpdates).toContainEqual({
+        id: "yield-line",
+        content: "Porsiyon: 8",
+      });
+    });
+
+    it("clears the hidden property and deletes the visible line when an optional time field is cleared", async () => {
+      const host = fakeHost();
+      host.tree.children.push({
+        id: 10,
+        uuid: "prep-line",
+        title: "Hazırlık: 15 dk",
+        children: [],
+      });
+      host.values.set("recipe-1:prep_minutes", 15);
+      const repository = repositoryFor(host);
+
+      await repository.updateRecipeFields("recipe-1", { prepMinutes: null });
+
+      expect(
+        host.propertyRemovals.some(
+          (r) => r.id === "recipe-1" && r.key === "prep_minutes",
+        ),
+      ).toBe(true);
+      expect(host.blockRemovals).toContain("prep-line");
+    });
+
+    it("rewrites the visible line's number, keeping its unit word, when a time field is updated via the edit patch", async () => {
+      const host = fakeHost();
+      host.tree.children.push({
+        id: 10,
+        uuid: "cook-line",
+        title: "Pişirme: 20 dk",
+        children: [],
+      });
+      const repository = repositoryFor(host);
+
+      await repository.updateRecipeFields("recipe-1", { cookMinutes: 35 });
+
+      expect(host.blockUpdates).toContainEqual({
+        id: "cook-line",
+        content: "Pişirme: 35 dk",
+      });
     });
   });
 });

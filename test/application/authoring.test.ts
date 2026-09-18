@@ -44,6 +44,9 @@ function fakeHost(
         writes.push({ id, key, value });
         properties.set(`${id}:${key}`, value);
       },
+      removeBlockProperty: async (id: string, key: string) => {
+        properties.delete(`${id}:${key}`);
+      },
       getPageBlocksTree: async (page: string) => existingChildren[page] ?? [],
       removeBlock: async (id: string) => {
         removed.push(id);
@@ -176,6 +179,43 @@ describe("recipe authoring", () => {
       "old-notes-section",
       "old-steps-section",
     ]);
+  });
+
+  it("clears the previous life's plugin-owned root properties when reusing a recycled page's title", async () => {
+    const fake = fakeHost(
+      {
+        "recycled-cookie:yield_unit": "cookies",
+        "recycled-cookie:prep_minutes": 15,
+        "recycled-cookie:chill_minutes": 30,
+        "recycled-cookie:cook_minutes": 20,
+        "recycled-cookie:source_url": "https://example.com/old-recipe",
+        "recycled-cookie:cover_ref": "assets/old-cover.png",
+      },
+      {
+        Cookie: {
+          id: 55,
+          uuid: "recycled-cookie",
+          ":logseq.property/deleted-at": 1_789_000_000_000,
+        },
+      },
+    );
+
+    await createRecipeInLogseq(
+      fake.host,
+      { title: "Cookie", baseYield: 8, locale: "en" },
+      { jsonProperty: false },
+    );
+
+    for (const key of [
+      "yield_unit",
+      "prep_minutes",
+      "chill_minutes",
+      "cook_minutes",
+      "source_url",
+      "cover_ref",
+    ]) {
+      expect(fake.properties.has(`recycled-cookie:${key}`)).toBe(false);
+    }
   });
 
   it("never touches existing children when creating a genuinely fresh page", async () => {

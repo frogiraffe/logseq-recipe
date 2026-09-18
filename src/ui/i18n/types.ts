@@ -85,4 +85,5 @@ export interface UiMessages {
   moveUp: string;
   moveDown: string;
   doesNotScale: string;
+  blankItemError: string;
 }
