@@ -281,10 +281,10 @@ Still required before merge/public beta:
 - [x] icon (`logo.svg`, referenced from `package.json` and the marketplace manifest)
 - [x] sample recipe (`examples/banana-bread.md`, verified against the real parser)
 - [x] beta feedback issue template (`.github/ISSUE_TEMPLATE/bug_report.md`)
-- [x] `CHANGELOG.md` with a 0.1.0 entry
+- [x] `CHANGELOG.md` with a 1.1.0 entry (the public repo already has a `v1.0.0` release; this branch's next tag must be a version greater than that, never a re-published `0.x`/`1.0.0`)
 - [ ] real Logseq compatibility qualification (see `COMPATIBILITY.md` and `docs/RELEASE_VALIDATION.md` — needs a real DB graph run; **the only remaining release blocker**)
 - [ ] screenshots of the plugin running inside real Logseq (required by the marketplace README; see `docs/RELEASE_VALIDATION.md`'s screenshot checklist — blocked on the same real-Logseq session as the item above)
-- [ ] push a `v0.1.0` tag once the two items above are done, confirm the Publish workflow attaches the zip to `frogiraffe/logseq-recipe`
+- [ ] push a `v1.1.0` tag once the two items above are done, confirm the Publish workflow attaches the zip to `frogiraffe/logseq-recipe`
 - [ ] fork `logseq/marketplace`, add `packages/logseq-recipe/manifest.json` (see `docs/marketplace-manifest.json`), open the submission PR — staging described in the final release report
 
 ## Later ideas — not v0.1

@@ -3,7 +3,53 @@
 All notable user-facing changes to Logseq Recipe are documented here. This
 project uses [Semantic Versioning](https://semver.org/).
 
-## [0.1.0] — Unreleased
+## [1.1.0] — Unreleased
+
+### Added
+
+- Recipe duplication, with a unique copy title and every field (yield,
+  times, source, categories/tags, parser locale, measurement system,
+  conversion overrides, cover, ingredient fixed/linear scale modes, and
+  manually corrected ingredient metadata) preserved exactly.
+- Sorting and drag-free reordering for ingredients, steps, and notes in
+  Recipe Edit, including adding and repositioning a new item in the same
+  save.
+
+### Fixed
+
+- **Root metadata source of truth**: a visible metadata line (Yield/Prep/
+  Chill/Cook/Source) is now authoritative on every load and self-heals the
+  hidden property cache, instead of the hidden property silently winning
+  over a native edit to the visible line.
+- Clearing an optional field (yield unit, prep/chill/cook time, source URL)
+  in Recipe Edit now actually removes it, instead of silently doing
+  nothing or leaving a misleading empty value.
+- Reusing a recycled page's title for a new recipe no longer inherits the
+  previous recipe's yield unit, times, source URL, or cover from before it
+  was deleted.
+- Duplicating a recipe now preserves a manually corrected ingredient's
+  canonical structure instead of silently reparsing its raw text and
+  losing the correction.
+- Ingredient density matching no longer lets a generic word (flour,
+  butter, milk, sugar...) match a differently-named compound ingredient
+  (bread flour, whole wheat flour, peanut butter, milk powder); those now
+  correctly resolve to their own rule or report no conversion available.
+- Renaming a recipe onto a title that's already a different Logseq page
+  now fails with a clear error instead of relying on undefined behavior.
+- Create/Convert now write the recipe-identifying marker only after every
+  other structural write succeeds, so a failure partway through can't
+  leave a half-built page discoverable as a complete recipe.
+- Editing base yield now resets the Recipe Card's target-yield scaling
+  instead of silently leaving it at the old yield/new yield ratio.
+- The Recipe Card now clears itself and returns to the Recipes view if the
+  open recipe is deleted or recycled from outside the plugin, instead of
+  showing stale content.
+- An older, slower recipe reload can no longer overwrite a newer one that
+  already finished loading.
+- Create, Convert, Save Edit, Save Settings, Duplicate, and Delete now
+  guard against a double-click starting the same operation twice.
+
+## [1.0.0]
 
 First public release, targeting Logseq DB graphs only.
 

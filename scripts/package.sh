@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Packages the built plugin (dist/ must already exist — run `pnpm build` first)
-# into the exact ZIP that ships in a GitHub Release and to the Marketplace.
+# Packages the built plugin into the exact ZIP that ships in a GitHub Release
+# and to the Marketplace. `pnpm package` always runs `pnpm build` first, so
+# this never packages a stale dist/ left over from an earlier source state.
+# Running this script directly (bypassing `pnpm package`) still refuses to
+# package without a fresh-looking dist/, rather than silently reusing one.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
