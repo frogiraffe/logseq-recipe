@@ -12,16 +12,18 @@ separate three distinct kinds of evidence, per the project's release policy:
 
 ## Automated verified
 
-Run from a clean `pnpm install --frozen-lockfile`, this session:
+Run from a clean `pnpm install --frozen-lockfile`, this session, at HEAD
+(`v1.1.0`, after the identity/correctness/CI pass described in
+`CHANGELOG.md`):
 
 | Check | Result |
 | --- | --- |
 | `pnpm typecheck` | pass |
 | `pnpm lint` | pass |
-| `pnpm test` | pass — 242 tests, 40 files |
+| `pnpm test` | pass — 298 tests, 41 files |
 | `pnpm build` (production) | pass |
-| `pnpm package` (release ZIP) | pass — produces `logseq-recipe-v<version>.zip` |
-| `pnpm run package:verify` | pass — unpacks the ZIP and confirms `package.json` parses, `dist/index.html` exists, and the `logseq.main`/`logseq.icon` paths resolve inside the extracted package |
+| `pnpm package` (release ZIP) | pass — produces `logseq-recipe-v1.1.0.zip`, always via a fresh `pnpm build` first |
+| `pnpm run package:verify` | pass — unpacks the ZIP and confirms `package.json` parses, `dist/index.html` exists, `logseq.main`/`logseq.icon` resolve, and `package.json.name`/`logseq.id`/`repository.url`/version/artifact filename all agree on the `logseq-recipe` identity |
 
 These checks confirm the plugin **builds and packages correctly**. They do
 **not** confirm it behaves correctly inside a real running Logseq app.
@@ -52,20 +54,38 @@ work through the items below. The sample recipe in
 
 ## MANUAL REQUIRED — real Logseq DB graph smoke test
 
+Automated tests exercise every item below through mocked Logseq hosts; none
+of this has been exercised against a real running Logseq yet. Do not report
+any of these as passing without actually performing them.
+
 1. [ ] Logseq loads the unpacked plugin without startup errors (check DevTools console).
 2. [ ] Logseq Recipe's commands (`Recipes`, `Create Recipe`, `Convert to Recipe`) appear in the command palette / block context menu.
-3. [ ] `examples/banana-bread.md`'s outline can be pasted in and converted via **Convert to Recipe**.
-4. [ ] The Recipe Card renders the converted recipe correctly.
-5. [ ] Ingredient values render correctly (amounts, units, the qualitative cinnamon line as raw text).
-6. [ ] Serving scaling (`−`/`+` and direct yield input) changes quantities correctly.
-7. [ ] Scaling back to the original yield restores the exact original values.
-8. [ ] Cooking Mode opens, shows the Preheat/Bake duration and temperature chips, and is navigable (buttons + arrow keys + Escape).
-9. [ ] Navigation/back/close between Recipe Card, Cooking Mode, and Recipes browser works without leaving stray UI state.
-10. [ ] Data survives a plugin reload and a graph close/reopen (recipe content, ingredient metadata, cover reference).
-11. [ ] An incomplete/invalid recipe (e.g. missing Ingredients section) fails gracefully — no crash, a clear message.
-12. [ ] No unexpected console errors appear during steps 2–11.
-13. [ ] Confirm the plugin's commands/UI do not appear (or clearly warn) when opened against a **file graph**, per DB-only design.
-14. [ ] Disabling and re-enabling the plugin does not corrupt or hide the graph's recipe content — the outline remains a normal, readable Logseq page with the plugin off.
+3. [ ] **Create Recipe**: creating a recipe with a title that already exists as a Logseq page is rejected with a clear error.
+4. [ ] `examples/banana-bread.md`'s outline can be pasted in and converted via **Convert to Recipe**, including manually correcting an ingredient the parser can't confidently parse.
+5. [ ] An unrecognized root-level line during Convert shows up as ignored/unclassified content in the preview instead of silently vanishing.
+6. [ ] The Recipe Card renders the converted recipe correctly; ingredient amounts/units render correctly, with the qualitative line kept as raw text.
+7. [ ] Serving scaling (`−`/`+` and direct yield input) changes quantities correctly, and scaling back to the original yield restores the exact original values.
+8. [ ] A fixed ("doesn't scale") ingredient stays constant while others scale.
+9. [ ] **Edit Recipe**: clearing an optional field (yield unit, prep/chill/cook time, source URL) actually removes it — reopening the recipe shows it gone, not reverted.
+10. [ ] **Edit Recipe**: editing the visible Yield/Prep/Chill/Cook/Source line directly in the native Logseq outline (not through the plugin UI) is picked up as the new value the next time the recipe is opened.
+11. [ ] **Edit Recipe**: adding a new ingredient, moving it to a different position, and marking it "doesn't scale" — all in the same save — persists exactly that state.
+12. [ ] **Edit Recipe**: blanking an existing ingredient/step/note's text blocks Save with a visible message instead of silently discarding the edit.
+13. [ ] **Edit Recipe**: changing base yield resets the Recipe Card's serving control to the new yield (1×), not the old yield/new yield ratio.
+14. [ ] **Rename**: renaming a recipe to a title that's already a different Logseq page fails with a clear error.
+15. [ ] **Duplicate**: the copy has a unique title and preserves yield, times, source, categories/tags, parser locale, measurement system, conversion overrides, cover, ingredient scale modes, item order, and any manually corrected ingredient exactly.
+16. [ ] **Delete**: deleting a recipe (and confirming) removes it from the Recipes browser; the wording matches Logseq's actual recycle/restore behavior, not "permanent."
+17. [ ] Deleting the page of an **open** recipe from elsewhere in Logseq (or via the plugin's own Delete) clears the Recipe Card and returns to the Recipes view instead of leaving stale content on screen.
+18. [ ] **Recycled title reuse**: delete a recipe, then Create Recipe with the same title again — the new recipe does not inherit the old one's yield unit, times, source URL, or cover.
+19. [ ] Rapid double-clicking Create / Convert / Save Edit / Save Settings / Duplicate / Delete does not create duplicate blocks/pages (buttons should visibly disable while pending).
+20. [ ] Cooking Mode opens, shows the Preheat/Bake duration and temperature chips, and is navigable (buttons + arrow keys + Escape).
+21. [ ] Start Cooking is disabled (or otherwise unavailable) for a recipe with zero steps.
+22. [ ] Ingredient checklist in Cooking Mode: checking an item, then removing that ingredient via a native edit, doesn't leave a stale checked state if a new ingredient reuses the id.
+23. [ ] Navigation/back/close between Recipe Card, Cooking Mode, and Recipes browser works without leaving stray UI state.
+24. [ ] Data survives a plugin reload and a graph close/reopen (recipe content, ingredient metadata, cover reference, root metadata lines).
+25. [ ] An incomplete/invalid recipe (e.g. missing Ingredients section) fails gracefully — no crash, a clear message.
+26. [ ] No unexpected console errors appear during any of the above.
+27. [ ] Confirm the plugin's commands/UI do not appear (or clearly warn) when opened against a **file graph**, per DB-only design.
+28. [ ] Disabling and re-enabling the plugin does not corrupt or hide the graph's recipe content — the outline remains a normal, readable Logseq page with the plugin off.
 
 ## Screenshot checklist (blocks the README's Screenshots section and the Marketplace README requirement)
 
