@@ -1,4 +1,4 @@
-name: Release
+name: Publish
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - "v*"
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,16 +25,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Verify (typecheck, lint, test, build)
         run: pnpm check
 
       - name: Package plugin
-        run: |
-          mkdir -p release/logseq-draft-recipe
-          cp -r dist release/logseq-draft-recipe/dist
-          cp package.json LICENSE README.md logo.svg release/logseq-draft-recipe/
-          cd release
-          zip -r ../logseq-draft-recipe-${{ github.ref_name }}.zip logseq-draft-recipe
+        run: pnpm package
+
+      - name: Verify package
+        run: pnpm run package:verify
 
       - name: Create release
         uses: softprops/action-gh-release@v2
