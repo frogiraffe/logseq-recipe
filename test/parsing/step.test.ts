@@ -16,6 +16,15 @@ describe("duration annotations", () => {
     expect(parsed.durations[0].unit).toBe("minute");
   });
 
+  it("rejects a reversed range as a structured quantity instead of reordering it", () => {
+    const parsed = parseStep("12-10 dakika pişir", defaultParseContext("tr"));
+    // "12-10" is invalid as a range; only the trailing "10 dakika" survives
+    // as a plain exact duration, never a range with min > max.
+    expect(
+      parsed.durations.every((duration) => duration.value.kind !== "range"),
+    ).toBe(true);
+  });
+
   it("preserves an inexact overnight duration without inventing hours", () => {
     const parsed = parseStep("Rest overnight.", defaultParseContext("en"));
     expect(parsed.durations).toHaveLength(1);

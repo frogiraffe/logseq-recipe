@@ -91,4 +91,5 @@ export const enMessages: UiMessages = {
   moveDown: "Move down",
   doesNotScale: "Doesn't scale with servings",
   blankItemError: "Remove empty items or fill them in before saving.",
+  cookingNoSteps: "This recipe has no steps to cook.",
 };

@@ -189,4 +189,59 @@ describe("RecipeCard", () => {
     );
     expect(onDeleteRecipe).toHaveBeenCalledTimes(1);
   });
+
+  it("disables Start Cooking for a recipe with zero steps", () => {
+    render(
+      <RecipeCard
+        recipe={recipe}
+        targetYield={recipe.baseYield}
+        measurementSystem="metric"
+        messages={enMessages}
+        onTargetYieldChange={() => undefined}
+        onStartCooking={() => undefined}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: enMessages.startCooking,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("enables Start Cooking once the recipe has at least one step", () => {
+    const recipeWithStep: Recipe = {
+      ...recipe,
+      steps: [
+        {
+          id: "s1",
+          rawText: "Mix well.",
+          durations: [],
+          temperatures: [],
+          heat: [],
+        },
+      ],
+    };
+
+    render(
+      <RecipeCard
+        recipe={recipeWithStep}
+        targetYield={recipeWithStep.baseYield}
+        measurementSystem="metric"
+        messages={enMessages}
+        onTargetYieldChange={() => undefined}
+        onStartCooking={() => undefined}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: enMessages.startCooking,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
 });

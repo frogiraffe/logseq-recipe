@@ -221,7 +221,7 @@ export function CookingMode({
         </main>
       ) : (
         <main className="draft-recipe-current-step">
-          <p>{messages.noResults}</p>
+          <p>{messages.cookingNoSteps}</p>
         </main>
       )}
 

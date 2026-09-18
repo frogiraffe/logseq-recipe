@@ -36,6 +36,12 @@ describe("parseIngredient", () => {
     });
   });
 
+  it("rejects a reversed range instead of reordering min/max", () => {
+    const parsed = parseIngredient("3-2 tbsp milk", defaultParseContext("en"));
+    expect(parsed.amount).toBeUndefined();
+    expect(parsed.confidence).toBe("unparsed");
+  });
+
   it("supports common quantity words across locales", () => {
     expect(
       parseIngredient("½ tasse de lait", defaultParseContext("fr")),

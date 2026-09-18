@@ -86,4 +86,5 @@ export interface UiMessages {
   moveDown: string;
   doesNotScale: string;
   blankItemError: string;
+  cookingNoSteps: string;
 }

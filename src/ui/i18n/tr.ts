@@ -91,4 +91,5 @@ export const trMessages: UiMessages = {
   moveDown: "Aşağı taşı",
   doesNotScale: "Porsiyonla ölçeklenmez",
   blankItemError: "Kaydetmeden önce boş satırları kaldırın veya doldurun.",
+  cookingNoSteps: "Bu tarifte pişirilecek adım yok.",
 };

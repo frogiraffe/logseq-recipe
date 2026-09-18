@@ -92,6 +92,10 @@ function parseDurationAt(
   if (tokens[first.nextIndex]?.kind === "range") {
     const second = parseAtom(tokens, first.nextIndex + 1);
     if (second) {
+      // A reversed range ("12-10 min") is not a valid structured quantity -
+      // reject it outright rather than silently keeping just the first
+      // number or reordering min/max to guess the author's intent.
+      if (second.value < first.value) return null;
       quantity = { kind: "range", min: first.value, max: second.value };
       quantityEndIndex = second.nextIndex;
     }

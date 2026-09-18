@@ -216,6 +216,7 @@ export function RecipeCard({
               type="button"
               className="draft-recipe-primary-action"
               onClick={onStartCooking}
+              disabled={pending || recipe.steps.length === 0}
             >
               {messages.startCooking}
             </button>
