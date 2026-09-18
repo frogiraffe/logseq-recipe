@@ -15,6 +15,7 @@ export interface DraftRecipeUiController {
   listRecipes(): Promise<RecipeSummary[]>;
   loadRecipe(id: string): Promise<Recipe | null>;
   createRecipe(input: NewRecipeInput): Promise<Recipe>;
+  duplicateRecipe(id: string): Promise<Recipe>;
   commitConversion(draft: ConversionDraft): Promise<void>;
   resolveCover(recipe: Recipe): Promise<string | null>;
   listImageAssets(): Promise<string[]>;

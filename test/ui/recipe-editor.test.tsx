@@ -128,6 +128,124 @@ describe("RecipeEditor", () => {
     );
   });
 
+  it("reports prep, chill, cook, and source changes", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(enMessages.prepTime), {
+      target: { value: "15" },
+    });
+    fireEvent.change(screen.getByLabelText(enMessages.chillTime), {
+      target: { value: "30" },
+    });
+    fireEvent.change(screen.getByLabelText(enMessages.cookTime), {
+      target: { value: "20" },
+    });
+    fireEvent.change(screen.getByLabelText(enMessages.source), {
+      target: { value: "https://example.com/cookie" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prepMinutes: 15,
+        chillMinutes: 30,
+        cookMinutes: 20,
+        sourceUrl: "https://example.com/cookie",
+      }),
+    );
+  });
+
+  it("disables Save when the source URL is invalid", () => {
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(enMessages.source), {
+      target: { value: "not a url" },
+    });
+    expect(
+      (
+        screen.getByRole("button", {
+          name: enMessages.save,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("marks an ingredient as not scaling with servings", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText(enMessages.doesNotScale));
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingredientScaleModeChanges: [
+          { id: "ingredient-1", scaleMode: "fixed" },
+        ],
+      }),
+    );
+  });
+
+  it("reorders ingredients via the move-down button", () => {
+    const twoIngredientRecipe: Recipe = {
+      ...recipe,
+      ingredients: [
+        ...recipe.ingredients,
+        {
+          id: "ingredient-2",
+          rawText: "2 eggs",
+          amount: { kind: "exact", value: 2 },
+          ingredientText: "eggs",
+          scaleMode: "linear",
+        },
+      ],
+    };
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={twoIngredientRecipe}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `${enMessages.moveDown}: 120 g butter`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingredientOrder: ["ingredient-2", "ingredient-1"],
+      }),
+    );
+  });
+
   it("disables Save while the title is empty or servings is invalid", () => {
     render(
       <RecipeEditor

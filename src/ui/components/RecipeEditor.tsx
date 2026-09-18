@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
+  orderDiff,
   type RecipeEditPatch,
   sectionDiff,
 } from "../../application/edit-recipe";
-import type { Recipe } from "../../domain/recipe";
+import type { IngredientScaleMode, Recipe } from "../../domain/recipe";
 import type { UiMessages } from "../i18n";
 
 interface EditableItem {
@@ -29,13 +30,19 @@ function EditableSection({
   items,
   addPlaceholder,
   removeLabel,
+  moveUpLabel,
+  moveDownLabel,
   onChange,
+  renderItemExtra,
 }: {
   title: string;
   items: EditableItem[];
   addPlaceholder: string;
   removeLabel: string;
+  moveUpLabel: string;
+  moveDownLabel: string;
   onChange(items: EditableItem[]): void;
+  renderItemExtra?(item: EditableItem): ReactNode;
 }) {
   const counter = useRef(0);
   const [draft, setDraft] = useState("");
@@ -48,11 +55,20 @@ function EditableSection({
     setDraft("");
   }
 
+  function moveItem(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    onChange(next);
+  }
+
   return (
     <section className="draft-recipe-section">
       <h2>{title}</h2>
       <ul className="draft-recipe-editor-items">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <li key={item.id} className="draft-recipe-editor-item">
             <input
               aria-label={`${title}: ${item.id}`}
@@ -67,6 +83,25 @@ function EditableSection({
                 )
               }
             />
+            {renderItemExtra?.(item)}
+            <button
+              type="button"
+              className="draft-recipe-editor-move-button"
+              aria-label={`${moveUpLabel}: ${item.text}`}
+              disabled={index === 0}
+              onClick={() => moveItem(index, -1)}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="draft-recipe-editor-move-button"
+              aria-label={`${moveDownLabel}: ${item.text}`}
+              disabled={index === items.length - 1}
+              onClick={() => moveItem(index, 1)}
+            >
+              ↓
+            </button>
             <button
               type="button"
               aria-label={`${removeLabel}: ${item.text}`}
@@ -109,6 +144,16 @@ export function RecipeEditor({
   const [title, setTitle] = useState(recipe.title);
   const [baseYieldText, setBaseYieldText] = useState(String(recipe.baseYield));
   const [yieldUnit, setYieldUnit] = useState(recipe.yieldUnit ?? "");
+  const [prepMinutesText, setPrepMinutesText] = useState(
+    recipe.prepMinutes !== undefined ? String(recipe.prepMinutes) : "",
+  );
+  const [chillMinutesText, setChillMinutesText] = useState(
+    recipe.chillMinutes !== undefined ? String(recipe.chillMinutes) : "",
+  );
+  const [cookMinutesText, setCookMinutesText] = useState(
+    recipe.cookMinutes !== undefined ? String(recipe.cookMinutes) : "",
+  );
+  const [sourceUrl, setSourceUrl] = useState(recipe.sourceUrl ?? "");
   const [ingredients, setIngredients] = useState<EditableItem[]>(
     initialItems(
       recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
@@ -120,19 +165,82 @@ export function RecipeEditor({
   const [notes, setNotes] = useState<EditableItem[]>(
     initialItems(recipe.notes),
   );
+  const [scaleModeById, setScaleModeById] = useState<
+    Record<string, IngredientScaleMode>
+  >(() =>
+    Object.fromEntries(recipe.ingredients.map((i) => [i.id, i.scaleMode])),
+  );
 
   const baseYield = Number(baseYieldText);
   const baseYieldValid =
     baseYieldText.trim() !== "" && Number.isFinite(baseYield) && baseYield > 0;
 
+  function parseMinutesField(text: string): number | undefined {
+    const trimmed = text.trim();
+    if (!trimmed) return undefined;
+    const value = Number(trimmed);
+    return Number.isFinite(value) && value >= 0 ? value : undefined;
+  }
+  function minutesFieldValid(text: string): boolean {
+    return text.trim() === "" || parseMinutesField(text) !== undefined;
+  }
+  function sourceUrlValid(value: string): boolean {
+    if (!value.trim()) return true;
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+
+  const formValid =
+    Boolean(title.trim()) &&
+    baseYieldValid &&
+    minutesFieldValid(prepMinutesText) &&
+    minutesFieldValid(chillMinutesText) &&
+    minutesFieldValid(cookMinutesText) &&
+    sourceUrlValid(sourceUrl);
+
   function save() {
-    if (!title.trim() || !baseYieldValid) return;
+    if (!formValid) return;
+
+    const prepMinutes = parseMinutesField(prepMinutesText);
+    const chillMinutes = parseMinutesField(chillMinutesText);
+    const cookMinutes = parseMinutesField(cookMinutesText);
+    const trimmedSourceUrl = sourceUrl.trim();
+
+    const remainingIds = new Set(ingredients.map((item) => item.id));
+    const scaleModeChanges = Object.entries(scaleModeById)
+      .filter(([id, mode]) => {
+        if (!remainingIds.has(id)) return false;
+        const original =
+          recipe.ingredients.find((i) => i.id === id)?.scaleMode ?? "linear";
+        return original !== mode;
+      })
+      .map(([id, scaleMode]) => ({ id, scaleMode }));
+
+    const ingredientOrder = orderDiff(recipe.ingredients, ingredients);
+    const stepOrder = orderDiff(recipe.steps, steps);
+    const noteOrder = orderDiff(recipe.notes, notes);
 
     const patch: RecipeEditPatch = {
       ...(title.trim() !== recipe.title ? { title: title.trim() } : {}),
       ...(baseYield !== recipe.baseYield ? { baseYield } : {}),
       ...(yieldUnit.trim() !== (recipe.yieldUnit ?? "")
         ? { yieldUnit: yieldUnit.trim() }
+        : {}),
+      ...(prepMinutes !== undefined && prepMinutes !== recipe.prepMinutes
+        ? { prepMinutes }
+        : {}),
+      ...(chillMinutes !== undefined && chillMinutes !== recipe.chillMinutes
+        ? { chillMinutes }
+        : {}),
+      ...(cookMinutes !== undefined && cookMinutes !== recipe.cookMinutes
+        ? { cookMinutes }
+        : {}),
+      ...(trimmedSourceUrl && trimmedSourceUrl !== (recipe.sourceUrl ?? "")
+        ? { sourceUrl: trimmedSourceUrl }
         : {}),
       ingredients: sectionDiff(
         recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
@@ -143,6 +251,12 @@ export function RecipeEditor({
         steps,
       ),
       notes: sectionDiff(recipe.notes, notes),
+      ...(scaleModeChanges.length > 0
+        ? { ingredientScaleModeChanges: scaleModeChanges }
+        : {}),
+      ...(ingredientOrder ? { ingredientOrder } : {}),
+      ...(stepOrder ? { stepOrder } : {}),
+      ...(noteOrder ? { noteOrder } : {}),
     };
     onSave(patch);
   }
@@ -175,19 +289,78 @@ export function RecipeEditor({
           onChange={(event) => setYieldUnit(event.currentTarget.value)}
         />
       </label>
+      <label>
+        {messages.prepTime}
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={prepMinutesText}
+          onChange={(event) => setPrepMinutesText(event.currentTarget.value)}
+        />
+      </label>
+      <label>
+        {messages.chillTime}
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={chillMinutesText}
+          onChange={(event) => setChillMinutesText(event.currentTarget.value)}
+        />
+      </label>
+      <label>
+        {messages.cookTime}
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={cookMinutesText}
+          onChange={(event) => setCookMinutesText(event.currentTarget.value)}
+        />
+      </label>
+      <label>
+        {messages.source}
+        <input
+          type="url"
+          value={sourceUrl}
+          onChange={(event) => setSourceUrl(event.currentTarget.value)}
+        />
+      </label>
 
       <EditableSection
         title={messages.ingredients}
         items={ingredients}
         addPlaceholder={messages.addIngredient}
         removeLabel={messages.remove}
+        moveUpLabel={messages.moveUp}
+        moveDownLabel={messages.moveDown}
         onChange={setIngredients}
+        renderItemExtra={(item) =>
+          item.id.startsWith("new:") ? null : (
+            <label className="draft-recipe-scale-toggle">
+              <input
+                type="checkbox"
+                checked={scaleModeById[item.id] === "fixed"}
+                onChange={(event) =>
+                  setScaleModeById((current) => ({
+                    ...current,
+                    [item.id]: event.currentTarget.checked ? "fixed" : "linear",
+                  }))
+                }
+              />
+              {messages.doesNotScale}
+            </label>
+          )
+        }
       />
       <EditableSection
         title={messages.steps}
         items={steps}
         addPlaceholder={messages.addStep}
         removeLabel={messages.remove}
+        moveUpLabel={messages.moveUp}
+        moveDownLabel={messages.moveDown}
         onChange={setSteps}
       />
       <EditableSection
@@ -195,6 +368,8 @@ export function RecipeEditor({
         items={notes}
         addPlaceholder={messages.addNote}
         removeLabel={messages.remove}
+        moveUpLabel={messages.moveUp}
+        moveDownLabel={messages.moveDown}
         onChange={setNotes}
       />
 
@@ -205,7 +380,7 @@ export function RecipeEditor({
         <button
           type="button"
           className="draft-recipe-primary-action"
-          disabled={!title.trim() || !baseYieldValid}
+          disabled={!formValid}
           onClick={save}
         >
           {messages.save}

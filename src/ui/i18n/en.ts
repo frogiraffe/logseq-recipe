@@ -75,6 +75,7 @@ export const enMessages: UiMessages = {
   conversionRulesHelp:
     "Draft Recipe automatically converts fixed units such as g ↔ kg and ml ↔ L. For supported ingredients, it also automatically converts between mass and volume (e.g. cups to grams) using built-in data. Add a custom conversion only when an ingredient is unsupported, or to override its built-in conversion for this recipe. This does not add an ingredient to the recipe — author ingredients as normal lines under Ingredients.",
   editRecipe: "Edit recipe",
+  duplicateRecipe: "Duplicate recipe",
   deleteRecipe: "Delete recipe",
   deleteRecipeConfirm:
     "Delete this recipe? This permanently removes the page from Logseq and cannot be undone.",
@@ -83,4 +84,10 @@ export const enMessages: UiMessages = {
   addStep: "Add step",
   addNote: "Add note",
   advanced: "Advanced",
+  sortBy: "Sort by",
+  sortByTitle: "Title (A–Z)",
+  sortByTotalTime: "Total time (shortest first)",
+  moveUp: "Move up",
+  moveDown: "Move down",
+  doesNotScale: "Doesn't scale with servings",
 };

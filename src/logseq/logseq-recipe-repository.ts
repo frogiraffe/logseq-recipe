@@ -12,7 +12,11 @@ import type {
   ValidationResult,
 } from "../application/types";
 import { validateLoadedRecipe } from "../application/validate-recipe";
-import type { Recipe, RecipeLocale } from "../domain/recipe";
+import type {
+  IngredientScaleMode,
+  Recipe,
+  RecipeLocale,
+} from "../domain/recipe";
 import { RECIPE_SCHEMA_VERSION } from "../domain/recipe";
 import { defaultParseContext, type ParseContext } from "../parsing/context";
 import { type ParsedIngredient, parseIngredient } from "../parsing/ingredient";
@@ -50,6 +54,11 @@ export interface LogseqRecipeHost {
       parentId: string,
       content: string,
       options?: { sibling?: boolean },
+    ): Promise<unknown>;
+    moveBlock(
+      srcBlock: string,
+      targetBlock: string,
+      options?: { before?: boolean; children?: boolean },
     ): Promise<unknown>;
     renamePage(oldName: string, newName: string): Promise<unknown>;
     deletePage(name: string): Promise<unknown>;
@@ -487,6 +496,12 @@ export function createLogseqRecipeRepository(
       );
     },
 
+    async duplicateRecipe(_id: string): Promise<Recipe> {
+      throw new Error(
+        "duplicateRecipe is provided by the authoring adapter, not the read repository.",
+      );
+    },
+
     async markExistingRecipe(
       _structure: ExistingRecipeStructure,
     ): Promise<void> {
@@ -572,9 +587,16 @@ export function createLogseqRecipeRepository(
       }
     },
 
-    async updateRecipeYield(
+    async updateRecipeFields(
       id: string,
-      patch: { baseYield?: number; yieldUnit?: string },
+      patch: {
+        baseYield?: number;
+        yieldUnit?: string;
+        prepMinutes?: number;
+        chillMinutes?: number;
+        cookMinutes?: number;
+        sourceUrl?: string;
+      },
     ): Promise<void> {
       if (patch.baseYield !== undefined) {
         if (!Number.isFinite(patch.baseYield) || patch.baseYield <= 0) {
@@ -591,6 +613,37 @@ export function createLogseqRecipeRepository(
           id,
           PROPERTY_KEYS.yieldUnit,
           patch.yieldUnit.trim(),
+        );
+      }
+
+      async function writeNonNegativeMinutes(
+        key: string,
+        value: number | undefined,
+      ): Promise<void> {
+        if (value === undefined) return;
+        if (!Number.isFinite(value) || value < 0) {
+          throw new RangeError("Recipe time fields must be zero or positive.");
+        }
+        await host.editor.upsertBlockProperty(id, key, value);
+      }
+      await writeNonNegativeMinutes(
+        PROPERTY_KEYS.prepMinutes,
+        patch.prepMinutes,
+      );
+      await writeNonNegativeMinutes(
+        PROPERTY_KEYS.chillMinutes,
+        patch.chillMinutes,
+      );
+      await writeNonNegativeMinutes(
+        PROPERTY_KEYS.cookMinutes,
+        patch.cookMinutes,
+      );
+
+      if (patch.sourceUrl !== undefined) {
+        await host.editor.upsertBlockProperty(
+          id,
+          PROPERTY_KEYS.sourceUrl,
+          patch.sourceUrl.trim(),
         );
       }
     },
@@ -622,6 +675,25 @@ export function createLogseqRecipeRepository(
 
     async removeSectionItem(itemId: string): Promise<void> {
       await host.editor.removeBlock(itemId);
+    },
+
+    async setIngredientScaleMode(
+      id: string,
+      scaleMode: IngredientScaleMode,
+    ): Promise<void> {
+      await host.editor.upsertBlockProperty(
+        id,
+        PROPERTY_KEYS.scaleMode,
+        scaleMode,
+      );
+    },
+
+    async reorderSectionItems(orderedIds: string[]): Promise<void> {
+      for (let i = 1; i < orderedIds.length; i++) {
+        await host.editor.moveBlock(orderedIds[i], orderedIds[i - 1], {
+          before: false,
+        });
+      }
     },
 
     async deleteRecipe(id: string): Promise<void> {

@@ -15,6 +15,7 @@ export interface RecipeCardProps {
   onStartCooking?(): void;
   onEditSettings?(): void;
   onEditRecipe?(): void;
+  onDuplicateRecipe?(): void;
   onDeleteRecipe?(): void;
 }
 
@@ -58,6 +59,7 @@ export function RecipeCard({
   onStartCooking,
   onEditSettings,
   onEditRecipe,
+  onDuplicateRecipe,
   onDeleteRecipe,
 }: RecipeCardProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -189,6 +191,11 @@ export function RecipeCard({
           {onEditRecipe && (
             <button type="button" onClick={onEditRecipe}>
               {messages.editRecipe}
+            </button>
+          )}
+          {onDuplicateRecipe && (
+            <button type="button" onClick={onDuplicateRecipe}>
+              {messages.duplicateRecipe}
             </button>
           )}
           {onEditSettings && (

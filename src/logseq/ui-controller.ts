@@ -107,6 +107,7 @@ export async function createRuntimeUiContext(
     listRecipes: () => repository.listRecipeSummaries(),
     loadRecipe: migrateThenLoad,
     createRecipe: (input: NewRecipeInput) => repository.createRecipe(input),
+    duplicateRecipe: (id: string) => repository.duplicateRecipe(id),
     commitConversion: (draft: ConversionDraft) =>
       commitRecipeConversion(repository, draft),
     resolveCover: (recipe: Recipe) =>

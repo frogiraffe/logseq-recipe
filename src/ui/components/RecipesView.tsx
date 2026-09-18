@@ -3,6 +3,8 @@ import {
   collectFacetSuggestions,
   filterRecipeSummaries,
   type RecipeFilter,
+  type RecipeSortKey,
+  sortRecipeSummaries,
 } from "../../application/list-recipes";
 import type { RecipeSummary } from "../../application/types";
 import type { UiMessages } from "../i18n";
@@ -16,9 +18,10 @@ export interface RecipesViewProps {
 
 export function RecipesView({ recipes, messages, onOpen }: RecipesViewProps) {
   const [filter, setFilter] = useState<RecipeFilter>({});
+  const [sortBy, setSortBy] = useState<RecipeSortKey>("title");
   const filtered = useMemo(
-    () => filterRecipeSummaries(recipes, filter),
-    [recipes, filter],
+    () => sortRecipeSummaries(filterRecipeSummaries(recipes, filter), sortBy),
+    [recipes, filter, sortBy],
   );
   const categorySuggestions = useMemo(
     () => collectFacetSuggestions(recipes, "categories"),
@@ -37,7 +40,9 @@ export function RecipesView({ recipes, messages, onOpen }: RecipesViewProps) {
         messages={messages}
         categorySuggestions={categorySuggestions}
         tagSuggestions={tagSuggestions}
+        sortBy={sortBy}
         onChange={setFilter}
+        onSortChange={setSortBy}
       />
 
       {recipes.length === 0 ? (

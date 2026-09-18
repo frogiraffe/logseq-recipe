@@ -164,6 +164,33 @@ describe("CookingMode", () => {
     expect(screen.getByText("200 g flour")).toBeTruthy();
   });
 
+  it("lets the cook check off ingredients as they're used", () => {
+    render(
+      <CookingMode
+        recipe={recipe}
+        targetYield={2}
+        measurementSystem="metric"
+        messages={enMessages}
+        onExit={() => undefined}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.ingredients }),
+    );
+
+    const checkbox = screen.getByRole("checkbox", { name: /flour/i });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(checkbox.closest("label")?.className).toContain(
+      "draft-recipe-ingredient-checked",
+    );
+
+    fireEvent.click(checkbox);
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+
   it("renders the resolved cover when cooking mode receives one", () => {
     render(
       <CookingMode
@@ -179,6 +206,19 @@ describe("CookingMode", () => {
     expect(cover.querySelector("img")?.getAttribute("src")).toBe(
       "file:///graph/assets/pan.jpg",
     );
+  });
+
+  it("shows recipe notes in a boxed section, and hides it when there are none", () => {
+    const { rerender } = render(cookingMode(recipe));
+    expect(screen.queryByText(enMessages.notes)).toBeNull();
+
+    const withNotes: Recipe = {
+      ...recipe,
+      notes: [{ id: "n1", text: "Centers stay soft, that is fine." }],
+    };
+    rerender(cookingMode(withNotes));
+    expect(screen.getByText(enMessages.notes)).toBeTruthy();
+    expect(screen.getByText("Centers stay soft, that is fine.")).toBeTruthy();
   });
 
   it("clamps the active step when a live recipe refresh removes later steps", () => {

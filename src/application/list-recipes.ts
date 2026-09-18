@@ -85,6 +85,28 @@ export function filterRecipeSummaries(
   });
 }
 
+export type RecipeSortKey = "title" | "totalTime";
+
+export function sortRecipeSummaries(
+  recipes: readonly RecipeSummary[],
+  sortBy: RecipeSortKey,
+): RecipeSummary[] {
+  const sorted = [...recipes];
+  if (sortBy === "totalTime") {
+    sorted.sort((a, b) => {
+      const aTotal = totalMinutes(a);
+      const bTotal = totalMinutes(b);
+      if (aTotal === undefined && bTotal === undefined) return 0;
+      if (aTotal === undefined) return 1;
+      if (bTotal === undefined) return -1;
+      return aTotal - bTotal;
+    });
+    return sorted;
+  }
+  sorted.sort((a, b) => a.title.localeCompare(b.title));
+  return sorted;
+}
+
 export function collectFacetSuggestions(
   recipes: readonly RecipeSummary[],
   facet: "categories" | "tags",

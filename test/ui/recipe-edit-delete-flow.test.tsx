@@ -26,6 +26,7 @@ function baseController(overrides: Partial<DraftRecipeUiController> = {}) {
     listRecipes: async () => [],
     loadRecipe: async () => recipe(),
     createRecipe: async () => recipe(),
+    duplicateRecipe: async () => recipe(),
     commitConversion: async () => undefined,
     resolveCover: async () => null,
     listImageAssets: async () => [],
@@ -77,6 +78,40 @@ describe("recipe edit/delete flow wiring", () => {
     expect(
       await screen.findByRole("button", { name: enMessages.editRecipe }),
     ).toBeTruthy();
+  });
+
+  it("duplicates through the controller and opens the copy", async () => {
+    const duplicated: Recipe = {
+      ...recipe(),
+      id: "recipe-2",
+      title: "Cookie (copy)",
+    };
+    const duplicateRecipe = vi
+      .fn<(id: string) => Promise<Recipe>>()
+      .mockResolvedValue(duplicated);
+    const controller = baseController({ duplicateRecipe });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.duplicateRecipe }),
+    );
+
+    await waitFor(() => {
+      expect(duplicateRecipe).toHaveBeenCalledWith("recipe-1");
+    });
+    expect(await screen.findByText("Cookie (copy)")).toBeTruthy();
   });
 
   it("deletes through the controller and returns to the recipes list", async () => {

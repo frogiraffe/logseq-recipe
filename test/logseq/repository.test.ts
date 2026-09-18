@@ -72,6 +72,11 @@ function fakeHost() {
   const blockUpdates: Array<{ id: string; content: string }> = [];
   const blockRemovals: string[] = [];
   const insertedBlocks: Array<{ parentId: string; content: string }> = [];
+  const movedBlocks: Array<{
+    srcBlock: string;
+    targetBlock: string;
+    before?: boolean;
+  }> = [];
   const pageRenames: Array<{ from: string; to: string }> = [];
   const pageDeletions: string[] = [];
   let pageEntity: unknown = null;
@@ -83,6 +88,7 @@ function fakeHost() {
     blockUpdates,
     blockRemovals,
     insertedBlocks,
+    movedBlocks,
     pageRenames,
     pageDeletions,
     setPageEntity(entity: unknown) {
@@ -114,6 +120,17 @@ function fakeHost() {
           uuid: `new-${insertedBlocks.length}`,
           title: content,
         };
+      },
+      moveBlock: async (
+        srcBlock: string,
+        targetBlock: string,
+        options?: { before?: boolean },
+      ) => {
+        movedBlocks.push({
+          srcBlock,
+          targetBlock,
+          before: options?.before,
+        });
       },
       renamePage: async (from: string, to: string) => {
         pageRenames.push({ from, to });
@@ -626,7 +643,7 @@ describe("Logseq recipe repository", () => {
       const host = fakeHost();
       const repository = repositoryFor(host);
 
-      await repository.updateRecipeYield("recipe-1", {
+      await repository.updateRecipeFields("recipe-1", {
         baseYield: 12,
         yieldUnit: "muffins",
       });
@@ -647,8 +664,92 @@ describe("Logseq recipe repository", () => {
       const host = fakeHost();
       const repository = repositoryFor(host);
       await expect(
-        repository.updateRecipeYield("recipe-1", { baseYield: 0 }),
+        repository.updateRecipeFields("recipe-1", { baseYield: 0 }),
       ).rejects.toThrow();
+    });
+
+    it("writes prep/chill/cook minutes and source url as separate optional updates", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      await repository.updateRecipeFields("recipe-1", {
+        prepMinutes: 15,
+        cookMinutes: 0,
+        sourceUrl: "https://example.com/recipe",
+      });
+
+      expect(host.writes).toContainEqual({
+        id: "recipe-1",
+        key: "prep_minutes",
+        value: 15,
+      });
+      expect(host.writes).toContainEqual({
+        id: "recipe-1",
+        key: "cook_minutes",
+        value: 0,
+      });
+      expect(host.writes).toContainEqual({
+        id: "recipe-1",
+        key: "source_url",
+        value: "https://example.com/recipe",
+      });
+      expect(host.writes.some((write) => write.key === "chill_minutes")).toBe(
+        false,
+      );
+    });
+
+    it("rejects a negative time field", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+      await expect(
+        repository.updateRecipeFields("recipe-1", { prepMinutes: -5 }),
+      ).rejects.toThrow();
+    });
+
+    it("writes a per-ingredient scale-mode override", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      await repository.setIngredientScaleMode("ingredient-1", "fixed");
+
+      expect(host.writes).toContainEqual({
+        id: "ingredient-1",
+        key: "scale_mode",
+        value: "fixed",
+      });
+    });
+
+    it("reorders section items by moving each item after its predecessor", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      await repository.reorderSectionItems([
+        "ingredient-2",
+        "ingredient-1",
+        "ingredient-3",
+      ]);
+
+      expect(host.movedBlocks).toEqual([
+        {
+          srcBlock: "ingredient-1",
+          targetBlock: "ingredient-2",
+          before: false,
+        },
+        {
+          srcBlock: "ingredient-3",
+          targetBlock: "ingredient-1",
+          before: false,
+        },
+      ]);
+    });
+
+    it("does nothing when reordering fewer than two items", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      await repository.reorderSectionItems(["ingredient-1"]);
+
+      expect(host.movedBlocks).toEqual([]);
     });
 
     it("appends a new item under the resolved section block", async () => {

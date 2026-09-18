@@ -129,7 +129,7 @@ async function writeRootMetadata(
   );
 }
 
-async function writeOptionalRootFields(
+export async function writeOptionalRootFields(
   host: RecipeAuthoringHost,
   rootId: string,
   structure: Pick<

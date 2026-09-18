@@ -27,6 +27,7 @@ describe("already-recipe view", () => {
       listRecipes: async () => [],
       loadRecipe,
       createRecipe: async () => recipe(),
+      duplicateRecipe: async () => recipe(),
       commitConversion: async () => undefined,
       resolveCover: async () => null,
       listImageAssets: async () => [],

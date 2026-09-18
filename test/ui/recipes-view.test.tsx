@@ -23,6 +23,15 @@ const recipes: RecipeSummary[] = [
     cookMinutes: 30,
     ingredientTexts: ["eggplant", "olive oil"],
   },
+  {
+    id: "soup",
+    title: "Zucchini Soup",
+    categories: ["Savory"],
+    tags: [],
+    prepMinutes: 5,
+    cookMinutes: 5,
+    ingredientTexts: ["zucchini"],
+  },
 ];
 
 describe("RecipesView", () => {
@@ -63,6 +72,30 @@ describe("RecipesView", () => {
       container.querySelector(".draft-recipe-category-chip"),
     ).not.toBeNull();
     expect(container.querySelector(".draft-recipe-tag-chip")).not.toBeNull();
+  });
+
+  it("sorts by title by default and re-sorts by total time on request", () => {
+    render(
+      <RecipesView
+        recipes={recipes}
+        messages={enMessages}
+        onOpen={() => undefined}
+      />,
+    );
+    const titleOf = (index: number) =>
+      screen.getAllByRole("button")[index].textContent;
+
+    expect(titleOf(0)).toContain("Chocolate Cookie");
+    expect(titleOf(1)).toContain("Roasted Eggplant");
+    expect(titleOf(2)).toContain("Zucchini Soup");
+
+    fireEvent.change(screen.getByLabelText(enMessages.sortBy), {
+      target: { value: "totalTime" },
+    });
+
+    expect(titleOf(0)).toContain("Zucchini Soup");
+    expect(titleOf(1)).toContain("Chocolate Cookie");
+    expect(titleOf(2)).toContain("Roasted Eggplant");
   });
 
   it("opens the selected recipe", () => {

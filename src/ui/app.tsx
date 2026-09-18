@@ -326,6 +326,21 @@ export function DraftRecipeApp({
           onTargetYieldChange={setTargetYield}
           onEditSettings={() => void openSettings()}
           onEditRecipe={() => setView({ kind: "edit" })}
+          onDuplicateRecipe={() => {
+            void (async () => {
+              try {
+                setError(null);
+                const duplicated = await controller.duplicateRecipe(recipe.id);
+                setRecipe(duplicated);
+                setTargetYield(duplicated.baseYield);
+                setView({ kind: "recipe-loaded" });
+              } catch (cause) {
+                setError(
+                  cause instanceof Error ? cause.message : String(cause),
+                );
+              }
+            })();
+          }}
           onDeleteRecipe={() => {
             void (async () => {
               try {
