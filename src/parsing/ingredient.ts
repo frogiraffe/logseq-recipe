@@ -111,6 +111,11 @@ function parseQuantity(tokens: Token[]): QuantityParse | null {
       first.quantity.kind === "exact" &&
       second.quantity.kind === "exact"
     ) {
+      // A reversed range ("3-2 tbsp") is not a valid structured quantity.
+      // Reject the whole quantity rather than silently keeping just the
+      // first number (misleadingly confident) or reordering min/max
+      // (guessing the author's intent).
+      if (second.quantity.value < first.quantity.value) return null;
       return {
         quantity: {
           kind: "range",

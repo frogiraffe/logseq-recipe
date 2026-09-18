@@ -96,7 +96,7 @@ async function probeDbChangeListener(blockUuid: string): Promise<boolean> {
   try {
     await logseq.Editor.updateBlock(
       blockUuid,
-      "Draft Recipe Phase 0 probe updated",
+      "Logseq Recipe Phase 0 probe updated",
     );
     return await Promise.race([
       changed,
@@ -191,7 +191,7 @@ export async function runPhase0CapabilityProbe(): Promise<Phase0ProbeReport> {
   const notes: string[] = [];
   const errors: string[] = [];
   const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const pageName = `Draft Recipe Phase 0 Probe ${runId}`;
+  const pageName = `Logseq Recipe Phase 0 Probe ${runId}`;
   const keys = {
     hidden: phase0ProbeKey("hidden", runId),
     number: phase0ProbeKey("number", runId),
@@ -247,7 +247,7 @@ export async function runPhase0CapabilityProbe(): Promise<Phase0ProbeReport> {
 
     const block = await logseq.Editor.appendBlockInPage(
       pageName,
-      "Draft Recipe Phase 0 probe",
+      "Logseq Recipe Phase 0 probe",
     );
     if (!block?.uuid) {
       throw new Error("Could not create the temporary probe block.");

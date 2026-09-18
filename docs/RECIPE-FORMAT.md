@@ -2,7 +2,7 @@
 
 This document is the human- and machine-readable authoring contract for Logseq Recipe.
 
-It describes the **visible Logseq content** that a person, importer, or an AI assistant should produce. It deliberately does **not** document internal plugin-owned property keys as an authoring surface.
+It describes the **visible Logseq content** that a person, importer, ChatGPT, or another external assistant should produce. It deliberately does **not** document internal plugin-owned property keys as an authoring surface.
 
 ## Core rule
 
@@ -234,7 +234,7 @@ Logseq Recipe must never fabricate a Celsius/Fahrenheit temperature for these ex
 
 ## Parser locales
 
-Logseq Recipe's parser data supports:
+Logseq Recipe v0.1 parser data supports:
 
 - English (`en`);
 - Turkish (`tr`);
@@ -246,7 +246,7 @@ Arabic is not part of the v0.1 parser scope.
 
 Parser language and measurement system are independent. A German recipe can use US measurements; an English recipe can use Metric measurements.
 
-The plugin UI is available in English and Turkish, independently from parser locale support.
+The v0.1 plugin UI is planned in English and Turkish independently from parser locale support.
 
 ## Categories and tags
 
@@ -295,7 +295,7 @@ Geçen gün kurabiye yaptım, biraz tereyağı koydum, sonra...
 
 should first be manually structured or transformed by an external assistant into the visible format described here.
 
-## Contract for AI assistants and other external tools
+## Contract for ChatGPT and other external assistants
 
 When a user asks you to convert a recipe into Logseq Recipe format:
 

@@ -65,7 +65,7 @@ export const trMessages: UiMessages = {
   rangeMax: "En çok",
   minutesUnit: "dk",
   converting: "Dönüştürülüyor",
-  alreadyRecipe: "Bu sayfa zaten bir Logseq Recipe tarifi.",
+  alreadyRecipe: "Bu sayfa zaten bir tarif.",
   openRecipe: "Tarifi aç",
   missingYieldPrompt:
     "Bu tarif kaç porsiyon/adet veriyor? Devam etmek için bu gerekli.",
@@ -75,6 +75,7 @@ export const trMessages: UiMessages = {
   conversionRulesHelp:
     "Logseq Recipe, g ↔ kg ve ml ↔ L gibi sabit birimleri otomatik olarak dönüştürür. Desteklenen malzemeler için kütle ile hacim arasında da (ör. bardağı grama) yerleşik verilerle otomatik dönüşüm yapar. Özel bir dönüşümü yalnızca bir malzeme desteklenmediğinde veya bu tarif için yerleşik dönüşümü geçersiz kılmak istediğinizde ekleyin. Bu, tarife malzeme eklemez — malzemeleri Malzemeler bölümü altına normal satırlar olarak yazın.",
   editRecipe: "Tarifi düzenle",
+  duplicateRecipe: "Tarifi çoğalt",
   deleteRecipe: "Tarifi sil",
   deleteRecipeConfirm:
     "Bu tarif silinsin mi? Bu işlem sayfayı Logseq'ten kalıcı olarak kaldırır ve geri alınamaz.",
@@ -83,4 +84,12 @@ export const trMessages: UiMessages = {
   addStep: "Adım ekle",
   addNote: "Not ekle",
   advanced: "Gelişmiş",
+  sortBy: "Sıralama",
+  sortByTitle: "Başlık (A–Z)",
+  sortByTotalTime: "Toplam süre (önce en kısa)",
+  moveUp: "Yukarı taşı",
+  moveDown: "Aşağı taşı",
+  doesNotScale: "Porsiyonla ölçeklenmez",
+  blankItemError: "Kaydetmeden önce boş satırları kaldırın veya doldurun.",
+  cookingNoSteps: "Bu tarifte pişirilecek adım yok.",
 };

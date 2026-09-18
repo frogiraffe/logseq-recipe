@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectFacetSuggestions,
   filterRecipeSummaries,
+  sortRecipeSummaries,
 } from "../../src/application/list-recipes";
 import type { RecipeSummary } from "../../src/application/types";
 
@@ -78,6 +79,38 @@ describe("filterRecipeSummaries", () => {
         totalMinutes: { min: 50, max: 60 },
       }).map((r) => r.id),
     ).toEqual(["cookie", "eggplant-bake"]);
+  });
+});
+
+describe("sortRecipeSummaries", () => {
+  it("sorts by title A-Z by default", () => {
+    expect(sortRecipeSummaries(recipes, "title").map((r) => r.id)).toEqual([
+      "cookie",
+      "eggplant-bake",
+      "eggplant-pasta",
+    ]);
+  });
+
+  it("sorts by total time, shortest first, with unknown totals last", () => {
+    const withUnknownTotal: typeof recipes = [
+      ...recipes,
+      {
+        id: "mystery",
+        title: "Mystery Dish",
+        categories: [],
+        tags: [],
+        ingredientTexts: [],
+      },
+    ];
+    expect(
+      sortRecipeSummaries(withUnknownTotal, "totalTime").map((r) => r.id),
+    ).toEqual(["eggplant-pasta", "eggplant-bake", "cookie", "mystery"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const copy = [...recipes];
+    sortRecipeSummaries(recipes, "title");
+    expect(recipes).toEqual(copy);
   });
 });
 

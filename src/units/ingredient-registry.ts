@@ -214,12 +214,19 @@ function normalizeIngredientText(value: string): string {
     .trim();
 }
 
+// A single-word alias (flour, butter, milk, sugar...) is a common, generic
+// ingredient noun whose density a compound name can completely change
+// (bread flour, peanut butter, milk powder). Only an exact match is safe for
+// those; substring/prefix/suffix matching is reserved for multi-word
+// aliases, which are specific enough that matching them inside a longer
+// phrase (e.g. "sifted bread flour") doesn't risk pulling in an unrelated
+// ingredient's density.
 function matchesAlias(text: string, alias: string): boolean {
   const normalizedAlias = normalizeIngredientText(alias);
   if (!normalizedAlias) return false;
   if (text === normalizedAlias) return true;
+  if (!normalizedAlias.includes(" ")) return false;
 
-  if (normalizedAlias.length < 4) return false;
   return (
     text.startsWith(`${normalizedAlias} `) ||
     text.endsWith(` ${normalizedAlias}`) ||
@@ -227,18 +234,29 @@ function matchesAlias(text: string, alias: string): boolean {
   );
 }
 
+// Exact phrase -> longest/most-specific matching alias -> no conversion.
+// Scanning every alias (rather than stopping at the first rule) means a
+// specific multi-word rule always wins over a shorter generic one
+// regardless of which order the rules happen to be declared in.
 function providerFromRules(
   rules: readonly IngredientMassVolumeRule[],
 ): IngredientConversionProvider {
   return {
     find(ingredientText) {
       const normalized = normalizeIngredientText(ingredientText);
+      let best: IngredientMassVolumeRule | null = null;
+      let bestAliasLength = -1;
       for (const rule of rules) {
-        if (rule.aliases.some((alias) => matchesAlias(normalized, alias))) {
-          return rule;
+        for (const alias of rule.aliases) {
+          if (!matchesAlias(normalized, alias)) continue;
+          const aliasLength = normalizeIngredientText(alias).length;
+          if (aliasLength > bestAliasLength) {
+            best = rule;
+            bestAliasLength = aliasLength;
+          }
         }
       }
-      return null;
+      return best;
     },
   };
 }

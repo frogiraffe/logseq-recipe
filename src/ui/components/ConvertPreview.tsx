@@ -37,6 +37,7 @@ interface IngredientCorrectionDraft {
 export interface ConvertPreviewProps {
   draft: ConversionDraft;
   messages: UiMessages;
+  pending?: boolean;
   onConfirm(draft: ConversionDraft): void;
   onCancel(): void;
 }
@@ -44,6 +45,7 @@ export interface ConvertPreviewProps {
 export function ConvertPreview({
   draft,
   messages,
+  pending = false,
   onConfirm,
   onCancel,
 }: ConvertPreviewProps) {
@@ -359,7 +361,7 @@ export function ConvertPreview({
           type="button"
           className="draft-recipe-primary-action"
           onClick={() => onConfirm(resolvedDraft)}
-          disabled={!canConfirm}
+          disabled={!canConfirm || pending}
         >
           {messages.confirm}
         </button>

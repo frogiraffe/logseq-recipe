@@ -44,6 +44,9 @@ function fakeHost(
         writes.push({ id, key, value });
         properties.set(`${id}:${key}`, value);
       },
+      removeBlockProperty: async (id: string, key: string) => {
+        properties.delete(`${id}:${key}`);
+      },
       getPageBlocksTree: async (page: string) => existingChildren[page] ?? [],
       removeBlock: async (id: string) => {
         removed.push(id);
@@ -89,6 +92,21 @@ describe("recipe authoring", () => {
     ).toBe(true);
     expect(fake.writes.some((write) => write.key === "amount")).toBe(false);
     expect(fake.writes.some((write) => write.key === "unit")).toBe(false);
+  });
+
+  it("writes the recipe marker only after every other structural write, so a partial failure never leaves an incomplete page discoverable as a recipe", async () => {
+    const fake = fakeHost();
+
+    await createRecipeInLogseq(
+      fake.host,
+      { title: "Cookie", baseYield: 8, yieldUnit: "cookies", locale: "en" },
+      { jsonProperty: false },
+    );
+
+    const markerIndex = fake.writes.findIndex(
+      (write) => write.key === "recipe_marker",
+    );
+    expect(markerIndex).toBe(fake.writes.length - 1);
   });
 
   it("refuses to mutate a pre-existing page with the requested recipe title", async () => {
@@ -178,6 +196,43 @@ describe("recipe authoring", () => {
     ]);
   });
 
+  it("clears the previous life's plugin-owned root properties when reusing a recycled page's title", async () => {
+    const fake = fakeHost(
+      {
+        "recycled-cookie:yield_unit": "cookies",
+        "recycled-cookie:prep_minutes": 15,
+        "recycled-cookie:chill_minutes": 30,
+        "recycled-cookie:cook_minutes": 20,
+        "recycled-cookie:source_url": "https://example.com/old-recipe",
+        "recycled-cookie:cover_ref": "assets/old-cover.png",
+      },
+      {
+        Cookie: {
+          id: 55,
+          uuid: "recycled-cookie",
+          ":logseq.property/deleted-at": 1_789_000_000_000,
+        },
+      },
+    );
+
+    await createRecipeInLogseq(
+      fake.host,
+      { title: "Cookie", baseYield: 8, locale: "en" },
+      { jsonProperty: false },
+    );
+
+    for (const key of [
+      "yield_unit",
+      "prep_minutes",
+      "chill_minutes",
+      "cook_minutes",
+      "source_url",
+      "cover_ref",
+    ]) {
+      expect(fake.properties.has(`recycled-cookie:${key}`)).toBe(false);
+    }
+  });
+
   it("never touches existing children when creating a genuinely fresh page", async () => {
     const fake = fakeHost();
 
@@ -219,6 +274,40 @@ describe("recipe authoring", () => {
         { id: "steps", key: "section_role", value: "steps" },
       ]),
     );
+  });
+
+  it("writes the recipe marker only after section roles and ingredient metadata during conversion", async () => {
+    const fake = fakeHost();
+    await markExistingRecipeInLogseq(
+      fake.host,
+      {
+        rootId: "existing-root",
+        locale: "en",
+        sourceMeasurementSystem: "us",
+        sectionRoles: [
+          { blockId: "ingredients", role: "ingredients" },
+          { blockId: "steps", role: "steps" },
+        ],
+        ingredientMetadata: [
+          {
+            blockId: "ingredient-1",
+            parsed: {
+              rawText: "1 cup flour",
+              amount: { kind: "exact", value: 1 },
+              unit: "cup_us",
+              ingredientText: "flour",
+              confidence: "exact",
+            },
+          },
+        ],
+      },
+      { jsonProperty: false },
+    );
+
+    const markerIndex = fake.writes.findIndex(
+      (write) => write.id === "existing-root" && write.key === "recipe_marker",
+    );
+    expect(markerIndex).toBe(fake.writes.length - 1);
   });
 
   it("writes one hidden canonical ingredient payload during conversion", async () => {

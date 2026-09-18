@@ -2,6 +2,7 @@ import type {
   FacetSuggestion,
   MinuteRange,
   RecipeFilter,
+  RecipeSortKey,
 } from "../../application/list-recipes";
 import type { UiMessages } from "../i18n";
 
@@ -10,7 +11,9 @@ export interface FilterBarProps {
   messages: UiMessages;
   categorySuggestions: FacetSuggestion[];
   tagSuggestions: FacetSuggestion[];
+  sortBy: RecipeSortKey;
   onChange(filter: RecipeFilter): void;
+  onSortChange(sortBy: RecipeSortKey): void;
 }
 
 type RangeKey = "prepMinutes" | "cookMinutes" | "totalMinutes";
@@ -34,7 +37,9 @@ export function FilterBar({
   messages,
   categorySuggestions,
   tagSuggestions,
+  sortBy,
   onChange,
+  onSortChange,
 }: FilterBarProps) {
   const update = (patch: Partial<RecipeFilter>) =>
     onChange({ ...filter, ...patch });
@@ -54,6 +59,20 @@ export function FilterBar({
 
   return (
     <section className="draft-recipe-filters" aria-label={messages.filters}>
+      <label>
+        {messages.sortBy}
+        <select
+          aria-label={messages.sortBy}
+          value={sortBy}
+          onChange={(event) =>
+            onSortChange(event.currentTarget.value as RecipeSortKey)
+          }
+        >
+          <option value="title">{messages.sortByTitle}</option>
+          <option value="totalTime">{messages.sortByTotalTime}</option>
+        </select>
+      </label>
+
       <label>
         {messages.searchRecipes}
         <input

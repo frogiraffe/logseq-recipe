@@ -1,4 +1,14 @@
 .draft-recipe-app {
+  --dr-radius-sm: 8px;
+  --dr-radius-md: 12px;
+  --dr-radius-lg: 16px;
+  --dr-shadow-resting: 0 1px 2px
+    color-mix(in srgb, var(--ls-primary-text-color) 8%, transparent);
+  --dr-shadow-raised:
+    0 1px 2px color-mix(in srgb, var(--ls-primary-text-color) 8%, transparent),
+    0 10px 24px
+    color-mix(in srgb, var(--ls-primary-text-color) 10%, transparent);
+
   box-sizing: border-box;
   min-height: 100vh;
   padding: 20px;
@@ -77,6 +87,11 @@
   border-radius: 12px;
 }
 
+.draft-recipe-validation-error {
+  color: var(--ls-error-color, #d1453b);
+  margin: 4px 0;
+}
+
 .draft-recipe-app-toolbar,
 .draft-recipe-recipes-toolbar,
 .draft-recipe-actions,
@@ -112,11 +127,22 @@
   transition:
     border-color 0.12s ease,
     background-color 0.12s ease,
-    opacity 0.12s ease;
+    opacity 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .draft-recipe-app button:not(:disabled):hover {
   border-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-app button.draft-recipe-primary-action:not(:disabled):hover {
+  box-shadow: var(--dr-shadow-raised);
+  transform: translateY(-1px);
+}
+
+.draft-recipe-app button:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
 }
 
 .draft-recipe-app input:focus-visible,
@@ -183,8 +209,9 @@
   width: 100%;
   aspect-ratio: 16 / 7;
   border: 1px solid var(--ls-border-color);
-  border-radius: 14px;
+  border-radius: var(--dr-radius-lg);
   background: var(--ls-secondary-background-color);
+  box-shadow: var(--dr-shadow-raised);
 }
 
 .draft-recipe-cover img {
@@ -208,6 +235,10 @@
 .draft-recipe-new-form h1,
 .draft-recipe-settings-panel h1 {
   margin: 0 0 10px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .draft-recipe-meta-row {
@@ -280,6 +311,22 @@
   min-width: 108px;
 }
 
+.draft-recipe-editor-item .draft-recipe-editor-move-button {
+  min-width: 32px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.draft-recipe-scale-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  color: var(--ls-secondary-text-color);
+  white-space: nowrap;
+}
+
 .draft-recipe-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -331,7 +378,16 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--dr-radius-md);
   text-align: left;
+  box-shadow: var(--dr-shadow-resting);
+}
+
+.draft-recipe-recipe-list-item:not(:disabled):hover {
+  border-color: var(--ls-link-text-color);
+  box-shadow: var(--dr-shadow-raised);
+  transform: translateY(-1px);
 }
 
 .draft-recipe-recipe-list-item span {
@@ -435,11 +491,45 @@
   gap: 4px;
 }
 
-.draft-recipe-cooking-ingredients {
+.draft-recipe-cooking-ingredients,
+.draft-recipe-cooking-notes {
   padding: 12px;
   border: 1px solid var(--ls-border-color);
   border-radius: 12px;
   background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-cooking-ingredients li {
+  list-style: none;
+}
+
+.draft-recipe-cooking-ingredients label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.draft-recipe-cooking-ingredients ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.draft-recipe-ingredient-checked {
+  color: var(--ls-secondary-text-color);
+  text-decoration: line-through;
+}
+
+.draft-recipe-cooking-notes h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.draft-recipe-cooking-notes ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .draft-recipe-current-step {
@@ -450,6 +540,24 @@
   min-height: 45vh;
   font-size: clamp(1.2rem, 3vw, 2rem);
   line-height: 1.45;
+  animation: draft-recipe-step-in 0.22s ease;
+}
+
+@keyframes draft-recipe-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-current-step {
+    animation: none;
+  }
 }
 
 .draft-recipe-annotation {
@@ -467,7 +575,28 @@
 .draft-recipe-cooking-nav progress {
   flex: 1;
   max-width: 420px;
+  height: 8px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
   accent-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-cooking-nav progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-cooking-nav progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--ls-link-text-color);
+  transition: width 0.2s ease;
+}
+
+.draft-recipe-cooking-nav progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--ls-link-text-color);
+  transition: width 0.2s ease;
 }
 
 .draft-recipe-back {

@@ -57,6 +57,7 @@ function controllerHarness() {
     listRecipes: async () => [],
     loadRecipe,
     createRecipe: async () => recipe("Mix."),
+    duplicateRecipe: async () => recipe("Mix."),
     commitConversion: async () => undefined,
     resolveCover: async () => null,
     listImageAssets: async () => [],
@@ -176,5 +177,133 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     expect(
       screen.getByRole("button", { name: enMessages.previous }),
     ).toBeTruthy();
+  });
+
+  it("navigates back to the Recipes view when the open recipe is deleted/recycled externally", async () => {
+    const harness = controllerHarness();
+    harness.controller.loadRecipe = vi
+      .fn<(_: string) => Promise<Recipe | null>>()
+      .mockResolvedValueOnce(recipe("Mix."))
+      .mockResolvedValueOnce(null);
+
+    render(
+      <DraftRecipeApp
+        controller={harness.controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    await screen.findByText("Lifecycle Recipe");
+
+    await act(async () => {
+      harness.triggerWatch();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Lifecycle Recipe")).toBeNull();
+    });
+    expect(
+      screen.getByRole("button", { name: enMessages.createRecipe }),
+    ).toBeTruthy();
+  });
+
+  it("does not let an out-of-order stale load overwrite a newer one", async () => {
+    const harness = controllerHarness();
+    let resolveSlow: ((value: Recipe | null) => void) | undefined;
+    let calls = 0;
+    harness.controller.loadRecipe = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) return recipe("Mix."); // initial mount load
+      if (calls === 2) {
+        // first watch trigger: slow - resolved manually, later
+        return new Promise<Recipe | null>((resolve) => {
+          resolveSlow = resolve;
+        });
+      }
+      return recipe("Second, faster load."); // second watch trigger: fast
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={harness.controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    await screen.findByText("Mix.");
+
+    // The slow load starts (watcher fires), then a second, faster load
+    // starts before the slow one resolves.
+    await act(async () => {
+      harness.triggerWatch();
+      harness.triggerWatch();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Second, faster load.")).toBeTruthy();
+    });
+
+    // The slow first load finally resolves - it must not clobber the newer state.
+    await act(async () => {
+      resolveSlow?.(recipe("First, slower load - should be discarded."));
+    });
+
+    expect(screen.getByText("Second, faster load.")).toBeTruthy();
+    expect(
+      screen.queryByText("First, slower load - should be discarded."),
+    ).toBeNull();
+  });
+
+  it("ignores a second Delete click while the first delete is still in flight", async () => {
+    const harness = controllerHarness();
+    let resolveDelete: (() => void) | undefined;
+    const deleteRecipe = vi.fn<() => Promise<void>>().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve as () => void;
+        }),
+    );
+    harness.controller.deleteRecipe = deleteRecipe;
+
+    render(
+      <DraftRecipeApp
+        controller={harness.controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    await screen.findByText("Lifecycle Recipe");
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.deleteRecipe }),
+    );
+    const confirmButton = await screen.findByRole("button", {
+      name: enMessages.deleteRecipeConfirmAction,
+    });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    expect(deleteRecipe).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveDelete?.();
+    });
   });
 });

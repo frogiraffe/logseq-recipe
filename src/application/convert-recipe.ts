@@ -250,6 +250,15 @@ export function analyzeRecipeConversion(
           title: child.title,
           children: child.children,
         });
+      } else {
+        // A leaf line isn't a section the user can classify into
+        // ingredients/steps/notes, but it must not just vanish - surface it
+        // as ignored/unclassified content instead of silently dropping it.
+        nonStructuralIssues.push({
+          code: "unclassified-content",
+          message: `Line "${child.title}" was not recognized as a section, metadata field, ingredient, step, or note, and will be ignored.`,
+          blockId: child.id,
+        });
       }
       continue;
     }

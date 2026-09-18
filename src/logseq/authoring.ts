@@ -28,6 +28,7 @@ export interface RecipeAuthoringHost {
     key: string,
     value: unknown,
   ): Promise<unknown>;
+  removeBlockProperty(id: string, key: string): Promise<unknown>;
   getPageBlocksTree(page: string): Promise<unknown>;
   removeBlock(id: string): Promise<unknown>;
   restorePage(page: string): Promise<unknown>;
@@ -103,6 +104,29 @@ async function clearExistingChildren(
   }
 }
 
+// Root (page-level) properties survive a recycle/restore even after every
+// child block is wiped - they belong to the page entity itself, not to the
+// children. A reused title must not let a *previous* recipe's yield unit,
+// times, source, or cover leak into the new one just because nothing new
+// was specified for that field yet.
+const RESETTABLE_ROOT_PROPERTY_KEYS = [
+  PROPERTY_KEYS.yieldUnit,
+  PROPERTY_KEYS.prepMinutes,
+  PROPERTY_KEYS.chillMinutes,
+  PROPERTY_KEYS.cookMinutes,
+  PROPERTY_KEYS.sourceUrl,
+  PROPERTY_KEYS.coverRef,
+] as const;
+
+async function clearPluginOwnedRootProperties(
+  host: RecipeAuthoringHost,
+  rootId: string,
+): Promise<void> {
+  for (const key of RESETTABLE_ROOT_PROPERTY_KEYS) {
+    await host.removeBlockProperty(rootId, key);
+  }
+}
+
 function metaStorageValue(
   meta: RecipeMeta,
   capabilities: AuthoringCapabilities,
@@ -116,7 +140,6 @@ async function writeRootMetadata(
   meta: RecipeMeta,
   capabilities: AuthoringCapabilities,
 ): Promise<void> {
-  await host.upsertBlockProperty(rootId, PROPERTY_KEYS.recipeMarker, true);
   await host.upsertBlockProperty(
     rootId,
     PROPERTY_KEYS.schemaVersion,
@@ -129,7 +152,19 @@ async function writeRootMetadata(
   );
 }
 
-async function writeOptionalRootFields(
+// The marker is what makes a page discoverable as a recipe (listRecipeIds
+// queries by its presence). Writing it only after every other structural
+// write succeeds means a failure partway through Create/Convert leaves an
+// incomplete page that the plugin still treats as "not a recipe" rather
+// than a broken one it might try to load.
+async function markRecipeComplete(
+  host: RecipeAuthoringHost,
+  rootId: string,
+): Promise<void> {
+  await host.upsertBlockProperty(rootId, PROPERTY_KEYS.recipeMarker, true);
+}
+
+export async function writeOptionalRootFields(
   host: RecipeAuthoringHost,
   rootId: string,
   structure: Pick<
@@ -266,6 +301,7 @@ export async function createRecipeInLogseq(
     await host.restorePage(title);
     rootId = identity(existing);
     await clearExistingChildren(host, title);
+    await clearPluginOwnedRootProperties(host, rootId);
   } else {
     const page = await host.createPage(title);
     rootId = identity(page);
@@ -301,6 +337,7 @@ export async function createRecipeInLogseq(
     );
   }
 
+  await markRecipeComplete(host, rootId);
   return { rootId, sections: sectionIds };
 }
 
@@ -323,4 +360,5 @@ export async function markExistingRecipeInLogseq(
   }
 
   await writeIngredientMetadata(host, structure);
+  await markRecipeComplete(host, structure.rootId);
 }

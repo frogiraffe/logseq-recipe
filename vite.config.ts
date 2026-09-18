@@ -30,8 +30,8 @@ const logseqDevPlugin =
 export default defineConfig(({ mode }) => ({
   plugins: mode === "test" ? [react()] : [react(), logseqDevPlugin()],
   define: {
-    __LOCKSTACK_RECIPE_VERSION__: JSON.stringify(pkg.version),
-    __LOCKSTACK_RECIPE_COMMIT__: JSON.stringify(shortCommit()),
+    __DRAFT_RECIPE_VERSION__: JSON.stringify(pkg.version),
+    __DRAFT_RECIPE_COMMIT__: JSON.stringify(shortCommit()),
   },
   build: {
     emptyOutDir: true,

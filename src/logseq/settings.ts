@@ -26,7 +26,7 @@ export const SETTINGS_SCHEMA: EnumSettingSchema[] = [
     type: "enum",
     default: "en",
     title: "UI language",
-    description: "Language used by Draft Recipe controls.",
+    description: "Language used by Logseq Recipe controls.",
     enumChoices: ["en", "tr"],
     enumPicker: "select",
   },

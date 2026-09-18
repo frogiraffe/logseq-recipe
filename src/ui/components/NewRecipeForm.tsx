@@ -8,6 +8,7 @@ export interface NewRecipeFormProps {
   messages: UiMessages;
   locale: RecipeLocale;
   sourceMeasurementSystem: MeasurementSystem;
+  pending?: boolean;
   onSubmit(input: NewRecipeInput): void;
   onCancel(): void;
 }
@@ -16,6 +17,7 @@ export function NewRecipeForm({
   messages,
   locale,
   sourceMeasurementSystem,
+  pending = false,
   onSubmit,
   onCancel,
 }: NewRecipeFormProps) {
@@ -73,7 +75,7 @@ export function NewRecipeForm({
         <button
           type="button"
           className="draft-recipe-primary-action"
-          disabled={!title.trim() || !baseYieldValid}
+          disabled={!title.trim() || !baseYieldValid || pending}
           onClick={submit}
         >
           {messages.save}

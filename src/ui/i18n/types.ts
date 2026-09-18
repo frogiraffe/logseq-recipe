@@ -71,6 +71,7 @@ export interface UiMessages {
   conversionRulesTitle: string;
   conversionRulesHelp: string;
   editRecipe: string;
+  duplicateRecipe: string;
   deleteRecipe: string;
   deleteRecipeConfirm: string;
   deleteRecipeConfirmAction: string;
@@ -78,4 +79,12 @@ export interface UiMessages {
   addStep: string;
   addNote: string;
   advanced: string;
+  sortBy: string;
+  sortByTitle: string;
+  sortByTotalTime: string;
+  moveUp: string;
+  moveDown: string;
+  doesNotScale: string;
+  blankItemError: string;
+  cookingNoSteps: string;
 }

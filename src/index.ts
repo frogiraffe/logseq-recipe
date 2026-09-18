@@ -2,10 +2,7 @@ import "@logseq/libs";
 import "./ui/styles.css";
 import "./ui/feature-styles.css";
 import "./ui/theme-fallback.css";
-import {
-  LOCKSTACK_RECIPE_COMMIT,
-  LOCKSTACK_RECIPE_VERSION,
-} from "./build-info";
+import { DRAFT_RECIPE_COMMIT, DRAFT_RECIPE_VERSION } from "./build-info";
 import {
   probeRuntimeCapabilities,
   type RuntimeCapabilities,
@@ -130,7 +127,7 @@ async function main(): Promise<void> {
   });
 
   console.info(
-    `Logseq Recipe ${LOCKSTACK_RECIPE_VERSION} — ${LOCKSTACK_RECIPE_COMMIT} loaded and ready`,
+    `Logseq Recipe ${DRAFT_RECIPE_VERSION} — ${DRAFT_RECIPE_COMMIT} loaded and ready`,
   );
 }
 

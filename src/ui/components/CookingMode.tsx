@@ -87,9 +87,33 @@ export function CookingMode({
 }: CookingModeProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [ingredientsOpen, setIngredientsOpen] = useState(false);
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
+    () => new Set(),
+  );
   const lastIndex = Math.max(0, recipe.steps.length - 1);
   const activeStepIndex = Math.min(stepIndex, lastIndex);
   const current = recipe.steps[activeStepIndex];
+
+  const toggleIngredient = (id: string) =>
+    setCheckedIngredients((checked) => {
+      const next = new Set(checked);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // A live native edit can remove an ingredient while its checkbox is
+  // checked; drop ids that no longer exist so they can't reappear as a
+  // stale, invisible "checked" state if a future ingredient reused the id.
+  useEffect(() => {
+    const validIds = new Set(
+      recipe.ingredients.map((ingredient) => ingredient.id),
+    );
+    setCheckedIngredients((checked) => {
+      const next = new Set([...checked].filter((id) => validIds.has(id)));
+      return next.size === checked.size ? checked : next;
+    });
+  }, [recipe.ingredients]);
 
   const previous = () =>
     setStepIndex((value) => Math.max(0, Math.min(value, lastIndex) - 1));
@@ -150,22 +174,36 @@ export function CookingMode({
         <aside className="draft-recipe-cooking-ingredients">
           <h2>{messages.ingredients}</h2>
           <ul>
-            {recipe.ingredients.map((ingredient) => (
-              <li key={ingredient.id}>
-                {formatIngredientForDisplay(
-                  ingredient,
-                  recipe.baseYield,
-                  targetYield,
-                  measurementSystem,
-                )}
-              </li>
-            ))}
+            {recipe.ingredients.map((ingredient) => {
+              const checked = checkedIngredients.has(ingredient.id);
+              return (
+                <li key={ingredient.id}>
+                  <label
+                    className={
+                      checked ? "draft-recipe-ingredient-checked" : undefined
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleIngredient(ingredient.id)}
+                    />
+                    {formatIngredientForDisplay(
+                      ingredient,
+                      recipe.baseYield,
+                      targetYield,
+                      measurementSystem,
+                    )}
+                  </label>
+                </li>
+              );
+            })}
           </ul>
         </aside>
       )}
 
       {current ? (
-        <main className="draft-recipe-current-step">
+        <main className="draft-recipe-current-step" key={current.id}>
           <p>{current.rawText}</p>
           <div className="draft-recipe-annotation-row">
             {current.durations.map((duration) => (
@@ -196,8 +234,19 @@ export function CookingMode({
         </main>
       ) : (
         <main className="draft-recipe-current-step">
-          <p>{messages.noResults}</p>
+          <p>{messages.cookingNoSteps}</p>
         </main>
+      )}
+
+      {recipe.notes.length > 0 && (
+        <aside className="draft-recipe-cooking-notes">
+          <h2>{messages.notes}</h2>
+          <ul>
+            {recipe.notes.map((note) => (
+              <li key={note.id}>{note.text}</li>
+            ))}
+          </ul>
+        </aside>
       )}
 
       <footer className="draft-recipe-cooking-nav">
