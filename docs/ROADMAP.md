@@ -276,15 +276,16 @@ Still required before merge/public beta:
 - [x] `pnpm build` passes
 - [x] full `pnpm check` passes
 - [x] license file present (`LICENSE`, MIT)
-- [x] release ZIP/package workflow (`.github/workflows/release.yml`, triggers on `v*` tag push)
-- [x] marketplace manifest drafted (`docs/marketplace-manifest.json`)
-- [ ] real Logseq compatibility qualification (see `COMPATIBILITY.md` — needs a real DB graph run)
-- [ ] screenshots/GIF of the plugin running inside real Logseq (required by the marketplace README; can't be produced without the actual app)
-- [ ] sample recipe (nice-to-have for the README/demo, not marketplace-required)
-- [ ] icon (optional per marketplace rules — skip unless wanted)
-- [ ] beta feedback issue template
-- [ ] push a `v1.0.0` tag once the above are done, confirm the Release workflow attaches the zip
-- [ ] fork `logseq/marketplace`, add `packages/logseq-draft-recipe/manifest.json` (see `docs/marketplace-manifest.json`), open the submission PR
+- [x] release ZIP/package workflow (`.github/workflows/publish.yml`, triggers on `v*` tag push; packaging done by `scripts/package.sh` + `scripts/verify-package.sh`, run both locally and in CI)
+- [x] marketplace manifest drafted and corrected (`docs/marketplace-manifest.json` — repo/icon fields now match the actual repo)
+- [x] icon (`logo.svg`, referenced from `package.json` and the marketplace manifest)
+- [x] sample recipe (`examples/banana-bread.md`, verified against the real parser)
+- [x] beta feedback issue template (`.github/ISSUE_TEMPLATE/bug_report.md`)
+- [x] `CHANGELOG.md` with a 0.1.0 entry
+- [ ] real Logseq compatibility qualification (see `COMPATIBILITY.md` and `docs/RELEASE_VALIDATION.md` — needs a real DB graph run; **the only remaining release blocker**)
+- [ ] screenshots of the plugin running inside real Logseq (required by the marketplace README; see `docs/RELEASE_VALIDATION.md`'s screenshot checklist — blocked on the same real-Logseq session as the item above)
+- [ ] push a `v0.1.0` tag once the two items above are done, confirm the Publish workflow attaches the zip to `frogiraffe/logseq-draft-recipe`
+- [ ] fork `logseq/marketplace`, add `packages/logseq-draft-recipe/manifest.json` (see `docs/marketplace-manifest.json`), open the submission PR — staging described in the final release report
 
 ## Later ideas — not v0.1
 

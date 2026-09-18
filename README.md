@@ -56,14 +56,36 @@ source of truth.
 See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the exact capability
 gate the plugin depends on and the current qualification status.
 
+## Screenshots
+
+<!-- TODO(release-blocker): replace with real screenshots captured against a
+     released Logseq DB build before submitting to the Marketplace. See
+     docs/RELEASE_VALIDATION.md for the capture checklist. -->
+
+| Recipe Card | Serving scaling | Cooking Mode |
+| --- | --- | --- |
+| `docs/screenshots/recipe-card.png` | `docs/screenshots/serving-scaling.png` | `docs/screenshots/cooking-mode.png` |
+
 ## Installation
 
-Draft Recipe is not yet published to the Logseq Marketplace. To use it, build
-it locally and load it as an unpacked plugin:
+### From the Logseq Marketplace
+
+Once Draft Recipe is accepted into the official Logseq Marketplace: open
+**Settings → Marketplace** in Logseq, search for "Draft Recipe", and install
+it from there.
+
+### Manual install (until then, or for the latest unreleased build)
+
+Download the plugin ZIP from the
+[latest release](https://github.com/frogiraffe/logseq-draft-recipe/releases/latest),
+extract it, then in Logseq: **Settings → Plugins → Load unpacked plugin** and
+select the extracted folder.
+
+To build it yourself instead:
 
 ```bash
-git clone https://github.com/frogiraffe/logseq-recipe.git
-cd logseq-recipe
+git clone https://github.com/frogiraffe/logseq-draft-recipe.git
+cd logseq-draft-recipe
 corepack enable
 corepack prepare pnpm@10.33.0 --activate
 pnpm install
@@ -71,7 +93,9 @@ pnpm build
 ```
 
 Then, in Logseq: **Settings → Plugins → Load unpacked plugin** and select the
-project's `dist` folder.
+project's `dist` folder — note that `dist` alone is missing `package.json` and
+the icon, so point Logseq at the *repository root* (which contains
+`package.json`, `logo.svg`, and `dist/`), not just `dist`.
 
 ### Development
 
@@ -97,6 +121,10 @@ duplicated.
 From there, just edit the page like any other Logseq content: add
 ingredients, write steps, adjust the yield. Draft Recipe picks up the changes
 automatically.
+
+A ready-to-paste example is in
+[`examples/banana-bread.md`](examples/banana-bread.md) — paste its outline
+into a Logseq page and run **Convert to Recipe** on it to see the full flow.
 
 ## Converting an existing recipe
 
@@ -317,6 +345,29 @@ contract external assistants should follow.
 Draft Recipe's core functionality needs no cloud backend, user account, API
 key, AI service, telemetry, or external server. Everything — parsing,
 scaling, conversion, search — runs locally against your Logseq graph.
+
+## Troubleshooting
+
+- **Commands don't appear in the palette.** Draft Recipe only activates on
+  Logseq **DB graphs**. Check **Settings → Plugins** to confirm the plugin is
+  enabled, and confirm your current graph is a DB graph, not a file graph.
+- **"This Logseq build is missing a required stable capability" warning.**
+  Your Logseq build doesn't yet expose an API Draft Recipe depends on. Update
+  Logseq to the latest release and check
+  [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the current
+  qualification status.
+- **An ingredient shows its raw text instead of a scaled amount.** The parser
+  couldn't confidently structure that line (for example, a qualitative amount
+  like "salt to taste"). This is intentional — Draft Recipe never invents a
+  number. Edit the line to match the grammar in
+  [`docs/RECIPE-FORMAT.md`](docs/RECIPE-FORMAT.md) if you want it to scale.
+- **A cover image shows a placeholder.** The referenced graph asset was moved
+  or deleted. Re-select a cover in Recipe Settings.
+- **Something looks wrong after an update.** Check the DevTools console
+  (Logseq → View → Toggle DevTools) for errors and open an issue using the
+  bug report template, including your Logseq version and graph type.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Limitations and non-goals
 
