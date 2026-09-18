@@ -1,22 +1,27 @@
 {
   "name": "logseq-draft-recipe",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
   "author": "frogiraffe",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frogiraffe/logseq-draft-recipe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/frogiraffe/logseq-draft-recipe/issues"
+  },
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=20.19.0"
   },
+  "main": "dist/index.html",
   "logseq": {
     "id": "logseq-draft-recipe",
     "title": "Draft Recipe",
-    "icon": "./logo.svg",
-    "main": "dist/index.html",
-    "supportsDB": true,
-    "supportsDBOnly": true
+    "icon": "./logo.svg"
   },
   "scripts": {
     "dev": "vite",
@@ -26,7 +31,9 @@
     "test:watch": "vitest",
     "lint": "biome check src test vite.config.ts",
     "format": "biome format --write src test vite.config.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "package": "bash scripts/package.sh",
+    "package:verify": "bash scripts/verify-package.sh"
   },
   "dependencies": {
     "@logseq/libs": "0.3.4",
