@@ -221,6 +221,29 @@ describe("CookingMode", () => {
     expect(screen.getByText("Centers stay soft, that is fine.")).toBeTruthy();
   });
 
+  it("drops a checked ingredient's id once a live recipe refresh removes it", () => {
+    const rendered = render(cookingMode(recipe));
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.ingredients }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /flour/i }));
+    expect(
+      (screen.getByRole("checkbox", { name: /flour/i }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+
+    const withoutFlour: Recipe = { ...recipe, ingredients: [] };
+    rendered.rerender(cookingMode(withoutFlour));
+
+    // Re-adding an ingredient that happens to reuse the same id must not
+    // come back pre-checked from stale state.
+    rendered.rerender(cookingMode(recipe));
+    expect(
+      (screen.getByRole("checkbox", { name: /flour/i }) as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+  });
+
   it("clamps the active step when a live recipe refresh removes later steps", () => {
     const rendered = render(cookingMode(recipe));
     fireEvent.click(screen.getByRole("button", { name: enMessages.next }));

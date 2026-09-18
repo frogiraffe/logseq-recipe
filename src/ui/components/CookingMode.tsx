@@ -102,6 +102,19 @@ export function CookingMode({
       return next;
     });
 
+  // A live native edit can remove an ingredient while its checkbox is
+  // checked; drop ids that no longer exist so they can't reappear as a
+  // stale, invisible "checked" state if a future ingredient reused the id.
+  useEffect(() => {
+    const validIds = new Set(
+      recipe.ingredients.map((ingredient) => ingredient.id),
+    );
+    setCheckedIngredients((checked) => {
+      const next = new Set([...checked].filter((id) => validIds.has(id)));
+      return next.size === checked.size ? checked : next;
+    });
+  }, [recipe.ingredients]);
+
   const previous = () =>
     setStepIndex((value) => Math.max(0, Math.min(value, lastIndex) - 1));
   const next = () =>
