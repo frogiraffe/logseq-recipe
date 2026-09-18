@@ -1,5 +1,5 @@
 {
-  "name": "logseq-draft-recipe",
+  "name": "logseq-recipe",
   "version": "0.1.0",
   "private": true,
   "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
@@ -8,10 +8,10 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/frogiraffe/logseq-draft-recipe.git"
+    "url": "https://github.com/frogiraffe/logseq-recipe.git"
   },
   "bugs": {
-    "url": "https://github.com/frogiraffe/logseq-draft-recipe/issues"
+    "url": "https://github.com/frogiraffe/logseq-recipe/issues"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -19,8 +19,8 @@
   },
   "main": "dist/index.html",
   "logseq": {
-    "id": "logseq-draft-recipe",
-    "title": "Draft Recipe",
+    "id": "logseq-recipe",
+    "title": "Logseq Recipe",
     "icon": "./logo.svg"
   },
   "scripts": {

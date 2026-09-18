@@ -65,7 +65,7 @@ export const enMessages: UiMessages = {
   rangeMax: "Max",
   minutesUnit: "min",
   converting: "Converting",
-  alreadyRecipe: "This page is already a Draft Recipe.",
+  alreadyRecipe: "This page is already a recipe.",
   openRecipe: "Open recipe",
   missingYieldPrompt:
     "How many servings/pieces does this recipe make? This is required to continue.",
@@ -73,7 +73,7 @@ export const enMessages: UiMessages = {
   useThisYield: "Use this yield",
   conversionRulesTitle: "Custom ingredient conversion",
   conversionRulesHelp:
-    "Draft Recipe automatically converts fixed units such as g ↔ kg and ml ↔ L. For supported ingredients, it also automatically converts between mass and volume (e.g. cups to grams) using built-in data. Add a custom conversion only when an ingredient is unsupported, or to override its built-in conversion for this recipe. This does not add an ingredient to the recipe — author ingredients as normal lines under Ingredients.",
+    "Logseq Recipe automatically converts fixed units such as g ↔ kg and ml ↔ L. For supported ingredients, it also automatically converts between mass and volume (e.g. cups to grams) using built-in data. Add a custom conversion only when an ingredient is unsupported, or to override its built-in conversion for this recipe. This does not add an ingredient to the recipe — author ingredients as normal lines under Ingredients.",
   editRecipe: "Edit recipe",
   duplicateRecipe: "Duplicate recipe",
   deleteRecipe: "Delete recipe",

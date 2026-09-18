@@ -46,4 +46,4 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: logseq-draft-recipe-${{ github.ref_name }}.zip
+          files: logseq-recipe-${{ github.ref_name }}.zip

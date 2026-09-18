@@ -1,6 +1,6 @@
 # Release validation
 
-This is the release-time validation record for Draft Recipe. It exists to
+This is the release-time validation record for Logseq Recipe. It exists to
 separate three distinct kinds of evidence, per the project's release policy:
 
 - **Automated verified** — a command ran in this environment and its result
@@ -20,7 +20,7 @@ Run from a clean `pnpm install --frozen-lockfile`, this session:
 | `pnpm lint` | pass |
 | `pnpm test` | pass — 242 tests, 40 files |
 | `pnpm build` (production) | pass |
-| `pnpm package` (release ZIP) | pass — produces `logseq-draft-recipe-v<version>.zip` |
+| `pnpm package` (release ZIP) | pass — produces `logseq-recipe-v<version>.zip` |
 | `pnpm run package:verify` | pass — unpacks the ZIP and confirms `package.json` parses, `dist/index.html` exists, and the `logseq.main`/`logseq.icon` paths resolve inside the extracted package |
 
 These checks confirm the plugin **builds and packages correctly**. They do
@@ -53,7 +53,7 @@ work through the items below. The sample recipe in
 ## MANUAL REQUIRED — real Logseq DB graph smoke test
 
 1. [ ] Logseq loads the unpacked plugin without startup errors (check DevTools console).
-2. [ ] Draft Recipe's commands (`Recipes`, `Create Recipe`, `Convert to Recipe`) appear in the command palette / block context menu.
+2. [ ] Logseq Recipe's commands (`Recipes`, `Create Recipe`, `Convert to Recipe`) appear in the command palette / block context menu.
 3. [ ] `examples/banana-bread.md`'s outline can be pasted in and converted via **Convert to Recipe**.
 4. [ ] The Recipe Card renders the converted recipe correctly.
 5. [ ] Ingredient values render correctly (amounts, units, the qualitative cinnamon line as raw text).

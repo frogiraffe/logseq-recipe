@@ -10,7 +10,7 @@ if [ ! -f dist/index.html ]; then
 fi
 
 VERSION="$(node -p "require('./package.json').version")"
-ZIP_NAME="logseq-draft-recipe-v${VERSION}.zip"
+ZIP_NAME="logseq-recipe-v${VERSION}.zip"
 STAGE_DIR="release/stage"
 
 rm -rf release "$ZIP_NAME"

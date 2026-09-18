@@ -105,7 +105,7 @@ function fakeHost() {
         values.set(`${id}:${key}`, value);
       },
       getProperty: async (_key: string) => ({
-        ident: ":plugin.property.logseq-draft-recipe/recipe_marker",
+        ident: ":plugin.property.logseq-recipe/recipe_marker",
       }),
       updateBlock: async (id: string, content: string) => {
         blockUpdates.push({ id, content });
@@ -438,16 +438,14 @@ describe("Logseq recipe repository", () => {
     const repository = repositoryFor(host);
     const summaries = await repository.listRecipeSummaries();
     expect(summaries).toHaveLength(1);
-    expect(query).toContain(
-      ":plugin.property.logseq-draft-recipe/recipe_marker",
-    );
+    expect(query).toContain(":plugin.property.logseq-recipe/recipe_marker");
     expect(query).toContain(":logseq.property/deleted-at");
     expect(query).toContain("(not");
     expect(query.toLowerCase()).not.toContain("cookie");
   });
 
   describe("discovery against a modeled real Datascript representation", () => {
-    const MARKER_IDENT = ":plugin.property.logseq-draft-recipe/recipe_marker";
+    const MARKER_IDENT = ":plugin.property.logseq-recipe/recipe_marker";
 
     interface FakeDatom {
       entity: string;

@@ -29,14 +29,14 @@ async function requireSupportedRuntime(): Promise<RuntimeCapabilities | null> {
   const capabilities = await runtimeCapabilities();
   if (!capabilities.dbGraph) {
     logseq.UI.showMsg(
-      "Draft Recipe currently targets Logseq DB graphs only.",
+      "Logseq Recipe currently targets Logseq DB graphs only.",
       "warning",
     );
     return null;
   }
   if (!requiredCapabilitiesSatisfied(capabilities)) {
     logseq.UI.showMsg(
-      "Draft Recipe: this Logseq build is missing a required stable capability.",
+      "Logseq Recipe: this Logseq build is missing a required stable capability.",
       "warning",
     );
     return null;
@@ -72,7 +72,7 @@ async function openConvertRecipe(uuid?: string): Promise<void> {
   const initialView = await createConversionInitialView(capabilities, uuid);
   if (!initialView) {
     logseq.UI.showMsg(
-      "Draft Recipe: select a recipe root block/page with child sections first.",
+      "Logseq Recipe: select a recipe root block/page with child sections first.",
       "warning",
     );
     return;
@@ -85,23 +85,23 @@ async function main(): Promise<void> {
 
   ownCommand(
     "draft-recipe-recipes",
-    { title: "Draft Recipe: Recipes", placement: "palette" },
+    { title: "Logseq Recipe: Recipes", placement: "palette" },
     openRecipes,
   );
   ownCommand(
     "draft-recipe-create",
-    { title: "Draft Recipe: Create Recipe", placement: "palette" },
+    { title: "Logseq Recipe: Create Recipe", placement: "palette" },
     openCreateRecipe,
   );
   ownCommand(
     "draft-recipe-convert-current",
-    { title: "Draft Recipe: Convert to Recipe", placement: "palette" },
+    { title: "Logseq Recipe: Convert to Recipe", placement: "palette" },
     () => openConvertRecipe(),
   );
   ownCommand(
     "draft-recipe-convert-block",
     {
-      title: "Draft Recipe: Convert to Recipe",
+      title: "Logseq Recipe: Convert to Recipe",
       placement: "block-context-menu",
     },
     ({ uuid }: { uuid: string }) => openConvertRecipe(uuid),
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
   });
 
   console.info(
-    `Draft Recipe ${DRAFT_RECIPE_VERSION} — ${DRAFT_RECIPE_COMMIT} loaded and ready`,
+    `Logseq Recipe ${DRAFT_RECIPE_VERSION} — ${DRAFT_RECIPE_COMMIT} loaded and ready`,
   );
 }
 

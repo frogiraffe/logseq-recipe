@@ -1,16 +1,16 @@
-# Draft Recipe Authoring Format
+# Logseq Recipe Authoring Format
 
-This document is the human- and machine-readable authoring contract for Draft Recipe.
+This document is the human- and machine-readable authoring contract for Logseq Recipe.
 
 It describes the **visible Logseq content** that a person, importer, ChatGPT, or another external assistant should produce. It deliberately does **not** document internal plugin-owned property keys as an authoring surface.
 
 ## Core rule
 
-Write a recipe as ordinary, readable Logseq blocks. Draft Recipe attaches and maintains technical metadata itself.
+Write a recipe as ordinary, readable Logseq blocks. Logseq Recipe attaches and maintains technical metadata itself.
 
-Do not require a visible `#Recipe` tag. Do not manually invent hidden Draft Recipe properties. Do not encode ingredient amounts in opaque JSON or a custom markup language.
+Do not require a visible `#Recipe` tag. Do not manually invent hidden Logseq Recipe properties. Do not encode ingredient amounts in opaque JSON or a custom markup language.
 
-A recipe should remain useful when Draft Recipe is disabled.
+A recipe should remain useful when Logseq Recipe is disabled.
 
 ## Recommended visible structure
 
@@ -50,11 +50,11 @@ Useful visible recipe metadata may include:
 - source URL;
 - ordinary prose description or notes.
 
-External assistants should prefer concise human-readable metadata rather than internal Draft Recipe fields.
+External assistants should prefer concise human-readable metadata rather than internal Logseq Recipe fields.
 
 ## Ingredient line grammar
 
-Draft Recipe intentionally accepts normal recipe-style ingredient lines.
+Logseq Recipe intentionally accepts normal recipe-style ingredient lines.
 
 Preferred shape:
 
@@ -88,7 +88,7 @@ The deterministic parser is designed around these concepts:
 - common recipe fractions such as `1/2`, `1 1/2`, `½`, `¼`, `¾`;
 - a small set of common recipe quantity words such as `half`, `yarım`, `demi`, `halb`, `media`.
 
-Draft Recipe is not a general natural-language-number parser. Prefer numeric quantities for uncommon or large written-out numbers.
+Logseq Recipe is not a general natural-language-number parser. Prefer numeric quantities for uncommon or large written-out numbers.
 
 ### Qualitative ingredient amounts
 
@@ -106,7 +106,7 @@ External assistants must follow the same rule: if the source recipe does not pro
 
 ## Ingredient names and notes
 
-Draft Recipe does not try to semantically decompose every adjective or preparation phrase.
+Logseq Recipe does not try to semantically decompose every adjective or preparation phrase.
 
 For example:
 
@@ -126,7 +126,7 @@ External assistants may prefer that form when the source clearly distinguishes i
 
 ## Measurement systems
 
-Draft Recipe distinguishes the recipe's **source measurement interpretation** from the user's **display measurement preference**.
+Logseq Recipe distinguishes the recipe's **source measurement interpretation** from the user's **display measurement preference**.
 
 Supported display systems:
 
@@ -161,13 +161,13 @@ A mass-to-volume conversion such as:
 
 requires an ingredient-specific conversion rule.
 
-Draft Recipe ships a small local registry of sourced common-ingredient rules and supports explicit per-recipe user overrides. If no reliable rule exists, the plugin must report that the conversion is unavailable instead of guessing a density.
+Logseq Recipe ships a small local registry of sourced common-ingredient rules and supports explicit per-recipe user overrides. If no reliable rule exists, the plugin must report that the conversion is unavailable instead of guessing a density.
 
 External assistants should not invent conversion rules unless the user explicitly supplies a reliable relation.
 
 ## Step annotations
 
-Cooking steps remain ordinary sentences. Draft Recipe derives useful annotations from explicit text while preserving the sentence itself.
+Cooking steps remain ordinary sentences. Logseq Recipe derives useful annotations from explicit text while preserving the sentence itself.
 
 Examples:
 
@@ -230,11 +230,11 @@ fuego medio
 çok sıcak tava
 ```
 
-Draft Recipe must never fabricate a Celsius/Fahrenheit temperature for these expressions.
+Logseq Recipe must never fabricate a Celsius/Fahrenheit temperature for these expressions.
 
 ## Parser locales
 
-Draft Recipe v0.1 parser data supports:
+Logseq Recipe v0.1 parser data supports:
 
 - English (`en`);
 - Turkish (`tr`);
@@ -250,7 +250,7 @@ The v0.1 plugin UI is planned in English and Turkish independently from parser l
 
 ## Categories and tags
 
-Recipe categories and Draft Recipe tags are free-form organizational metadata. They are not restricted to a built-in vocabulary and are not required to become visible Logseq graph tags/pages.
+Recipe categories and Logseq Recipe tags are free-form organizational metadata. They are not restricted to a built-in vocabulary and are not required to become visible Logseq graph tags/pages.
 
 Examples:
 
@@ -270,11 +270,11 @@ External assistants should not invent a large taxonomy. Preserve categories supp
 
 ### Create Recipe
 
-`Draft Recipe: Create Recipe` creates a readable recipe skeleton and attaches internal recipe metadata itself.
+`Logseq Recipe: Create Recipe` creates a readable recipe skeleton and attaches internal recipe metadata itself.
 
 ### Convert to Recipe
 
-`Draft Recipe: Convert to Recipe` is designed for structured or semi-structured Logseq content such as:
+`Logseq Recipe: Convert to Recipe` is designed for structured or semi-structured Logseq content such as:
 
 ```text
 Cookie Tarifi
@@ -297,7 +297,7 @@ should first be manually structured or transformed by an external assistant into
 
 ## Contract for ChatGPT and other external assistants
 
-When a user asks you to convert a recipe into Draft Recipe format:
+When a user asks you to convert a recipe into Logseq Recipe format:
 
 1. Preserve the recipe's factual content. Do not guess missing quantities, temperatures, durations, or ingredient conversions.
 2. Produce one readable recipe root/title.
@@ -308,9 +308,9 @@ When a user asks you to convert a recipe into Draft Recipe format:
 7. Prefer explicit numeric quantities and units when the source already provides them.
 8. Keep ranges as ranges.
 9. Keep qualitative instructions such as `to taste`, `medium heat`, and `overnight` qualitative when the source does not quantify them.
-10. Do not add `#Recipe` merely for Draft Recipe.
-11. Do not manually create Draft Recipe hidden properties, schema versions, section-role properties, cover references, or parser state.
-12. Tell the user to paste the readable blocks into Logseq and run `Draft Recipe: Convert to Recipe` if the content was not created through the plugin.
+10. Do not add `#Recipe` merely for Logseq Recipe.
+11. Do not manually create Logseq Recipe hidden properties, schema versions, section-role properties, cover references, or parser state.
+12. Tell the user to paste the readable blocks into Logseq and run `Logseq Recipe: Convert to Recipe` if the content was not created through the plugin.
 
 ### Example assistant output
 
@@ -343,7 +343,7 @@ Chocolate Chip Cookies
 
 The following are implementation details, not authoring APIs:
 
-- Draft Recipe plugin property names;
+- Logseq Recipe plugin property names;
 - Logseq DB property idents;
 - current schema version numbers;
 - asset-reference representation;

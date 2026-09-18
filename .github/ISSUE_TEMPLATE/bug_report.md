@@ -1,13 +1,13 @@
 ---
 name: Bug report
-about: Something in Draft Recipe doesn't work as expected
+about: Something in Logseq Recipe doesn't work as expected
 title: ""
 labels: bug
 ---
 
 **Logseq version:** (Help → About Logseq)
-**Draft Recipe version:** (Settings → Plugins → Draft Recipe, or the console log line on plugin load)
-**Graph type:** DB graph (Draft Recipe does not support file graphs)
+**Logseq Recipe version:** (Settings → Plugins → Logseq Recipe, or the console log line on plugin load)
+**Graph type:** DB graph (Logseq Recipe does not support file graphs)
 
 **What happened:**
 

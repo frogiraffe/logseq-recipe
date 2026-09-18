@@ -1,6 +1,6 @@
-# Draft Recipe
+# Logseq Recipe
 
-Draft Recipe turns a normal Logseq DB graph into a recipe manager. Recipes stay
+Logseq Recipe turns a normal Logseq DB graph into a recipe manager. Recipes stay
 readable, editable Logseq pages — the plugin adds deterministic ingredient
 parsing, live serving scaling, measurement conversion, a recipe browser, cover
 images, and a focused Cooking Mode on top, without ever becoming a second
@@ -12,9 +12,9 @@ source of truth.
   account, no second recipe store.
 - **Recipes are normal Logseq content.** A recipe is a page/block subtree you
   can read and edit like any other Logseq outline. If you disable or uninstall
-  Draft Recipe, your recipes remain readable — titles, ingredients, steps,
+  Logseq Recipe, your recipes remain readable — titles, ingredients, steps,
   notes, and cover images are ordinary Logseq content and graph assets.
-- **Technical metadata stays hidden.** Draft Recipe attaches its own
+- **Technical metadata stays hidden.** Logseq Recipe attaches its own
   namespaced, versioned properties for things like recipe identity, section
   roles, and parsed ingredient structure. It never clutters your outline with
   visible `amount`/`unit` properties or requires a visible `#Recipe` tag.
@@ -22,7 +22,7 @@ source of truth.
   a conversion, or a duration, it keeps your original text instead of
   guessing.
 - **No network required.** Parsing, scaling, and conversion are fully local
-  and deterministic. Draft Recipe needs no AI service, API key, account, or
+  and deterministic. Logseq Recipe needs no AI service, API key, account, or
   telemetry to work.
 
 ## Key features
@@ -49,7 +49,7 @@ source of truth.
 
 ## Requirements
 
-- A **Logseq DB graph**. Draft Recipe targets DB graphs only; it does not
+- A **Logseq DB graph**. Logseq Recipe targets DB graphs only; it does not
   support file graphs.
 - Node `>=20.19.0` and pnpm `10.33.0` if you're building the plugin yourself.
 
@@ -70,22 +70,22 @@ gate the plugin depends on and the current qualification status.
 
 ### From the Logseq Marketplace
 
-Once Draft Recipe is accepted into the official Logseq Marketplace: open
-**Settings → Marketplace** in Logseq, search for "Draft Recipe", and install
+Once Logseq Recipe is accepted into the official Logseq Marketplace: open
+**Settings → Marketplace** in Logseq, search for "Logseq Recipe", and install
 it from there.
 
 ### Manual install (until then, or for the latest unreleased build)
 
 Download the plugin ZIP from the
-[latest release](https://github.com/frogiraffe/logseq-draft-recipe/releases/latest),
+[latest release](https://github.com/frogiraffe/logseq-recipe/releases/latest),
 extract it, then in Logseq: **Settings → Plugins → Load unpacked plugin** and
 select the extracted folder.
 
 To build it yourself instead:
 
 ```bash
-git clone https://github.com/frogiraffe/logseq-draft-recipe.git
-cd logseq-draft-recipe
+git clone https://github.com/frogiraffe/logseq-recipe.git
+cd logseq-recipe
 corepack enable
 corepack prepare pnpm@10.33.0 --activate
 pnpm install
@@ -112,14 +112,14 @@ failures.
 
 ## Creating a recipe
 
-Run **`Draft Recipe: Create Recipe`** from the command palette. It creates a
+Run **`Logseq Recipe: Create Recipe`** from the command palette. It creates a
 clean, editable Logseq page skeleton — title, yield, Ingredients, Steps, and
 Notes — and attaches the hidden recipe metadata itself. Creating a recipe with
 a title that already exists as a page is rejected rather than silently
 duplicated.
 
 From there, just edit the page like any other Logseq content: add
-ingredients, write steps, adjust the yield. Draft Recipe picks up the changes
+ingredients, write steps, adjust the yield. Logseq Recipe picks up the changes
 automatically.
 
 A ready-to-paste example is in
@@ -130,7 +130,7 @@ into a Logseq page and run **Convert to Recipe** on it to see the full flow.
 
 If you already have structured or semi-structured recipe content in Logseq —
 your own notes, or something pasted in — select the recipe root block and run
-**`Draft Recipe: Convert to Recipe`** (also available in the block right-click
+**`Logseq Recipe: Convert to Recipe`** (also available in the block right-click
 menu).
 
 The conversion preview shows you what it recognized before anything is
@@ -195,12 +195,12 @@ unchanged.
 
 ## Measurement systems and conversion
 
-Draft Recipe keeps two settings separate:
+Logseq Recipe keeps two settings separate:
 
 - the recipe's **source measurement system** (how ambiguous units like `cup`
   in the authored text should be interpreted);
 - your **display measurement system** (Metric, US Customary, or Imperial —
-  set globally in Draft Recipe settings, with a per-recipe override).
+  set globally in Logseq Recipe settings, with a per-recipe override).
 
 Changing the display system only changes what's shown — it never rewrites the
 authored ingredient line.
@@ -208,7 +208,7 @@ authored ingredient line.
 Same-dimension conversions (`g ↔ kg`, `ml ↔ L`, `tsp ↔ tbsp ↔ cup` within a
 system, `°C ↔ °F`) are always available and exact. Mass↔volume conversion
 (e.g. showing `120 g butter` as tablespoons) additionally requires an
-ingredient-specific rule — Draft Recipe ships a small, sourced registry of
+ingredient-specific rule — Logseq Recipe ships a small, sourced registry of
 common baking ingredients (flours, sugars, cocoa, butter, honey, oil, milk,
 oats, cornstarch) built from published King Arthur Baking weight-chart
 figures, and lets you add a per-recipe override (e.g. `1 tbsp butter =
@@ -225,7 +225,7 @@ Card falls back to a placeholder instead of erroring.
 
 ## Recipes browser
 
-**`Draft Recipe: Recipes`** lists every recipe in the graph with:
+**`Logseq Recipe: Recipes`** lists every recipe in the graph with:
 
 - title/text search;
 - category and tag filters (existing values are suggested with usage counts,
@@ -246,7 +246,7 @@ transient UI state — it is never written back into your recipe.
 
 ## Settings
 
-Global Draft Recipe settings cover UI language, default parser locale, and
+Global Logseq Recipe settings cover UI language, default parser locale, and
 default measurement system. Every recipe can override the parser locale,
 source measurement system, display measurement system, categories, tags, and
 ingredient conversion rules individually from its own Recipe Settings panel.
@@ -260,19 +260,19 @@ ingredient conversion rules individually from its own Recipe Settings panel.
 
 ## Converting a recipe from the web
 
-Draft Recipe doesn't scrape websites — that's out of scope by design, so it
+Logseq Recipe doesn't scrape websites — that's out of scope by design, so it
 never needs network access. Instead, use any AI assistant (ChatGPT, Claude,
 etc.) as a one-time conversion step:
 
 1. Copy the recipe text from the web page.
 2. Paste it, together with the prompt below, into your assistant of choice.
 3. Paste the assistant's output into a Logseq page as a normal outline.
-4. Run **`Draft Recipe: Convert to Recipe`** on it.
+4. Run **`Logseq Recipe: Convert to Recipe`** on it.
 
 ### Prompt to copy-paste
 
 ```text
-Convert the recipe below into a Logseq outline for the Draft Recipe plugin.
+Convert the recipe below into a Logseq outline for the Logseq Recipe plugin.
 Rules:
 - Create one recipe root block/title. Preserve the recipe's title and, if
   given, its source.
@@ -289,7 +289,7 @@ Rules:
   keep qualitative heat wording (e.g. "medium heat", "overnight") as text
   rather than converting it into a number.
 - Put any other useful information under a "Notes" section.
-- Do not add a "#Recipe" tag or any other Draft Recipe-specific property —
+- Do not add a "#Recipe" tag or any other Logseq Recipe-specific property —
   just plain, readable Logseq blocks.
 
 Recipe:
@@ -335,30 +335,30 @@ Chocolate Chip Cookies
 ```
 
 Paste that outline into Logseq, select the root block, and run
-**`Draft Recipe: Convert to Recipe`**.
+**`Logseq Recipe: Convert to Recipe`**.
 
 See [`docs/RECIPE-FORMAT.md`](docs/RECIPE-FORMAT.md) for the full authoring
 contract external assistants should follow.
 
 ## Privacy and local-first behavior
 
-Draft Recipe's core functionality needs no cloud backend, user account, API
+Logseq Recipe's core functionality needs no cloud backend, user account, API
 key, AI service, telemetry, or external server. Everything — parsing,
 scaling, conversion, search — runs locally against your Logseq graph.
 
 ## Troubleshooting
 
-- **Commands don't appear in the palette.** Draft Recipe only activates on
+- **Commands don't appear in the palette.** Logseq Recipe only activates on
   Logseq **DB graphs**. Check **Settings → Plugins** to confirm the plugin is
   enabled, and confirm your current graph is a DB graph, not a file graph.
 - **"This Logseq build is missing a required stable capability" warning.**
-  Your Logseq build doesn't yet expose an API Draft Recipe depends on. Update
+  Your Logseq build doesn't yet expose an API Logseq Recipe depends on. Update
   Logseq to the latest release and check
   [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the current
   qualification status.
 - **An ingredient shows its raw text instead of a scaled amount.** The parser
   couldn't confidently structure that line (for example, a qualitative amount
-  like "salt to taste"). This is intentional — Draft Recipe never invents a
+  like "salt to taste"). This is intentional — Logseq Recipe never invents a
   number. Edit the line to match the grammar in
   [`docs/RECIPE-FORMAT.md`](docs/RECIPE-FORMAT.md) if you want it to scale.
 - **A cover image shows a placeholder.** The referenced graph asset was moved
@@ -371,7 +371,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Limitations and non-goals
 
-Draft Recipe deliberately does **not** include:
+Logseq Recipe deliberately does **not** include:
 
 - website scraping or automatic URL import (see the external-assistant
   workflow above instead);
@@ -406,7 +406,7 @@ React components receive domain objects and callbacks rather than calling
 
 ## Compatibility
 
-Draft Recipe targets Logseq DB graphs. See
+Logseq Recipe targets Logseq DB graphs. See
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the required capability
 gate, the JSON-property and cover-reference policies, and the exact builds
 that have been qualified against a real Logseq app so far. Local code

@@ -5,4 +5,4 @@ coverage/
 *.log
 .DS_Store
 release/
-logseq-draft-recipe-v*.zip
+logseq-recipe-v*.zip

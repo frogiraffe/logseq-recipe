@@ -1,6 +1,6 @@
 # Changelog
 
-All notable user-facing changes to Draft Recipe are documented here. This
+All notable user-facing changes to Logseq Recipe are documented here. This
 project uses [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] — Unreleased

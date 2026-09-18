@@ -1,8 +1,8 @@
-# Draft Recipe Compatibility
+# Logseq Recipe Compatibility
 
 Status: **automated Phase 0 passed on one real Logseq nightly build; full runtime qualification is still pending**.
 
-Draft Recipe v0.1 targets Logseq DB graphs only. The stable SDK surface is implemented behind a reversible Phase 0 probe. This repository does not yet declare a minimum supported Logseq version because cover persistence and the remaining real-app create/convert/live-edit scenarios have not completed on a qualified build.
+Logseq Recipe v0.1 targets Logseq DB graphs only. The stable SDK surface is implemented behind a reversible Phase 0 probe. This repository does not yet declare a minimum supported Logseq version because cover persistence and the remaining real-app create/convert/live-edit scenarios have not completed on a qualified build.
 
 ## Required capability gate
 
@@ -20,7 +20,7 @@ A build is eligible for support only when all of the following are observed in t
 
 ## JSON-property policy
 
-The Phase 0 probe measures native JSON-property behavior because it is useful compatibility information, but **Draft Recipe v0.1 does not depend on it**.
+The Phase 0 probe measures native JSON-property behavior because it is useful compatibility information, but **Logseq Recipe v0.1 does not depend on it**.
 
 Core v0.1 runtime deliberately stores the low-frequency `recipe_meta` payload through the validated string-JSON codec even when a Logseq build appears to support native JSON properties. This keeps metadata persistence consistent across qualified builds and avoids making an evolving DB property representation part of the v0.1 compatibility contract.
 
@@ -47,7 +47,7 @@ Cover qualification is incomplete until the reference has survived:
 1. Open a disposable or backed-up DB graph.
 2. Ensure the graph contains at least one PNG/JPG/JPEG/WebP asset if cover testing is desired.
 3. Load the plugin; it silently gates its own commands behind `probeRuntimeCapabilities` (`src/logseq/capabilities.ts`) and warns via `logseq.UI.showMsg` if a required capability is missing. The dev-only Phase 0 command-palette probe was removed from the release build; run `pnpm test` (`test/logseq/capabilities.test.ts`) or a manual REPL check against the probe functions if you need the itemized report.
-4. Note the exact Logseq version and whether Draft Recipe's commands opened without a capability warning.
+4. Note the exact Logseq version and whether Logseq Recipe's commands opened without a capability warning.
 5. Select/use the candidate cover asset, reload the plugin, and confirm the reference still resolves.
 6. Close/reopen the graph and confirm the same cover reference still resolves.
 7. Run the create/convert/live-edit scenarios from `LOCAL-TESTING.md`.

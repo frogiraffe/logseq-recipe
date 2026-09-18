@@ -95,7 +95,7 @@ describe("runPhase0CapabilityProbe", () => {
         appendBlockInPage: async () => ({ uuid: "block" }),
         upsertProperty: async () => undefined,
         getProperty: async () => ({
-          ident: ":plugin.property.logseq-draft-recipe/phase-0-probe",
+          ident: ":plugin.property.logseq-recipe/phase-0-probe",
         }),
         removeProperty: async () => undefined,
         upsertBlockProperty: async (

@@ -1,4 +1,4 @@
-# Draft Recipe — Local Verification Checklist
+# Logseq Recipe — Local Verification Checklist
 
 This checklist is the verification gate for the v0.1 implementation branch. Do not merge to `main` or claim the build passes until the relevant steps have fresh evidence.
 
@@ -161,20 +161,20 @@ Open a disposable DB graph.
 
 Confirm the command palette contains:
 
-- `Draft Recipe: Recipes`
-- `Draft Recipe: Create Recipe`
-- `Draft Recipe: Convert to Recipe`
-- `Draft Recipe: Phase 0 DB graph check`
-- `Draft Recipe: Phase 0 capability probe`
+- `Logseq Recipe: Recipes`
+- `Logseq Recipe: Create Recipe`
+- `Logseq Recipe: Convert to Recipe`
+- `Logseq Recipe: Phase 0 DB graph check`
+- `Logseq Recipe: Phase 0 capability probe`
 
-Also right-click a block bullet and confirm the Draft Recipe convert command is present in the block context menu.
+Also right-click a block bullet and confirm the Logseq Recipe convert command is present in the block context menu.
 
 ## 7. Run Phase 0 compatibility qualification
 
 Run:
 
 ```text
-Draft Recipe: Phase 0 capability probe
+Logseq Recipe: Phase 0 capability probe
 ```
 
 Open the developer console and copy the complete report.
@@ -202,7 +202,7 @@ Record the exact Logseq version and result in `docs/COMPATIBILITY.md`.
 Run:
 
 ```text
-Draft Recipe: Create Recipe
+Logseq Recipe: Create Recipe
 ```
 
 Create a small recipe, for example:
@@ -225,7 +225,7 @@ Local Test Cookie
 
 Verify:
 
-- the recipe appears in `Draft Recipe: Recipes`;
+- the recipe appears in `Logseq Recipe: Recipes`;
 - no visible `#Recipe` tag was added;
 - the sections are ordinary readable Logseq blocks;
 - the Recipe Card opens;
@@ -264,7 +264,7 @@ Open the Recipe Card again.
 
 Verify parsed ingredient values and step annotations appear without adding visible amount/unit child properties.
 
-For an ingredient such as `120 g butter`, verify Draft Recipe establishes one hidden versioned ingredient metadata payload rather than separate visible/hidden `amount` and `unit` properties. If you inspect plugin-owned properties in developer tooling, the payload should represent the same raw text, parser locale, source measurement system, structured amount/unit/name/note, and confidence shown by the recipe.
+For an ingredient such as `120 g butter`, verify Logseq Recipe establishes one hidden versioned ingredient metadata payload rather than separate visible/hidden `amount` and `unit` properties. If you inspect plugin-owned properties in developer tooling, the payload should represent the same raw text, parser locale, source measurement system, structured amount/unit/name/note, and confidence shown by the recipe.
 
 Close and reopen the same recipe without changing the ingredient text or parser context. Expected: the matching payload is reused; it is not rewritten merely because the recipe was opened again.
 
@@ -422,9 +422,9 @@ Verify:
 - existing category/tag values appear as suggestions with usage counts;
 - clicking a suggestion adds it without preventing free-form new values;
 - the native recipe outline does not gain visible metadata clutter;
-- settings survive closing/reopening the Draft Recipe UI.
+- settings survive closing/reopening the Logseq Recipe UI.
 
-Keep Settings open, make a native recipe edit in Logseq, and verify live refresh does not unexpectedly navigate the Draft Recipe UI back to Recipe Card.
+Keep Settings open, make a native recipe edit in Logseq, and verify live refresh does not unexpectedly navigate the Logseq Recipe UI back to Recipe Card.
 
 ## 15. Cover asset
 
@@ -463,7 +463,7 @@ Cookie Tarifi
     İçi yumuşak kalabilir.
 ```
 
-Use `Draft Recipe: Convert to Recipe` on the root.
+Use `Logseq Recipe: Convert to Recipe` on the root.
 
 Verify preview:
 
@@ -574,12 +574,12 @@ Expected:
 
 ## 20. UI close/reopen lifecycle
 
-Open Draft Recipe, move into a non-default state such as Cooking Mode, then close the main UI.
+Open Logseq Recipe, move into a non-default state such as Cooking Mode, then close the main UI.
 
 Verify:
 
 - no further hidden UI updates/watch activity is observable after closing;
-- reopening Draft Recipe from another command starts from that command's requested initial view rather than leaking the previous React state.
+- reopening Logseq Recipe from another command starts from that command's requested initial view rather than leaking the previous React state.
 
 ## 21. Theme and layout
 
@@ -597,7 +597,7 @@ Check readability, overflow, controls, cover sizing, Recipe Settings, category/t
 
 With a recipe and cover configured:
 
-1. reload Draft Recipe;
+1. reload Logseq Recipe;
 2. reopen Recipes;
 3. reopen the recipe;
 4. confirm recipe metadata, ingredient canonical metadata, and cover survive.
@@ -605,22 +605,22 @@ With a recipe and cover configured:
 ### Graph reopen
 
 1. close/reopen the same DB graph;
-2. reopen Draft Recipe;
+2. reopen Logseq Recipe;
 3. confirm recipe discovery, ingredient metadata reuse, and cover resolution.
 
 ### Graph switch
 
-With Draft Recipe UI open:
+With Logseq Recipe UI open:
 
 1. switch to another graph;
-2. confirm Draft Recipe main UI closes/resets;
+2. confirm Logseq Recipe main UI closes/resets;
 3. confirm actions in the new graph do not write into the previous graph.
 
 ## 23. Missing/deleted cover
 
 After assigning a cover, delete/remove the underlying asset through Logseq or the filesystem as appropriate.
 
-Expected: Draft Recipe renders a placeholder/error-free missing-cover state rather than crashing.
+Expected: Logseq Recipe renders a placeholder/error-free missing-cover state rather than crashing.
 
 ## 24. Future schema safety
 

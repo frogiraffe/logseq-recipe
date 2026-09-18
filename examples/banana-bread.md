@@ -1,8 +1,8 @@
 # Sample recipe: Classic Banana Bread
 
-A small, polished example for trying Draft Recipe end to end — paste the
+A small, polished example for trying Logseq Recipe end to end — paste the
 outline below into a Logseq page (as sibling/child blocks, matching the
-indentation) and run **Draft Recipe: Convert to Recipe** on the root block.
+indentation) and run **Logseq Recipe: Convert to Recipe** on the root block.
 
 It deliberately exercises the parser's main behaviors:
 

@@ -75,7 +75,7 @@ function fakeHost() {
       properties.set(`${id}:${key}`, value);
     },
     getProperty: async (_key: string) => ({
-      ident: ":plugin.property.logseq-draft-recipe/recipe_marker",
+      ident: ":plugin.property.logseq-recipe/recipe_marker",
     }),
     updateBlock: async (_id: string, _content: string) => undefined,
     removeBlock: async (_id: string) => undefined,

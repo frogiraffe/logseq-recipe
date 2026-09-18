@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="$(node -p "require('./package.json').version")"
-ZIP_NAME="${1:-logseq-draft-recipe-v${VERSION}.zip}"
+ZIP_NAME="${1:-logseq-recipe-v${VERSION}.zip}"
 
 if [ ! -f "$ZIP_NAME" ]; then
   echo "package verification FAILED: $ZIP_NAME not found" >&2

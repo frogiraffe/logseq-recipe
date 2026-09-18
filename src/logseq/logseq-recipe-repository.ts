@@ -90,14 +90,16 @@ function isSectionRole(value: unknown): value is SectionRole {
 
 function markerIdentFromProperty(value: unknown): string {
   if (!value || typeof value !== "object") {
-    throw new Error("Draft Recipe marker property has not been created yet.");
+    throw new Error("Logseq Recipe marker property has not been created yet.");
   }
   const ident = (value as Record<string, unknown>).ident;
   if (
     typeof ident !== "string" ||
     !/^:plugin\.property\.[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/u.test(ident)
   ) {
-    throw new Error("Draft Recipe marker property ident is not safe to query.");
+    throw new Error(
+      "Logseq Recipe marker property ident is not safe to query.",
+    );
   }
   return ident;
 }

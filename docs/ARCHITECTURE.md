@@ -2,7 +2,7 @@
 
 ## Goal
 
-Draft Recipe adds an interactive recipe layer on top of Logseq DB while keeping the recipe itself native, readable, and editable without the plugin.
+Logseq Recipe adds an interactive recipe layer on top of Logseq DB while keeping the recipe itself native, readable, and editable without the plugin.
 
 Logseq remains the only persistent recipe database. The plugin must not introduce an external or parallel recipe store.
 
@@ -28,7 +28,7 @@ Rules:
 
 ## Ingredient source and canonical structure
 
-Draft Recipe deliberately keeps two synchronized representations with different responsibilities.
+Logseq Recipe deliberately keeps two synchronized representations with different responsibilities.
 
 ### Visible text: human source/edit surface
 
@@ -38,7 +38,7 @@ The native Logseq block remains readable and editable:
 120 g tereyağı
 ```
 
-It is the user's explicit source text. Draft Recipe never rewrites it merely because servings or display units change.
+It is the user's explicit source text. Logseq Recipe never rewrites it merely because servings or display units change.
 
 ### Hidden structured metadata: calculation source
 
@@ -63,7 +63,7 @@ parsed quantity/unit/name/note/confidence
 original parsed raw text
 ```
 
-Draft Recipe does **not** create independent `amount`, `unit`, `duration`, or `temperature` properties for every line. One validated string-JSON payload avoids visible property clutter while still giving the calculation layer stable structured data.
+Logseq Recipe does **not** create independent `amount`, `unit`, `duration`, or `temperature` properties for every line. One validated string-JSON payload avoids visible property clutter while still giving the calculation layer stable structured data.
 
 ### Synchronization rule
 
@@ -73,7 +73,7 @@ Stored ingredient metadata may be reused only when all of these match the curren
 2. stored parser locale equals the current effective parser locale;
 3. stored source measurement system equals the current effective source measurement system.
 
-If any value differs, Draft Recipe reparses the visible text with the same deterministic parser and replaces the hidden payload.
+If any value differs, Logseq Recipe reparses the visible text with the same deterministic parser and replaces the hidden payload.
 
 Example:
 
@@ -93,7 +93,7 @@ If a previously numeric line becomes ambiguous:
 damak zevkine göre tereyağı
 ```
 
-Draft Recipe must not retain the stale `120 g`. The new unparsed/partial result replaces the old confident structured value.
+Logseq Recipe must not retain the stale `120 g`. The new unparsed/partial result replaces the old confident structured value.
 
 ### Parser-context invalidation
 
@@ -391,8 +391,8 @@ Rules:
 - no hidden property write when stored canonical metadata already matches;
 - no stale confident quantity after an ambiguous visible edit;
 - listeners have explicit disposers;
-- closing Draft Recipe unmounts React/watchers;
-- graph changes close the open Draft Recipe UI and reset cached runtime capability state;
+- closing Logseq Recipe unmounts React/watchers;
+- graph changes close the open Logseq Recipe UI and reset cached runtime capability state;
 - plugin unload disposes registered commands/listeners and unmounts React.
 
 ## UI architecture
@@ -486,7 +486,7 @@ Malformed or stale hidden ingredient metadata falls back to deterministic repars
 
 ## Privacy and network behavior
 
-Draft Recipe itself requires no:
+Logseq Recipe itself requires no:
 
 - AI/LLM;
 - API key;

@@ -1,8 +1,8 @@
 {
-  "title": "Draft Recipe",
+  "title": "Logseq Recipe",
   "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
   "author": "frogiraffe",
-  "repo": "frogiraffe/logseq-draft-recipe",
+  "repo": "frogiraffe/logseq-recipe",
   "icon": "logo.svg",
   "supportsDB": true,
   "supportsDBOnly": true

@@ -208,7 +208,7 @@ Implemented:
 - [x] matching hidden ingredient metadata prevents repeated parser/property writes
 - [x] live recipe refresh preserves the active Cooking/Settings view
 - [x] listener/command disposer ownership
-- [x] React unmount when Draft Recipe UI closes
+- [x] React unmount when Logseq Recipe UI closes
 - [x] fresh React root/state for each command opening
 - [x] React unmount on plugin teardown
 - [x] graph-switch UI close + runtime capability reset
@@ -284,8 +284,8 @@ Still required before merge/public beta:
 - [x] `CHANGELOG.md` with a 0.1.0 entry
 - [ ] real Logseq compatibility qualification (see `COMPATIBILITY.md` and `docs/RELEASE_VALIDATION.md` — needs a real DB graph run; **the only remaining release blocker**)
 - [ ] screenshots of the plugin running inside real Logseq (required by the marketplace README; see `docs/RELEASE_VALIDATION.md`'s screenshot checklist — blocked on the same real-Logseq session as the item above)
-- [ ] push a `v0.1.0` tag once the two items above are done, confirm the Publish workflow attaches the zip to `frogiraffe/logseq-draft-recipe`
-- [ ] fork `logseq/marketplace`, add `packages/logseq-draft-recipe/manifest.json` (see `docs/marketplace-manifest.json`), open the submission PR — staging described in the final release report
+- [ ] push a `v0.1.0` tag once the two items above are done, confirm the Publish workflow attaches the zip to `frogiraffe/logseq-recipe`
+- [ ] fork `logseq/marketplace`, add `packages/logseq-recipe/manifest.json` (see `docs/marketplace-manifest.json`), open the submission PR — staging described in the final release report
 
 ## Later ideas — not v0.1
 
@@ -315,6 +315,6 @@ v0.1 is done only when all of the following are true:
 6. native ingredient edits replace stale hidden structure, including numeric → qualitative edits and source measurement-system changes;
 7. recipe search/filter/settings/cover flows work in Logseq;
 8. Cooking Mode navigates the recipe, uses the same target servings, and optionally shows the recipe cover;
-9. native Logseq edits refresh the open recipe without graph-wide reparsing, endless property-write loops, or changing the active Draft Recipe view;
+9. native Logseq edits refresh the open recipe without graph-wide reparsing, endless property-write loops, or changing the active Logseq Recipe view;
 10. reload, graph reopen, graph switch, and cover persistence scenarios pass;
-11. disabling Draft Recipe still leaves the complete recipe understandable in the native Logseq outline.
+11. disabling Logseq Recipe still leaves the complete recipe understandable in the native Logseq outline.

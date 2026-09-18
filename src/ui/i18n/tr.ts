@@ -65,7 +65,7 @@ export const trMessages: UiMessages = {
   rangeMax: "En çok",
   minutesUnit: "dk",
   converting: "Dönüştürülüyor",
-  alreadyRecipe: "Bu sayfa zaten bir Draft Recipe tarifi.",
+  alreadyRecipe: "Bu sayfa zaten bir tarif.",
   openRecipe: "Tarifi aç",
   missingYieldPrompt:
     "Bu tarif kaç porsiyon/adet veriyor? Devam etmek için bu gerekli.",
@@ -73,7 +73,7 @@ export const trMessages: UiMessages = {
   useThisYield: "Bu miktarı kullan",
   conversionRulesTitle: "Özel malzeme dönüşümü",
   conversionRulesHelp:
-    "Draft Recipe, g ↔ kg ve ml ↔ L gibi sabit birimleri otomatik olarak dönüştürür. Desteklenen malzemeler için kütle ile hacim arasında da (ör. bardağı grama) yerleşik verilerle otomatik dönüşüm yapar. Özel bir dönüşümü yalnızca bir malzeme desteklenmediğinde veya bu tarif için yerleşik dönüşümü geçersiz kılmak istediğinizde ekleyin. Bu, tarife malzeme eklemez — malzemeleri Malzemeler bölümü altına normal satırlar olarak yazın.",
+    "Logseq Recipe, g ↔ kg ve ml ↔ L gibi sabit birimleri otomatik olarak dönüştürür. Desteklenen malzemeler için kütle ile hacim arasında da (ör. bardağı grama) yerleşik verilerle otomatik dönüşüm yapar. Özel bir dönüşümü yalnızca bir malzeme desteklenmediğinde veya bu tarif için yerleşik dönüşümü geçersiz kılmak istediğinizde ekleyin. Bu, tarife malzeme eklemez — malzemeleri Malzemeler bölümü altına normal satırlar olarak yazın.",
   editRecipe: "Tarifi düzenle",
   duplicateRecipe: "Tarifi çoğalt",
   deleteRecipe: "Tarifi sil",
