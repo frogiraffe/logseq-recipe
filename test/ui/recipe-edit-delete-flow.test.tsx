@@ -80,6 +80,55 @@ describe("recipe edit/delete flow wiring", () => {
     ).toBeTruthy();
   });
 
+  it("resets the target yield to the new base yield after editing it, instead of leaving it at the old ratio", async () => {
+    const saveRecipeEdit = vi
+      .fn<(id: string, patch: RecipeEditPatch) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const loadRecipe = vi
+      .fn<() => Promise<Recipe | null>>()
+      .mockResolvedValueOnce(recipe()) // initial load: baseYield 8
+      .mockResolvedValueOnce({ ...recipe(), baseYield: 16 }); // after edit
+    const controller = baseController({ saveRecipeEdit, loadRecipe });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    expect(
+      (await screen.findByLabelText(enMessages.servings)).getAttribute("value"),
+    ).toBe("8");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.servings), {
+      target: { value: "16" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    await waitFor(() => {
+      expect(saveRecipeEdit).toHaveBeenCalledWith(
+        "recipe-1",
+        expect.objectContaining({ baseYield: 16 }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText(enMessages.servings).getAttribute("value"),
+      ).toBe("16");
+    });
+  });
+
   it("duplicates through the controller and opens the copy", async () => {
     const duplicated: Recipe = {
       ...recipe(),

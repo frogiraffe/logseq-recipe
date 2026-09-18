@@ -39,6 +39,7 @@ export interface RecipeSettingsPanelProps {
   categorySuggestions?: FacetSuggestion[];
   tagSuggestions?: FacetSuggestion[];
   defaultSourceMeasurementSystem?: MeasurementSystem;
+  pending?: boolean;
   onSave(meta: RecipeMeta, cover: CoverSelection): void;
   onCancel(): void;
 }
@@ -50,6 +51,7 @@ export function RecipeSettingsPanel({
   categorySuggestions = [],
   tagSuggestions = [],
   defaultSourceMeasurementSystem = "metric",
+  pending = false,
   onSave,
   onCancel,
 }: RecipeSettingsPanelProps) {
@@ -304,6 +306,7 @@ export function RecipeSettingsPanel({
           type="button"
           className="draft-recipe-primary-action"
           onClick={save}
+          disabled={pending}
         >
           {messages.save}
         </button>

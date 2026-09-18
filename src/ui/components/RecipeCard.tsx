@@ -11,6 +11,7 @@ export interface RecipeCardProps {
   measurementSystem: MeasurementSystem;
   messages: UiMessages;
   coverUrl?: string | null;
+  pending?: boolean;
   onTargetYieldChange(value: number): void;
   onStartCooking?(): void;
   onEditSettings?(): void;
@@ -55,6 +56,7 @@ export function RecipeCard({
   measurementSystem,
   messages,
   coverUrl,
+  pending = false,
   onTargetYieldChange,
   onStartCooking,
   onEditSettings,
@@ -172,6 +174,7 @@ export function RecipeCard({
               type="button"
               className="draft-recipe-destructive-action"
               onClick={onDeleteRecipe}
+              disabled={pending}
             >
               {messages.deleteRecipeConfirmAction}
             </button>
@@ -184,22 +187,27 @@ export function RecipeCard({
               type="button"
               className="draft-recipe-destructive-action draft-recipe-actions-leading"
               onClick={() => setConfirmingDelete(true)}
+              disabled={pending}
             >
               {messages.deleteRecipe}
             </button>
           )}
           {onEditRecipe && (
-            <button type="button" onClick={onEditRecipe}>
+            <button type="button" onClick={onEditRecipe} disabled={pending}>
               {messages.editRecipe}
             </button>
           )}
           {onDuplicateRecipe && (
-            <button type="button" onClick={onDuplicateRecipe}>
+            <button
+              type="button"
+              onClick={onDuplicateRecipe}
+              disabled={pending}
+            >
               {messages.duplicateRecipe}
             </button>
           )}
           {onEditSettings && (
-            <button type="button" onClick={onEditSettings}>
+            <button type="button" onClick={onEditSettings} disabled={pending}>
               {messages.editRecipeSettings}
             </button>
           )}

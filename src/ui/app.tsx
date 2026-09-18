@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -60,6 +61,24 @@ export function DraftRecipeApp({
   >([]);
   const [tagSuggestions, setTagSuggestions] = useState<FacetSuggestion[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  // A double-click (or a slow Logseq call) must never start a second Create/
+  // Convert/Save/Duplicate/Delete before the first one finishes and creates
+  // duplicate blocks or pages. `pending` blocks re-entry into any of them;
+  // callers also disable their trigger button while it's true.
+  const runExclusive = useCallback(
+    async (task: () => Promise<void>) => {
+      if (pending) return;
+      setPending(true);
+      try {
+        await task();
+      } finally {
+        setPending(false);
+      }
+    },
+    [pending],
+  );
 
   const measurementSystem =
     recipe?.measurementSystemOverride ?? config.globalMeasurementSystem;
@@ -68,21 +87,36 @@ export function DraftRecipeApp({
     [config.themeCssProperties],
   );
 
+  // A DB watcher can fire again before a slower earlier load resolves. Only
+  // the most recently *started* load is allowed to apply its result, so an
+  // older response can never overwrite newer state after the fact. A
+  // superseded load resolves to `undefined` (nothing decided) rather than
+  // `null` (confirmed gone) - callers that care about "was this recipe
+  // actually deleted" must not treat the two the same.
+  const loadTokenRef = useRef(0);
   const refreshRecipeById = useCallback(
-    async (id: string, resetYield: boolean): Promise<Recipe | null> => {
+    async (
+      id: string,
+      resetYield: boolean,
+    ): Promise<Recipe | null | undefined> => {
+      const token = ++loadTokenRef.current;
       try {
         setError(null);
         const loaded = await controller.loadRecipe(id);
+        if (loadTokenRef.current !== token) return undefined;
         if (!loaded) {
           setError(`Recipe not found: ${id}`);
+          setRecipe(null);
           return null;
         }
         setRecipe(loaded);
         if (resetYield) setTargetYield(loaded.baseYield);
         return loaded;
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-        return null;
+        if (loadTokenRef.current === token) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+        return undefined;
       }
     },
     [controller],
@@ -147,9 +181,19 @@ export function DraftRecipeApp({
   useEffect(() => {
     if (!recipeId || !controller.watchRecipe) return undefined;
     return controller.watchRecipe(recipeId, () => {
-      void refreshRecipeById(recipeId, false);
+      void refreshRecipeById(recipeId, false).then((loaded) => {
+        // The recipe was removed/recycled from outside the plugin (or by
+        // this plugin's own Delete) while its card was open - don't leave a
+        // stale card on screen with nothing behind it. `undefined` means
+        // this particular load was superseded by a newer one, not that the
+        // recipe is actually gone - only `null` is a confirmed deletion.
+        if (loaded === null) {
+          setView({ kind: "recipes" });
+          void refreshRecipes();
+        }
+      });
     });
-  }, [controller, recipeId, refreshRecipeById]);
+  }, [controller, recipeId, refreshRecipeById, refreshRecipes]);
 
   const shell = (content: ReactNode) => (
     <div
@@ -183,21 +227,23 @@ export function DraftRecipeApp({
         messages={messages}
         locale={createDefaults.locale}
         sourceMeasurementSystem={createDefaults.sourceMeasurementSystem}
+        pending={pending}
         onCancel={() => {
           setView({ kind: "recipes" });
           void refreshRecipes();
         }}
         onSubmit={(input) => {
-          void controller
-            .createRecipe(input)
-            .then((created) => {
+          void runExclusive(async () => {
+            try {
+              setError(null);
+              const created = await controller.createRecipe(input);
               setRecipe(created);
               setTargetYield(created.baseYield);
               setView({ kind: "recipe-loaded" });
-            })
-            .catch((cause: unknown) => {
+            } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));
-            });
+            }
+          });
         }}
       />,
     );
@@ -208,14 +254,18 @@ export function DraftRecipeApp({
       <ConvertPreview
         draft={view.draft}
         messages={messages}
+        pending={pending}
         onCancel={controller.close}
         onConfirm={(resolvedDraft) => {
-          void controller
-            .commitConversion(resolvedDraft)
-            .then(() => openRecipeById(resolvedDraft.rootId, true))
-            .catch((cause: unknown) => {
+          void runExclusive(async () => {
+            try {
+              setError(null);
+              await controller.commitConversion(resolvedDraft);
+              await openRecipeById(resolvedDraft.rootId, true);
+            } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));
-            });
+            }
+          });
         }}
       />,
     );
@@ -248,9 +298,10 @@ export function DraftRecipeApp({
         categorySuggestions={categorySuggestions}
         tagSuggestions={tagSuggestions}
         defaultSourceMeasurementSystem={config.defaultSourceMeasurementSystem}
+        pending={pending}
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onSave={(meta, cover: CoverSelection) => {
-          void (async () => {
+          void runExclusive(async () => {
             try {
               setError(null);
               await controller.saveRecipeMeta(recipe.id, meta);
@@ -263,7 +314,7 @@ export function DraftRecipeApp({
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));
             }
-          })();
+          });
         }}
       />,
     );
@@ -274,18 +325,22 @@ export function DraftRecipeApp({
       <RecipeEditor
         recipe={recipe}
         messages={messages}
+        pending={pending}
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onSave={(patch) => {
-          void (async () => {
+          void runExclusive(async () => {
             try {
               setError(null);
               await controller.saveRecipeEdit(recipe.id, patch);
-              const refreshed = await refreshRecipeById(recipe.id, false);
+              const refreshed = await refreshRecipeById(
+                recipe.id,
+                patch.baseYield !== undefined,
+              );
               if (refreshed) setView({ kind: "recipe-loaded" });
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : String(cause));
             }
-          })();
+          });
         }}
       />,
     );
@@ -323,11 +378,12 @@ export function DraftRecipeApp({
           measurementSystem={measurementSystem}
           messages={messages}
           coverUrl={coverUrl}
+          pending={pending}
           onTargetYieldChange={setTargetYield}
           onEditSettings={() => void openSettings()}
           onEditRecipe={() => setView({ kind: "edit" })}
           onDuplicateRecipe={() => {
-            void (async () => {
+            void runExclusive(async () => {
               try {
                 setError(null);
                 const duplicated = await controller.duplicateRecipe(recipe.id);
@@ -339,10 +395,10 @@ export function DraftRecipeApp({
                   cause instanceof Error ? cause.message : String(cause),
                 );
               }
-            })();
+            });
           }}
           onDeleteRecipe={() => {
-            void (async () => {
+            void runExclusive(async () => {
               try {
                 setError(null);
                 await controller.deleteRecipe(recipe.id);
@@ -353,7 +409,7 @@ export function DraftRecipeApp({
                   cause instanceof Error ? cause.message : String(cause),
                 );
               }
-            })();
+            });
           }}
           onStartCooking={() => setView({ kind: "cooking" })}
         />

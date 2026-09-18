@@ -15,6 +15,7 @@ interface EditableItem {
 export interface RecipeEditorProps {
   recipe: Recipe;
   messages: UiMessages;
+  pending?: boolean;
   onSave(patch: RecipeEditPatch): void;
   onCancel(): void;
 }
@@ -138,6 +139,7 @@ function EditableSection({
 export function RecipeEditor({
   recipe,
   messages,
+  pending = false,
   onSave,
   onCancel,
 }: RecipeEditorProps) {
@@ -403,7 +405,7 @@ export function RecipeEditor({
         <button
           type="button"
           className="draft-recipe-primary-action"
-          disabled={!formValid}
+          disabled={!formValid || pending}
           onClick={save}
         >
           {messages.save}
