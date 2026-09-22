@@ -1,0 +1,185 @@
+.draft-recipe-cooking-cover {
+  overflow: hidden;
+  width: min(100%, 720px);
+  max-height: 220px;
+  margin: 0 auto;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 14px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-cooking-cover img {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.draft-recipe-classification-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.draft-recipe-category-chip,
+.draft-recipe-tag-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* Filled/accent treatment: categories are the primary grouping facet. */
+.draft-recipe-category-chip {
+  border: 1px solid var(--ls-link-text-color);
+  background: color-mix(in srgb, var(--ls-link-text-color) 16%, transparent);
+  color: var(--ls-link-text-color);
+  font-weight: 600;
+}
+
+/* Outlined/subtle treatment: tags are secondary, free-form labels. A leading
+   "#" reinforces the distinction independent of color/theme. */
+.draft-recipe-tag-chip {
+  border: 1px dashed var(--ls-border-color);
+  background: transparent;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-tag-chip::before {
+  content: "#";
+  margin-right: 1px;
+  opacity: 0.7;
+}
+
+.draft-recipe-category-chip,
+.draft-recipe-tag-chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.draft-recipe-chip-input-wrapper {
+  position: relative;
+}
+
+.draft-recipe-chip-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 8px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-category-chip,
+.draft-recipe-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.draft-recipe-chip-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 8px;
+  background: var(--ls-primary-background-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.draft-recipe-chip-suggestions button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: left;
+  background: transparent;
+}
+
+.draft-recipe-chip-suggestions button:hover,
+.draft-recipe-chip-suggestions button.draft-recipe-chip-suggestion-active {
+  background: color-mix(in srgb, var(--ls-link-text-color) 14%, transparent);
+}
+
+.draft-recipe-chip-input .draft-recipe-category-chip button,
+.draft-recipe-chip-input .draft-recipe-tag-chip button {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.draft-recipe-chip-input input {
+  flex: 1 1 120px;
+  min-width: 80px;
+  border: 0;
+  padding: 2px;
+  background: transparent;
+}
+
+.draft-recipe-chip-input input:focus-visible {
+  outline: none;
+}
+
+/* The input itself is borderless (it sits flush inside the chip row), so
+   the visible keyboard-focus ring moves to the row container instead of
+   disappearing outright. */
+.draft-recipe-chip-input:focus-within {
+  outline: 2px solid var(--ls-link-text-color);
+  outline-offset: 1px;
+}
+
+.draft-recipe-advanced-disclosure {
+  margin-top: 4px;
+}
+
+.draft-recipe-advanced-disclosure summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-advanced-disclosure[open] summary {
+  margin-bottom: 8px;
+}
+
+.draft-recipe-conversion-editor-help {
+  grid-column: 1 / -1;
+  margin: -4px 0 4px;
+  color: var(--ls-secondary-text-color);
+  font-size: 0.85rem;
+}
+
+.draft-recipe-source-link {
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.draft-recipe-yield-unit {
+  color: var(--ls-secondary-text-color);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .draft-recipe-cooking-cover,
+  .draft-recipe-cooking-cover img {
+    max-height: 160px;
+  }
+
+  .draft-recipe-cooking-cover img {
+    height: 160px;
+  }
+}

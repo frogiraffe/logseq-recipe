@@ -1,0 +1,693 @@
+.draft-recipe-app {
+  --dr-radius-sm: 8px;
+  --dr-radius-md: 12px;
+  --dr-radius-lg: 16px;
+  --dr-shadow-resting: 0 1px 2px
+    color-mix(in srgb, var(--ls-primary-text-color) 8%, transparent);
+  --dr-shadow-raised:
+    0 1px 2px color-mix(in srgb, var(--ls-primary-text-color) 8%, transparent),
+    0 10px 24px
+    color-mix(in srgb, var(--ls-primary-text-color) 10%, transparent);
+
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 20px;
+  color: var(--ls-primary-text-color);
+  background: var(--ls-primary-background-color);
+  font-family: var(--ls-font-family, system-ui, sans-serif);
+}
+
+.draft-recipe-app *,
+.draft-recipe-app *::before,
+.draft-recipe-app *::after {
+  box-sizing: border-box;
+}
+
+.draft-recipe-app button,
+.draft-recipe-app input,
+.draft-recipe-app select {
+  color: inherit;
+  background: var(--ls-secondary-background-color);
+  border: 1px solid var(--ls-border-color);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.draft-recipe-app button {
+  cursor: pointer;
+}
+
+/* The app already offers dedicated +/- controls or a compact single field
+   for every number input; the browser's native spinner is redundant and
+   looks inconsistent across themes, so hide it in favor of typing/arrow keys. */
+.draft-recipe-app input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.draft-recipe-app input[type="number"]::-webkit-inner-spin-button,
+.draft-recipe-app input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.draft-recipe-app button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.draft-recipe-app button.draft-recipe-primary-action {
+  font-weight: 600;
+  background: var(--ls-link-text-color);
+  color: var(--ls-primary-background-color);
+}
+
+.draft-recipe-actions-leading {
+  margin-right: auto;
+}
+
+.draft-recipe-app button.draft-recipe-destructive-action {
+  font-weight: 600;
+  border-color: var(--ls-error-color, #d1453b);
+  color: var(--ls-error-color, #d1453b);
+}
+
+.draft-recipe-app button.draft-recipe-destructive-action:not(:disabled):hover {
+  background: var(--ls-error-color, #d1453b);
+  color: var(--ls-primary-background-color);
+}
+
+.draft-recipe-delete-confirm {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  margin-top: 12px;
+  border: 1px solid var(--ls-error-color, #d1453b);
+  border-radius: 12px;
+}
+
+.draft-recipe-validation-error {
+  color: var(--ls-error-color, #d1453b);
+  margin: 4px 0;
+}
+
+.draft-recipe-app-toolbar,
+.draft-recipe-recipes-toolbar,
+.draft-recipe-actions,
+.draft-recipe-cooking-header-actions,
+.draft-recipe-cooking-nav,
+.draft-recipe-meta-row,
+.draft-recipe-annotation-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.draft-recipe-app-toolbar {
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+/* Long forms (Edit recipe, Recipe settings, Convert to Recipe) put Save/
+   Cancel-equivalent controls at the very end of a form that can scroll well
+   past one screen; pinning that one action row keeps it reachable without
+   scrolling all the way down every time. `position: sticky` keeps its
+   normal in-flow space, so it never overlaps the content above it. */
+.draft-recipe-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 12px -20px -20px;
+  padding: 12px 20px;
+  background: var(--ls-primary-background-color);
+  border-top: 1px solid var(--ls-border-color);
+}
+
+.draft-recipe-card,
+.draft-recipe-convert-preview,
+.draft-recipe-new-form,
+.draft-recipe-recipes-view,
+.draft-recipe-cooking-mode,
+.draft-recipe-settings-panel,
+.draft-recipe-already-recipe {
+  width: min(920px, 100%);
+  margin: 0 auto;
+}
+
+.draft-recipe-app button,
+.draft-recipe-app input,
+.draft-recipe-app select {
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.draft-recipe-app button:not(:disabled):hover {
+  border-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-app button.draft-recipe-primary-action:not(:disabled):hover {
+  box-shadow: var(--dr-shadow-raised);
+  transform: translateY(-1px);
+}
+
+.draft-recipe-app button:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+
+.draft-recipe-app input:focus-visible,
+.draft-recipe-app select:focus-visible,
+.draft-recipe-app button:focus-visible {
+  outline: 2px solid var(--ls-link-text-color);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-app button,
+  .draft-recipe-app input,
+  .draft-recipe-app select {
+    transition: none;
+  }
+}
+
+.draft-recipe-card h1,
+.draft-recipe-recipes-view h1,
+.draft-recipe-convert-preview h1,
+.draft-recipe-new-form h1,
+.draft-recipe-settings-panel h1 {
+  overflow-wrap: anywhere;
+}
+
+.draft-recipe-already-recipe {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-convert-source {
+  color: var(--ls-secondary-text-color);
+  overflow-wrap: anywhere;
+}
+
+.draft-recipe-convert-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+}
+
+.draft-recipe-convert-summary div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.draft-recipe-convert-summary dt {
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-convert-summary dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.draft-recipe-cover {
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-lg);
+  background: var(--ls-secondary-background-color);
+  box-shadow: var(--dr-shadow-raised);
+}
+
+.draft-recipe-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.draft-recipe-card-header,
+.draft-recipe-cooking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.draft-recipe-card h1,
+.draft-recipe-recipes-view h1,
+.draft-recipe-convert-preview h1,
+.draft-recipe-new-form h1,
+.draft-recipe-settings-panel h1 {
+  margin: 0 0 10px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.draft-recipe-meta-row {
+  color: var(--ls-secondary-text-color);
+  font-size: 0.9rem;
+}
+
+.draft-recipe-serving-control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.draft-recipe-serving-control input {
+  width: 72px;
+  text-align: center;
+}
+
+.draft-recipe-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--ls-border-color);
+}
+
+.draft-recipe-section h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.draft-recipe-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  margin: 14px 0;
+  border: 1px dashed var(--ls-border-color);
+  border-radius: 10px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-empty-state p {
+  margin: 0;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-ingredients,
+.draft-recipe-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.draft-recipe-ingredient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.draft-recipe-ingredient-row small {
+  grid-column: 1 / -1;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-editor-items {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-editor-item,
+.draft-recipe-editor-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.draft-recipe-editor-item input,
+.draft-recipe-editor-add-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-recipe-editor-item button,
+.draft-recipe-editor-add-row button {
+  flex: 0 0 auto;
+  min-width: 108px;
+}
+
+.draft-recipe-editor-item .draft-recipe-editor-move-button {
+  min-width: 32px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.draft-recipe-scale-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  color: var(--ls-secondary-text-color);
+  white-space: nowrap;
+}
+
+.draft-recipe-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+  background: var(--ls-secondary-background-color);
+}
+
+/* The disclosure sits inside the same grid as Sort/Search/Clear filters,
+   but its own contents (Contains ingredient/Category/Tags/time ranges)
+   must not be squeezed into that one grid cell's width - give it the full
+   row and its own responsive sub-grid instead. */
+.draft-recipe-filters-disclosure {
+  grid-column: 1 / -1;
+}
+
+.draft-recipe-filters-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.draft-recipe-filters label,
+.draft-recipe-new-form label,
+.draft-recipe-settings-panel > label,
+.draft-recipe-field-group > label,
+.draft-recipe-conversion-editor label,
+.draft-recipe-field {
+  display: grid;
+  gap: 5px;
+  font-size: 0.9rem;
+}
+
+/* Groups related Edit recipe fields (basic info / timing / source) with the
+   same border-top rhythm already used to separate Ingredients/Steps/Notes,
+   instead of one undifferentiated stack of labels. */
+.draft-recipe-field-group {
+  display: grid;
+  gap: 12px;
+}
+
+.draft-recipe-field-group + .draft-recipe-field-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--ls-border-color);
+}
+
+.draft-recipe-range-filter {
+  display: flex;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.draft-recipe-range-filter legend {
+  width: 100%;
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+}
+
+.draft-recipe-range-filter input {
+  min-width: 0;
+  width: 50%;
+}
+
+.draft-recipe-result-count {
+  margin: 8px 0;
+  color: var(--ls-secondary-text-color);
+  font-size: 0.85rem;
+}
+
+.draft-recipe-recipe-list {
+  display: grid;
+  gap: 8px;
+}
+
+.draft-recipe-recipe-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--dr-radius-md);
+  text-align: left;
+  box-shadow: var(--dr-shadow-resting);
+}
+
+.draft-recipe-recipe-list-item:not(:disabled):hover {
+  border-color: var(--ls-link-text-color);
+  box-shadow: var(--dr-shadow-raised);
+  transform: translateY(-1px);
+}
+
+.draft-recipe-recipe-list-item span {
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-warning-list,
+.draft-recipe-error {
+  padding: 10px 14px;
+  border: 1px solid var(--ls-error-color, var(--ls-border-color));
+  border-radius: 10px;
+}
+
+.draft-recipe-new-form,
+.draft-recipe-settings-panel,
+.draft-recipe-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.draft-recipe-conversion-editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+}
+
+.draft-recipe-conversion-editor legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.draft-recipe-conversion-editor ul {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.draft-recipe-conversion-classification {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.draft-recipe-conversion-classification h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.draft-recipe-conversion-classification-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+}
+
+.draft-recipe-ingredient-review-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+}
+
+.draft-recipe-ingredient-review-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.draft-recipe-ingredient-review-fields input,
+.draft-recipe-ingredient-review-fields select {
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.draft-recipe-conversion-editor li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.draft-recipe-cooking-mode {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.draft-recipe-cooking-header > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.draft-recipe-cooking-ingredients,
+.draft-recipe-cooking-notes {
+  padding: 12px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 12px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-cooking-ingredients li {
+  list-style: none;
+}
+
+.draft-recipe-cooking-ingredients label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.draft-recipe-cooking-ingredients ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.draft-recipe-ingredient-checked {
+  color: var(--ls-secondary-text-color);
+  text-decoration: line-through;
+}
+
+.draft-recipe-cooking-notes h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.draft-recipe-cooking-notes ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.draft-recipe-current-step {
+  display: grid;
+  place-content: center;
+  gap: 18px;
+  flex: 1;
+  min-height: 45vh;
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  line-height: 1.45;
+  animation: draft-recipe-step-in 0.22s ease;
+}
+
+@keyframes draft-recipe-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-current-step {
+    animation: none;
+  }
+}
+
+.draft-recipe-annotation {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--ls-secondary-background-color);
+  border: 1px solid var(--ls-border-color);
+  font-size: 0.9rem;
+}
+
+.draft-recipe-cooking-nav {
+  justify-content: space-between;
+}
+
+.draft-recipe-cooking-nav progress {
+  flex: 1;
+  max-width: 420px;
+  height: 8px;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  accent-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-cooking-nav progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-cooking-nav progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--ls-link-text-color);
+  transition: width 0.2s ease;
+}
+
+.draft-recipe-cooking-nav progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--ls-link-text-color);
+  transition: width 0.2s ease;
+}
+
+.draft-recipe-back {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+  .draft-recipe-app {
+    padding: 12px;
+  }
+
+  .draft-recipe-card-header,
+  .draft-recipe-cooking-header {
+    flex-direction: column;
+  }
+
+  .draft-recipe-recipe-list-item,
+  .draft-recipe-ingredient-row {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .draft-recipe-editor-item,
+  .draft-recipe-editor-add-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
