@@ -1,8 +1,8 @@
 {
   "name": "logseq-recipe",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
-  "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
+  "description": "A local recipe library for Logseq DB graphs: serving scaling, unit conversion, and a Cooking Mode with timers.",
   "author": "frogiraffe",
   "license": "MIT",
   "type": "module",
@@ -30,13 +30,16 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "biome check src test vite.config.ts",
-    "format": "biome format --write src test vite.config.ts",
+    "lint": "biome check src test demo vite.config.ts",
+    "format": "biome format --write src test demo vite.config.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "package": "pnpm build && bash scripts/package.sh",
     "package:verify": "bash scripts/verify-package.sh"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@logseq/libs": "0.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

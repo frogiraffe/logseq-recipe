@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Recipe } from "../../src/domain/recipe";
 import { RecipeCard } from "../../src/ui/components/RecipeCard";
 import { enMessages, trMessages } from "../../src/ui/i18n";
+import { ingredientLine } from "./ingredient-line";
 
 const recipe: Recipe = {
   id: "r1",
@@ -54,13 +55,17 @@ function Harness() {
 describe("RecipeCard", () => {
   it("scales from canonical amounts without mutating source recipe text", () => {
     render(<Harness />);
-    expect(screen.getByText("120 g butter")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("120 g butter"))).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "+" }));
-    fireEvent.click(screen.getByRole("button", { name: "+" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.moreServings }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.moreServings }),
+    );
 
-    expect(screen.getByText("240 g butter")).toBeTruthy();
-    expect(screen.getByText("1 pinch salt")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("240 g butter"))).toBeTruthy();
+    expect(screen.getByText(ingredientLine("1 pinch salt"))).toBeTruthy();
     expect(recipe.ingredients[0].rawText).toBe("120 g butter");
     expect(recipe.ingredients[0].amount).toEqual({ kind: "exact", value: 120 });
   });
@@ -247,8 +252,8 @@ describe("RecipeCard", () => {
     );
   });
 
-  it("requires an explicit confirmation naming the recipe before deleting", () => {
-    const onDeleteRecipe = vi.fn();
+  it("requires an explicit confirmation naming the recipe before archiving", () => {
+    const onArchiveRecipe = vi.fn();
     render(
       <RecipeCard
         ingredientUnitOverrides={{}}
@@ -258,30 +263,31 @@ describe("RecipeCard", () => {
         measurementSystem="metric"
         messages={enMessages}
         onTargetYieldChange={() => undefined}
-        onDeleteRecipe={onDeleteRecipe}
+        onArchiveRecipe={onArchiveRecipe}
       />,
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: enMessages.deleteRecipe }),
+      screen.getByRole("button", { name: enMessages.archiveRecipe }),
     );
-    expect(screen.getByTestId("delete-confirm")).toBeTruthy();
+    expect(screen.getByTestId("archive-confirm")).toBeTruthy();
+    expect(screen.getByText(enMessages.archiveRecipeConfirm)).toBeTruthy();
     expect(screen.getAllByText(recipe.title).length).toBeGreaterThan(0);
-    expect(onDeleteRecipe).not.toHaveBeenCalled();
+    expect(onArchiveRecipe).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
-    expect(screen.queryByTestId("delete-confirm")).toBeNull();
-    expect(onDeleteRecipe).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("archive-confirm")).toBeNull();
+    expect(onArchiveRecipe).not.toHaveBeenCalled();
 
     fireEvent.click(
-      screen.getByRole("button", { name: enMessages.deleteRecipe }),
+      screen.getByRole("button", { name: enMessages.archiveRecipe }),
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: enMessages.deleteRecipeConfirmAction,
+        name: enMessages.archiveRecipeConfirmAction,
       }),
     );
-    expect(onDeleteRecipe).toHaveBeenCalledTimes(1);
+    expect(onArchiveRecipe).toHaveBeenCalledTimes(1);
   });
 
   it("disables Start Cooking for a recipe with zero steps", () => {
@@ -341,5 +347,62 @@ describe("RecipeCard", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+  });
+});
+
+describe("RecipeCard step children", () => {
+  it("renders step notes, graph images, and a fallback for missing files", async () => {
+    const withMedia: Recipe = {
+      ...recipe,
+      steps: [
+        {
+          id: "s-media",
+          rawText: "Shape the dough.",
+          durations: [],
+          temperatures: [],
+          heat: [],
+          children: [
+            { id: "c1", kind: "note", text: "Wet your hands first." },
+            {
+              id: "c2",
+              kind: "image",
+              text: "![shape](../assets/shape.png)",
+              path: "assets/shape.png",
+              alt: "shape",
+            },
+            {
+              id: "c3",
+              kind: "audio",
+              text: "![tip](../assets/gone.mp3)",
+              path: "assets/gone.mp3",
+              alt: "tip",
+            },
+          ],
+        },
+      ],
+    };
+    render(
+      <RecipeCard
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={withMedia}
+        targetYield={2}
+        measurementSystem="metric"
+        messages={enMessages}
+        resolveAssetUrl={async (path) =>
+          path === "assets/shape.png" ? "assets://graph/shape.png" : null
+        }
+        onTargetYieldChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Wet your hands first.")).toBeTruthy();
+    const image = (await screen.findByRole("img", {
+      name: "shape",
+    })) as HTMLImageElement;
+    expect(image.getAttribute("src")).toBe("assets://graph/shape.png");
+    expect(
+      await screen.findByText(`${enMessages.mediaMissing}: assets/gone.mp3`),
+    ).toBeTruthy();
   });
 });

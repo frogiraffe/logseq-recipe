@@ -1,4 +1,5 @@
 import type { CoverRef } from "../domain/recipe";
+import { STEP_MEDIA_EXTENSIONS, safeAssetPath } from "../domain/step-media";
 import type { CoverReferenceCapability } from "./capabilities";
 import { PROPERTY_KEYS } from "./property-keys";
 
@@ -44,6 +45,31 @@ export async function listImageAssets(host: AssetListHost): Promise<string[]> {
     .map((file) => file.path)
     .filter((path) => typeof path === "string" && path.trim().length > 0)
     .sort((a, b) => a.localeCompare(b));
+}
+
+export async function listStepMediaAssets(
+  host: AssetListHost,
+): Promise<string[]> {
+  const files =
+    (await host.listFilesOfCurrentGraph(STEP_MEDIA_EXTENSIONS)) ?? [];
+  return files
+    .map((file) => file.path)
+    .filter((path) => typeof path === "string" && path.trim().length > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/** Only ever resolves a path that passes the graph-local asset check. */
+export async function resolveAssetUrl(
+  host: CoverResolverHost,
+  path: string,
+): Promise<string | null> {
+  const safe = safeAssetPath(path);
+  if (!safe) return null;
+  try {
+    return await host.assets.makeUrl(safe);
+  } catch {
+    return null;
+  }
 }
 
 export async function resolveCoverUrl(

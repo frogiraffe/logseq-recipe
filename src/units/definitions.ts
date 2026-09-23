@@ -33,7 +33,7 @@ export const LINEAR_UNIT_DEFINITIONS: Partial<
   // Turkish culinary glass/spoon sizes are their own fixed units, not a
   // regional variant of "cup" - they don't change with the recipe's source
   // measurement system the way tsp/tbsp/cup do. Values are the standard
-  // Turkish home-kitchen references (see docs/RECIPE-FORMAT.md): su bardağı
+  // Turkish home-kitchen references: su bardağı
   // ("water glass") ~200 ml, çay bardağı ("tea glass") ~100 ml, tatlı kaşığı
   // ("dessert spoon") ~10 ml - between çay kaşığı/tsp (5 ml) and yemek
   // kaşığı/tbsp (15 ml), both of which already exactly match the metric

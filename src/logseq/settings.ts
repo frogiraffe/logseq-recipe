@@ -1,7 +1,8 @@
 import type { RecipeLocale } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
 
-export type UiLanguage = "en" | "tr";
+export type UiLanguage = "en" | "tr" | "fr" | "de" | "es";
+const UI_LANGUAGES = new Set<UiLanguage>(["en", "tr", "fr", "de", "es"]);
 export type ParserLocaleSetting = RecipeLocale | "auto";
 
 export interface DraftRecipeSettings {
@@ -20,14 +21,14 @@ type EnumSettingSchema = {
   enumPicker: "select";
 };
 
-export const SETTINGS_SCHEMA: EnumSettingSchema[] = [
+const SETTINGS_SCHEMA: EnumSettingSchema[] = [
   {
     key: "uiLanguage",
     type: "enum",
     default: "en",
     title: "UI language",
     description: "Language used by Logseq Recipe controls.",
-    enumChoices: ["en", "tr"],
+    enumChoices: ["en", "tr", "fr", "de", "es"],
     enumPicker: "select",
   },
   {
@@ -71,7 +72,11 @@ function isMeasurementSystem(value: unknown): value is MeasurementSystem {
 export function normalizeSettings(raw: unknown): DraftRecipeSettings {
   const record =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const uiLanguage: UiLanguage = record.uiLanguage === "tr" ? "tr" : "en";
+  const uiLanguage: UiLanguage = UI_LANGUAGES.has(
+    record.uiLanguage as UiLanguage,
+  )
+    ? (record.uiLanguage as UiLanguage)
+    : "en";
   const defaultParserLocale: ParserLocaleSetting =
     record.defaultParserLocale === "auto" ||
     isParserLocale(record.defaultParserLocale)

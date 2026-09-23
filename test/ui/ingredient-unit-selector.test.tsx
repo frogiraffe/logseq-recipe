@@ -5,6 +5,7 @@ import type { Recipe } from "../../src/domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../src/domain/unit";
 import { IngredientList } from "../../src/ui/components/IngredientList";
 import { enMessages } from "../../src/ui/i18n";
+import { ingredientLine } from "./ingredient-line";
 
 function Harness({
   recipe,
@@ -77,7 +78,7 @@ describe("ingredient display-unit selector", () => {
     );
     fireEvent.change(select, { target: { value: "tbsp_us" } });
 
-    expect(screen.getByText("1 tbsp butter")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("1 tbsp butter"))).toBeTruthy();
     expect(recipe.ingredients[0].rawText).toBe("14.2 g butter");
     expect(recipe.ingredients[0].unit).toBe("g");
   });
@@ -112,11 +113,11 @@ describe("ingredient display-unit selector", () => {
 
     // egg's own word is already in ingredientText ("yumurta") - no separate
     // unit label, and never duplicated.
-    expect(screen.getByText("4 yumurta")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("4 yumurta"))).toBeTruthy();
     expect(screen.queryByText(/egg yumurta/i)).toBeNull();
     // generic piece has no such self-naming word to fall back on - its
     // label must survive (pluralized for count 4), or "pieces" is lost
     // entirely rather than merely deduplicated.
-    expect(screen.getByText("4 pieces domates")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("4 pieces domates"))).toBeTruthy();
   });
 });

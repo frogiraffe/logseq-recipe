@@ -14,6 +14,7 @@ import type {
   DraftRecipeAppConfig,
   DraftRecipeUiController,
 } from "../../src/ui/state";
+import { ingredientLine } from "./ingredient-line";
 
 function recipe(stepText: string): Recipe {
   return {
@@ -56,6 +57,7 @@ function controllerHarness() {
 
   const controller: DraftRecipeUiController = {
     listRecipes: async () => [],
+    listArchivedRecipes: async () => [],
     loadRecipe,
     createRecipe: async () => recipe("Mix."),
     duplicateRecipe: async () => recipe("Mix."),
@@ -69,7 +71,10 @@ function controllerHarness() {
     setCoverPath: async () => undefined,
     clearCover: async () => undefined,
     saveRecipeEdit: async () => undefined,
-    deleteRecipe: async () => undefined,
+    archiveRecipe: async () => undefined,
+    restoreRecipe: async () => undefined,
+    deleteArchivedRecipe: async () => undefined,
+    openInLogseq: () => undefined,
     watchRecipe: (_id, listener) => {
       watchListener = listener;
       return () => {
@@ -81,8 +86,12 @@ function controllerHarness() {
 
   return {
     controller,
+    isWatching() {
+      return watchListener !== null;
+    },
     triggerWatch() {
-      watchListener?.();
+      if (!watchListener) throw new Error("Recipe watcher is not active");
+      watchListener();
     },
   };
 }
@@ -167,6 +176,7 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     });
     fireEvent.click(start);
     expect(screen.getByText("Mix.")).toBeTruthy();
+    await waitFor(() => expect(harness.isWatching()).toBe(true));
 
     await act(async () => {
       harness.triggerWatch();
@@ -204,6 +214,7 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     );
 
     await screen.findByText("Lifecycle Recipe");
+    await waitFor(() => expect(harness.isWatching()).toBe(true));
 
     await act(async () => {
       harness.triggerWatch();
@@ -247,6 +258,7 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     );
 
     await screen.findByText("Mix.");
+    await waitFor(() => expect(harness.isWatching()).toBe(true));
 
     // The slow load starts (watcher fires), then a second, faster load
     // starts before the slow one resolves.
@@ -269,16 +281,200 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     ).toBeNull();
   });
 
-  it("ignores a second Delete click while the first delete is still in flight", async () => {
+  it.each(["edit", "settings"] as const)(
+    "closes %s after a successful save when a watcher supersedes its refresh",
+    async (mode) => {
+      const harness = controllerHarness();
+      let resolveSaveLoad!: (value: Recipe | null) => void;
+      const loadRecipe = vi
+        .fn<(_: string) => Promise<Recipe | null>>()
+        .mockResolvedValueOnce(recipe("Mix."))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSaveLoad = resolve;
+            }),
+        )
+        .mockResolvedValueOnce({
+          ...recipe("Latest from watcher."),
+          baseYield: mode === "edit" ? 4 : 2,
+        });
+      harness.controller.loadRecipe = loadRecipe;
+      const saveRecipeEdit = vi.fn().mockResolvedValue(undefined);
+      const saveRecipeMeta = vi.fn().mockResolvedValue(undefined);
+      harness.controller.saveRecipeEdit = saveRecipeEdit;
+      harness.controller.saveRecipeMeta = saveRecipeMeta;
+
+      render(
+        <DraftRecipeApp
+          controller={harness.controller}
+          messages={enMessages}
+          config={{
+            initialView: { kind: "recipe", recipeId: "recipe-1" },
+            globalMeasurementSystem: "metric",
+            defaultParserLocale: "en",
+            defaultSourceMeasurementSystem: "us",
+          }}
+        />,
+      );
+      await screen.findByText("Lifecycle Recipe");
+      await waitFor(() => expect(harness.isWatching()).toBe(true));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            mode === "edit"
+              ? enMessages.editRecipe
+              : enMessages.editRecipeSettings,
+        }),
+      );
+      if (mode === "edit") {
+        fireEvent.change(await screen.findByLabelText(enMessages.servings), {
+          target: { value: "4" },
+        });
+      }
+      fireEvent.click(
+        await screen.findByRole("button", { name: enMessages.save }),
+      );
+      await waitFor(() => expect(loadRecipe).toHaveBeenCalledTimes(2));
+      expect(
+        mode === "edit" ? saveRecipeEdit : saveRecipeMeta,
+      ).toHaveBeenCalledOnce();
+
+      await act(async () => harness.triggerWatch());
+      await waitFor(() => expect(loadRecipe).toHaveBeenCalledTimes(3));
+      await act(async () => resolveSaveLoad(recipe("Stale save refresh.")));
+
+      expect(
+        screen.getByRole("button", { name: enMessages.startCooking }),
+      ).toBeTruthy();
+      expect(screen.getByText("Latest from watcher.")).toBeTruthy();
+      expect(screen.queryByText("Stale save refresh.")).toBeNull();
+      if (mode === "edit") {
+        expect(
+          screen.getByLabelText(enMessages.servings).getAttribute("value"),
+        ).toBe("4");
+      }
+    },
+  );
+
+  it.each(["edit", "settings"] as const)(
+    "keeps %s open when saving is rejected",
+    async (mode) => {
+      const harness = controllerHarness();
+      harness.controller.saveRecipeEdit = vi
+        .fn()
+        .mockRejectedValue(new Error("Write failed"));
+      harness.controller.saveRecipeMeta = vi
+        .fn()
+        .mockRejectedValue(new Error("Write failed"));
+      render(
+        <DraftRecipeApp
+          controller={harness.controller}
+          messages={enMessages}
+          config={{
+            initialView: { kind: "recipe", recipeId: "recipe-1" },
+            globalMeasurementSystem: "metric",
+            defaultParserLocale: "en",
+            defaultSourceMeasurementSystem: "us",
+          }}
+        />,
+      );
+      await screen.findByText("Lifecycle Recipe");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            mode === "edit"
+              ? enMessages.editRecipe
+              : enMessages.editRecipeSettings,
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: enMessages.save }),
+      );
+
+      expect(await screen.findByText("Write failed")).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: enMessages.save }),
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole("button", { name: enMessages.startCooking }),
+      ).toBeNull();
+    },
+  );
+
+  it.each(["edit", "settings"] as const)(
+    "guards later actions until the %s save refresh settles",
+    async (mode) => {
+      const harness = controllerHarness();
+      let resolveSaveLoad!: (value: Recipe | null) => void;
+      harness.controller.loadRecipe = vi
+        .fn<(_: string) => Promise<Recipe | null>>()
+        .mockResolvedValueOnce(recipe("Mix."))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSaveLoad = resolve;
+            }),
+        );
+      const copy = { ...recipe("Copied."), id: "recipe-2", title: "Copy" };
+      const duplicateRecipe = vi.fn().mockResolvedValue(copy);
+      harness.controller.duplicateRecipe = duplicateRecipe;
+
+      render(
+        <DraftRecipeApp
+          controller={harness.controller}
+          messages={enMessages}
+          config={{
+            initialView: { kind: "recipe", recipeId: "recipe-1" },
+            globalMeasurementSystem: "metric",
+            defaultParserLocale: "en",
+            defaultSourceMeasurementSystem: "us",
+          }}
+        />,
+      );
+      await screen.findByText("Lifecycle Recipe");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            mode === "edit"
+              ? enMessages.editRecipe
+              : enMessages.editRecipeSettings,
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: enMessages.save }),
+      );
+      const duplicate = await screen.findByRole("button", {
+        name: enMessages.duplicateRecipe,
+      });
+      const edit = screen.getByRole("button", { name: enMessages.editRecipe });
+
+      expect((duplicate as HTMLButtonElement).disabled).toBe(true);
+      expect((edit as HTMLButtonElement).disabled).toBe(true);
+      expect(duplicateRecipe).not.toHaveBeenCalled();
+
+      await act(async () => resolveSaveLoad(recipe("Saved.")));
+      await waitFor(() =>
+        expect((duplicate as HTMLButtonElement).disabled).toBe(false),
+      );
+      fireEvent.click(duplicate);
+      expect(duplicateRecipe).toHaveBeenCalledWith("recipe-1");
+      expect(await screen.findByText("Copy")).toBeTruthy();
+      expect(screen.getByText("Copied.")).toBeTruthy();
+      expect(screen.queryByText("Saved.")).toBeNull();
+    },
+  );
+
+  it("ignores a second Archive click while the first archive is still in flight", async () => {
     const harness = controllerHarness();
-    let resolveDelete: (() => void) | undefined;
-    const deleteRecipe = vi.fn<() => Promise<void>>().mockImplementation(
+    let resolveArchive: (() => void) | undefined;
+    const archiveRecipe = vi.fn<() => Promise<void>>().mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveDelete = resolve as () => void;
+          resolveArchive = resolve as () => void;
         }),
     );
-    harness.controller.deleteRecipe = deleteRecipe;
+    harness.controller.archiveRecipe = archiveRecipe;
 
     render(
       <DraftRecipeApp
@@ -295,19 +491,19 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
 
     await screen.findByText("Lifecycle Recipe");
     fireEvent.click(
-      screen.getByRole("button", { name: enMessages.deleteRecipe }),
+      screen.getByRole("button", { name: enMessages.archiveRecipe }),
     );
     const confirmButton = await screen.findByRole("button", {
-      name: enMessages.deleteRecipeConfirmAction,
+      name: enMessages.archiveRecipeConfirmAction,
     });
     fireEvent.click(confirmButton);
     fireEvent.click(confirmButton);
     fireEvent.click(confirmButton);
 
-    expect(deleteRecipe).toHaveBeenCalledTimes(1);
+    expect(archiveRecipe).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolveDelete?.();
+      resolveArchive?.();
     });
   });
 
@@ -358,12 +554,12 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
       />,
     );
 
-    await screen.findByText("100 g flour");
+    await screen.findByText(ingredientLine("100 g flour"));
     fireEvent.change(
       screen.getByLabelText(`flour ${enMessages.measurementSystem}`),
       { target: { value: "kg" } },
     );
-    expect(screen.getByText("0.1 kg flour")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("0.1 kg flour"))).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.startCooking }),
@@ -372,7 +568,7 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
       screen.getByRole("button", { name: enMessages.ingredients }),
     );
 
-    expect(screen.getByText("0.1 kg flour")).toBeTruthy();
+    expect(screen.getByText(ingredientLine("0.1 kg flour"))).toBeTruthy();
   });
 
   it("refreshes the Recipes browser on demand via an explicit Refresh control", async () => {

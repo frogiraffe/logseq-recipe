@@ -23,6 +23,8 @@ import {
   currentAssetListHost,
   currentCoverResolverHost,
   listImageAssets,
+  listStepMediaAssets,
+  resolveAssetUrl,
   resolveCoverUrl,
   setRecipeCover,
 } from "./assets";
@@ -114,7 +116,9 @@ export async function createRuntimeUiContext(
   }
 
   const controller: DraftRecipeUiController = {
-    listRecipes: () => repository.listRecipeSummaries(),
+    listRecipes: (options?: { fresh?: boolean }) =>
+      repository.listRecipeSummaries(options),
+    listArchivedRecipes: () => repository.listArchivedRecipeSummaries(),
     loadRecipe: migrateThenLoad,
     createRecipe: (input: NewRecipeInput) => repository.createRecipe(input),
     duplicateRecipe: (id: string) => repository.duplicateRecipe(id),
@@ -144,9 +148,12 @@ export async function createRuntimeUiContext(
       const draft = analyzeRecipeConversion(source, parseContext);
       return { kind: "convert", source, draft };
     },
-    resolveCover: (recipe: Recipe) =>
+    resolveCover: (recipe: Pick<Recipe, "cover">) =>
       resolveCoverUrl(currentCoverResolverHost(), recipe.cover),
     listImageAssets: () => listImageAssets(currentAssetListHost()),
+    listStepMediaAssets: () => listStepMediaAssets(currentAssetListHost()),
+    resolveAssetUrl: (path: string) =>
+      resolveAssetUrl(currentCoverResolverHost(), path),
     saveRecipeMeta: (id: string, meta: RecipeMeta) =>
       writeRecipeMeta(logseq.Editor, id, meta, metadataCapabilities),
     setCoverPath: async (id: string, path: string) => {
@@ -165,7 +172,12 @@ export async function createRuntimeUiContext(
     clearCover: (id: string) => clearRecipeCover(logseq.Editor, id),
     saveRecipeEdit: (id: string, patch: RecipeEditPatch) =>
       commitRecipeEdit(repository, id, patch),
-    deleteRecipe: (id: string) => repository.deleteRecipe(id),
+    archiveRecipe: (id: string) => repository.archiveRecipe(id),
+    restoreRecipe: (id: string) => repository.restoreRecipe(id),
+    deleteArchivedRecipe: (id: string) => repository.deleteArchivedRecipe(id),
+    openInLogseq: (id: string) => {
+      void logseq.Editor.openInRightSidebar(id);
+    },
     watchRecipe: (id, listener) =>
       watchDebounced(
         (trigger) => repository.watchRecipe(id, trigger),

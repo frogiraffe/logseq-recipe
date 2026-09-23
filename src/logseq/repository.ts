@@ -32,13 +32,16 @@ import {
 } from "./schema";
 import type { DraftRecipeSettings } from "./settings";
 
-async function uniqueDuplicateTitle(
-  host: RecipeAuthoringHost,
+function uniqueDuplicateTitle(
+  existingTitles: readonly string[],
   baseTitle: string,
-): Promise<string> {
+): string {
+  const used = new Set(
+    existingTitles.map((title) => title.trim().toLocaleLowerCase()),
+  );
   let attempt = 1;
   let candidate = `${baseTitle} (copy)`;
-  while (await host.getPage(candidate)) {
+  while (used.has(candidate.toLocaleLowerCase())) {
     attempt += 1;
     candidate = `${baseTitle} (copy ${attempt})`;
   }
@@ -69,6 +72,20 @@ export function createDraftRecipeRepository(
 
     async createRecipe(input: NewRecipeInput): Promise<Recipe> {
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);
+      const title = input.title.trim().toLocaleLowerCase();
+      const existing = [
+        ...(await readRepository.listRecipeSummaries()),
+        ...(await readRepository.listArchivedRecipeSummaries()),
+      ];
+      if (
+        existing.some(
+          (recipe) => recipe.title.trim().toLocaleLowerCase() === title,
+        )
+      ) {
+        throw new Error(
+          `A recipe named "${input.title.trim()}" already exists.`,
+        );
+      }
       const structure = await createRecipeInLogseq(host.editor, input, {
         jsonProperty: options.schemaCapabilities.jsonProperty,
       });
@@ -95,7 +112,14 @@ export function createDraftRecipeRepository(
       if (!source) throw new Error(`Recipe not found: ${id}`);
 
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);
-      const title = await uniqueDuplicateTitle(host.editor, source.title);
+      const existing = [
+        ...(await readRepository.listRecipeSummaries()),
+        ...(await readRepository.listArchivedRecipeSummaries()),
+      ];
+      const title = uniqueDuplicateTitle(
+        existing.map((recipe) => recipe.title),
+        source.title,
+      );
       const structure = await createRecipeInLogseq(
         host.editor,
         {
@@ -107,6 +131,7 @@ export function createDraftRecipeRepository(
           measurementSystemOverride: source.measurementSystemOverride,
         },
         { jsonProperty: options.schemaCapabilities.jsonProperty },
+        { deferMarker: true },
       );
 
       const context = {
@@ -203,6 +228,11 @@ export function createDraftRecipeRepository(
           "Recipe was duplicated but could not be read back from Logseq.",
         );
       }
+      await host.editor.upsertBlockProperty(
+        structure.rootId,
+        PROPERTY_KEYS.recipeMarker,
+        true,
+      );
       return created;
     },
   };

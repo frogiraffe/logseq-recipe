@@ -42,7 +42,12 @@ export function ServingControl({
   return (
     <div className="draft-recipe-serving-control">
       <span>{messages.servings}</span>
-      <button type="button" onClick={() => commit(value - 1)} aria-label="-">
+      <button
+        type="button"
+        onClick={() => commit(value - 1)}
+        aria-label={messages.fewerServings}
+        disabled={value - 1 <= 0}
+      >
         −
       </button>
       <input
@@ -54,7 +59,11 @@ export function ServingControl({
         onChange={(event) => handleTextChange(event.currentTarget.value)}
         onBlur={handleBlur}
       />
-      <button type="button" onClick={() => commit(value + 1)} aria-label="+">
+      <button
+        type="button"
+        onClick={() => commit(value + 1)}
+        aria-label={messages.moreServings}
+      >
         +
       </button>
       {yieldUnit?.trim() && (

@@ -9,9 +9,11 @@ import {
   requiredCapabilitiesSatisfied,
 } from "./logseq/capabilities";
 import { ListenerBag } from "./logseq/events";
+import { clearRecipeReadCaches } from "./logseq/logseq-recipe-repository";
 import {
   createConversionInitialView,
   openDraftRecipeUi,
+  stopTimerAlarms,
   syncMountedTheme,
   unmountDraftRecipeUi,
 } from "./logseq/runtime-ui";
@@ -115,6 +117,8 @@ async function main(): Promise<void> {
   listeners.add(
     logseq.App.onCurrentGraphChanged(() => {
       runtimeCapabilitiesPromise = null;
+      stopTimerAlarms();
+      clearRecipeReadCaches();
       unmountDraftRecipeUi();
       logseq.hideMainUI();
     }),

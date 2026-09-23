@@ -1,17 +1,15 @@
-import { type ReactNode, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   orderDiff,
   type RecipeEditPatch,
+  type StepChildrenPatch,
   sectionDiff,
 } from "../../application/edit-recipe";
 import type { IngredientScaleMode, Recipe } from "../../domain/recipe";
+import { assetMarkup } from "../../domain/step-media";
 import { confirmDiscardIfDirty, useDirtyReport } from "../dirty-guard";
 import type { UiMessages } from "../i18n";
-
-interface EditableItem {
-  id: string;
-  text: string;
-}
+import { type EditableItem, SortableList } from "./SortableList";
 
 export interface RecipeEditorProps {
   recipe: Recipe;
@@ -23,122 +21,14 @@ export interface RecipeEditorProps {
   // confirmation as this form's own Cancel button, since the shell has no
   // other way to know this form has unsaved changes.
   onDirtyChange?(isDirty: boolean): void;
+  // Existing graph assets a step can attach; absent hides the picker.
+  listStepMediaAssets?(): Promise<string[]>;
 }
 
 function initialItems(
   source: Array<{ id: string; text: string }>,
 ): EditableItem[] {
   return source.map(({ id, text }) => ({ id, text }));
-}
-
-function EditableSection({
-  title,
-  items,
-  addPlaceholder,
-  removeLabel,
-  moveUpLabel,
-  moveDownLabel,
-  onChange,
-  renderItemExtra,
-}: {
-  title: string;
-  items: EditableItem[];
-  addPlaceholder: string;
-  removeLabel: string;
-  moveUpLabel: string;
-  moveDownLabel: string;
-  onChange(items: EditableItem[]): void;
-  renderItemExtra?(item: EditableItem): ReactNode;
-}) {
-  const counter = useRef(0);
-  const [draft, setDraft] = useState("");
-
-  function addItem() {
-    const text = draft.trim();
-    if (!text) return;
-    counter.current += 1;
-    onChange([...items, { id: `new:${counter.current}`, text }]);
-    setDraft("");
-  }
-
-  function moveItem(index: number, delta: number) {
-    const target = index + delta;
-    if (target < 0 || target >= items.length) return;
-    const next = [...items];
-    const [moved] = next.splice(index, 1);
-    next.splice(target, 0, moved);
-    onChange(next);
-  }
-
-  return (
-    <section className="draft-recipe-section">
-      <h2>{title}</h2>
-      <ul className="draft-recipe-editor-items">
-        {items.map((item, index) => (
-          <li key={item.id} className="draft-recipe-editor-item">
-            <input
-              aria-label={`${title}: ${item.id}`}
-              value={item.text}
-              onChange={(event) =>
-                onChange(
-                  items.map((candidate) =>
-                    candidate.id === item.id
-                      ? { ...candidate, text: event.currentTarget.value }
-                      : candidate,
-                  ),
-                )
-              }
-            />
-            {renderItemExtra?.(item)}
-            <button
-              type="button"
-              className="draft-recipe-editor-move-button"
-              aria-label={`${moveUpLabel}: ${item.text}`}
-              disabled={index === 0}
-              onClick={() => moveItem(index, -1)}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="draft-recipe-editor-move-button"
-              aria-label={`${moveDownLabel}: ${item.text}`}
-              disabled={index === items.length - 1}
-              onClick={() => moveItem(index, 1)}
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              aria-label={`${removeLabel}: ${item.text}`}
-              onClick={() =>
-                onChange(items.filter((candidate) => candidate.id !== item.id))
-              }
-            >
-              {removeLabel}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="draft-recipe-editor-add-row">
-        <input
-          aria-label={addPlaceholder}
-          placeholder={addPlaceholder}
-          value={draft}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              addItem();
-            }
-          }}
-        />
-        <button type="button" onClick={addItem}>
-          {addPlaceholder}
-        </button>
-      </div>
-    </section>
-  );
 }
 
 export function RecipeEditor({
@@ -148,6 +38,7 @@ export function RecipeEditor({
   onSave,
   onCancel,
   onDirtyChange,
+  listStepMediaAssets,
 }: RecipeEditorProps) {
   const [title, setTitle] = useState(recipe.title);
   const [baseYieldText, setBaseYieldText] = useState(String(recipe.baseYield));
@@ -173,6 +64,30 @@ export function RecipeEditor({
   const [notes, setNotes] = useState<EditableItem[]>(
     initialItems(recipe.notes),
   );
+  const originalStepChildren = (id: string) =>
+    (recipe.steps.find((step) => step.id === id)?.children ?? []).map(
+      ({ id: childId, text }) => ({ id: childId, text }),
+    );
+  const [stepChildren, setStepChildren] = useState<
+    Record<string, EditableItem[]>
+  >(() =>
+    Object.fromEntries(
+      recipe.steps.map((step) => [step.id, originalStepChildren(step.id)]),
+    ),
+  );
+  const [mediaAssets, setMediaAssets] = useState<string[]>([]);
+  useEffect(() => {
+    if (!listStepMediaAssets) return undefined;
+    let active = true;
+    listStepMediaAssets().then(
+      (paths) => active && setMediaAssets(paths),
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [listStepMediaAssets]);
+  const childrenOf = (stepId: string) => stepChildren[stepId] ?? [];
   const [scaleModeById, setScaleModeById] = useState<
     Record<string, IngredientScaleMode>
   >(() =>
@@ -213,6 +128,9 @@ export function RecipeEditor({
       recipe.steps.map((s) => ({ id: s.id, text: s.rawText })),
     ) ||
     itemsChanged(notes, recipe.notes) ||
+    steps.some((step) =>
+      itemsChanged(childrenOf(step.id), originalStepChildren(step.id)),
+    ) ||
     recipe.ingredients.some((i) => scaleModeById[i.id] !== i.scaleMode);
   useDirtyReport(isDirty, onDirtyChange);
 
@@ -245,7 +163,8 @@ export function RecipeEditor({
     minutesFieldValid(cookMinutesText) &&
     noBlankItems(ingredients) &&
     noBlankItems(steps) &&
-    noBlankItems(notes);
+    noBlankItems(notes) &&
+    steps.every((step) => noBlankItems(childrenOf(step.id)));
 
   function save() {
     if (!formValid) return;
@@ -282,6 +201,18 @@ export function RecipeEditor({
     const ingredientOrder = orderDiff(recipe.ingredients, ingredients);
     const stepOrder = orderDiff(recipe.steps, steps);
     const noteOrder = orderDiff(recipe.notes, notes);
+    const stepChildrenPatch: StepChildrenPatch[] = steps.flatMap((step) => {
+      const original = originalStepChildren(step.id);
+      const current = childrenOf(step.id);
+      const diff = sectionDiff(original, current);
+      const order = orderDiff(original, current);
+      const changed =
+        diff.added.length + diff.updated.length + diff.removed.length > 0 ||
+        order !== undefined;
+      return changed
+        ? [{ stepId: step.id, diff, ...(order ? { order } : {}) }]
+        : [];
+    });
 
     const patch: RecipeEditPatch = {
       ...(title.trim() !== recipe.title ? { title: title.trim() } : {}),
@@ -306,6 +237,9 @@ export function RecipeEditor({
       ...(ingredientOrder ? { ingredientOrder } : {}),
       ...(stepOrder ? { stepOrder } : {}),
       ...(noteOrder ? { noteOrder } : {}),
+      ...(stepChildrenPatch.length > 0
+        ? { stepChildren: stepChildrenPatch }
+        : {}),
     };
     onSave(patch);
   }
@@ -314,7 +248,7 @@ export function RecipeEditor({
     <section className="draft-recipe-card draft-recipe-editor">
       <h1>{messages.editRecipe}</h1>
       <div className="draft-recipe-field-group">
-        <label>
+        <label className="draft-recipe-field-wide">
           {messages.title}
           <input
             value={title}
@@ -383,13 +317,11 @@ export function RecipeEditor({
         </label>
       </div>
 
-      <EditableSection
+      <SortableList
         title={messages.ingredients}
         items={ingredients}
-        addPlaceholder={messages.addIngredient}
-        removeLabel={messages.remove}
-        moveUpLabel={messages.moveUp}
-        moveDownLabel={messages.moveDown}
+        addLabel={messages.addIngredient}
+        messages={messages}
         onChange={setIngredients}
         renderItemExtra={(item) => (
           <label className="draft-recipe-scale-toggle">
@@ -407,28 +339,72 @@ export function RecipeEditor({
           </label>
         )}
       />
-      <EditableSection
+      <SortableList
         title={messages.steps}
         items={steps}
-        addPlaceholder={messages.addStep}
-        removeLabel={messages.remove}
-        moveUpLabel={messages.moveUp}
-        moveDownLabel={messages.moveDown}
+        addLabel={messages.addStep}
+        messages={messages}
         onChange={setSteps}
+        renderItemBelow={(step) => {
+          const children = childrenOf(step.id);
+          return (
+            <details
+              className="draft-recipe-step-children-editor"
+              open={children.length > 0 ? true : undefined}
+            >
+              <summary>
+                {children.length > 0
+                  ? `${messages.stepNotes} (${children.length})`
+                  : messages.stepNotes}
+              </summary>
+              <SortableList
+                nested
+                title={`${messages.stepNotes}: ${step.text}`}
+                items={children}
+                addLabel={messages.addStepNote}
+                messages={messages}
+                onChange={(next) =>
+                  setStepChildren((current) => ({
+                    ...current,
+                    [step.id]: next,
+                  }))
+                }
+                renderAddExtra={(add) =>
+                  mediaAssets.length > 0 && (
+                    <select
+                      aria-label={`${messages.attachAsset}: ${step.text}`}
+                      value=""
+                      onChange={(event) => {
+                        const markup = assetMarkup(event.currentTarget.value);
+                        if (markup) add(markup);
+                      }}
+                    >
+                      <option value="">{messages.attachAsset}</option>
+                      {mediaAssets.map((path) => (
+                        <option key={path} value={path}>
+                          {path}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                }
+              />
+            </details>
+          );
+        }}
       />
-      <EditableSection
+      <SortableList
         title={messages.notes}
         items={notes}
-        addPlaceholder={messages.addNote}
-        removeLabel={messages.remove}
-        moveUpLabel={messages.moveUp}
-        moveDownLabel={messages.moveDown}
+        addLabel={messages.addNote}
+        messages={messages}
         onChange={setNotes}
       />
 
       {(!noBlankItems(ingredients) ||
         !noBlankItems(steps) ||
-        !noBlankItems(notes)) && (
+        !noBlankItems(notes) ||
+        steps.some((step) => !noBlankItems(childrenOf(step.id)))) && (
         <p className="draft-recipe-validation-error" role="alert">
           {messages.blankItemError}
         </p>
@@ -450,9 +426,10 @@ export function RecipeEditor({
           type="button"
           className="draft-recipe-primary-action"
           disabled={!formValid || pending}
+          aria-busy={pending}
           onClick={save}
         >
-          {messages.save}
+          {pending ? messages.saving : messages.save}
         </button>
       </div>
     </section>

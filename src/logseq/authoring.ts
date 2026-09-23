@@ -18,21 +18,15 @@ import { FutureRecipeSchemaError } from "../migrations/runner";
 import { defaultParseContext } from "../parsing/context";
 import { propertyNumber, unwrapBlockPropertyValue } from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
+import { ensureRecipeLibrary, type RecipeLibraryHost } from "./recipe-library";
 
-export interface RecipeAuthoringHost {
-  getPage(id: string): Promise<unknown>;
-  createPage(title: string): Promise<unknown>;
-  appendBlockInPage(page: string, title: string): Promise<unknown>;
-  getBlockProperty(id: string, key: string): Promise<unknown>;
-  upsertBlockProperty(
-    id: string,
-    key: string,
-    value: unknown,
+export interface RecipeAuthoringHost extends RecipeLibraryHost {
+  insertBlock(
+    parentId: string,
+    content: string,
+    options: { sibling: false; end: true },
   ): Promise<unknown>;
   removeBlockProperty(id: string, key: string): Promise<unknown>;
-  getPageBlocksTree(page: string): Promise<unknown>;
-  removeBlock(id: string): Promise<unknown>;
-  restorePage(page: string): Promise<unknown>;
 }
 
 export interface AuthoringCapabilities {
@@ -69,65 +63,6 @@ function identity(value: unknown): string {
   throw new Error("Logseq entity has no stable id/uuid.");
 }
 
-function isRecycledPage(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  const page = value as Record<string, unknown>;
-  return (
-    page[":logseq.property/deleted-at"] != null ||
-    page["logseq.property/deleted-at"] != null ||
-    page.deletedAt != null
-  );
-}
-
-function topLevelChildIds(tree: unknown): string[] {
-  if (!Array.isArray(tree)) return [];
-  const ids: string[] = [];
-  for (const entry of tree) {
-    if (entry && typeof entry === "object") {
-      const uuid = (entry as Record<string, unknown>).uuid;
-      if (typeof uuid === "string") ids.push(uuid);
-    }
-  }
-  return ids;
-}
-
-// Logseq's own page deletion is a recycle, not a purge: the page (and every
-// block it ever had - old sections, old ingredients/steps/notes) can come
-// back fully intact under the same title. Reusing a recycled title must not
-// let that old content resurface as if it belonged to the new recipe.
-async function clearExistingChildren(
-  host: RecipeAuthoringHost,
-  pageTitle: string,
-): Promise<void> {
-  const tree = await host.getPageBlocksTree(pageTitle);
-  for (const childId of topLevelChildIds(tree)) {
-    await host.removeBlock(childId);
-  }
-}
-
-// Root (page-level) properties survive a recycle/restore even after every
-// child block is wiped - they belong to the page entity itself, not to the
-// children. A reused title must not let a *previous* recipe's yield unit,
-// times, source, or cover leak into the new one just because nothing new
-// was specified for that field yet.
-const RESETTABLE_ROOT_PROPERTY_KEYS = [
-  PROPERTY_KEYS.yieldUnit,
-  PROPERTY_KEYS.prepMinutes,
-  PROPERTY_KEYS.chillMinutes,
-  PROPERTY_KEYS.cookMinutes,
-  PROPERTY_KEYS.sourceUrl,
-  PROPERTY_KEYS.coverRef,
-] as const;
-
-async function clearPluginOwnedRootProperties(
-  host: RecipeAuthoringHost,
-  rootId: string,
-): Promise<void> {
-  for (const key of RESETTABLE_ROOT_PROPERTY_KEYS) {
-    await host.removeBlockProperty(rootId, key);
-  }
-}
-
 function metaStorageValue(
   meta: RecipeMeta,
   capabilities: AuthoringCapabilities,
@@ -153,10 +88,10 @@ async function writeRootMetadata(
   );
 }
 
-// The marker is what makes a page discoverable as a recipe (listRecipeIds
+// The marker is what makes a root discoverable as a recipe (listRecipeIds
 // queries by its presence). Writing it only after every other structural
 // write succeeds means a failure partway through Create/Convert leaves an
-// incomplete page that the plugin still treats as "not a recipe" rather
+// incomplete root that the plugin still treats as "not a recipe" rather
 // than a broken one it might try to load.
 async function markRecipeComplete(
   host: RecipeAuthoringHost,
@@ -222,10 +157,12 @@ export async function writeOptionalRootFields(
   }
 }
 
+// `input.locale` only picks the section heading language. It is not pinned
+// as the recipe's parser language: the recipe is still empty, and its
+// language is detected from what the cook writes into it later.
 function metaFromNewRecipe(input: NewRecipeInput): RecipeMeta {
   return {
     ...emptyRecipeMeta(),
-    ...(input.locale ? { parserLocale: input.locale } : {}),
     ...(input.sourceMeasurementSystem
       ? { sourceMeasurementSystem: input.sourceMeasurementSystem }
       : {}),
@@ -278,6 +215,7 @@ export async function createRecipeInLogseq(
   host: RecipeAuthoringHost,
   input: NewRecipeInput,
   capabilities: AuthoringCapabilities,
+  options: { deferMarker?: boolean } = {},
 ): Promise<CreatedRecipeStructure> {
   const title = input.title.trim();
   if (!title) throw new RangeError("Recipe title is required.");
@@ -285,34 +223,22 @@ export async function createRecipeInLogseq(
     throw new RangeError("Recipe base yield must be positive.");
   }
 
-  const existing = await host.getPage(title);
-  const reusingRecycledTitle = Boolean(existing) && isRecycledPage(existing);
-  if (existing && !reusingRecycledTitle) {
-    throw new Error(
-      `A Logseq page named "${title}" already exists. Use Convert to Recipe for existing content or choose a different title.`,
-    );
-  }
-
-  // A recycled page is still the same page under the hood - Logseq's
-  // createPage can refuse to touch it (the title is still taken) rather
-  // than silently resurrecting it. Bring it back through the dedicated
-  // restore API instead of trying to create over it, then wipe it clean.
-  let rootId: string;
-  if (reusingRecycledTitle) {
-    await host.restorePage(title);
-    rootId = identity(existing);
-    await clearExistingChildren(host, title);
-    await clearPluginOwnedRootProperties(host, rootId);
-  } else {
-    const page = await host.createPage(title);
-    rootId = identity(page);
-  }
+  const library = await ensureRecipeLibrary(host);
+  const rootId = identity(
+    await host.insertBlock(library.recipes, title, {
+      sibling: false,
+      end: true,
+    }),
+  );
   const locale = input.locale ?? "en";
   const titles = SECTION_TITLES[locale];
   const sectionIds = {} as Record<RecipeSectionRole, string>;
 
   for (const role of ["ingredients", "steps", "notes"] as const) {
-    const block = await host.appendBlockInPage(title, titles[role]);
+    const block = await host.insertBlock(rootId, titles[role], {
+      sibling: false,
+      end: true,
+    });
     sectionIds[role] = identity(block);
   }
 
@@ -338,7 +264,7 @@ export async function createRecipeInLogseq(
     );
   }
 
-  await markRecipeComplete(host, rootId);
+  if (!options.deferMarker) await markRecipeComplete(host, rootId);
   return { rootId, sections: sectionIds };
 }
 

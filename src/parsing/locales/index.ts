@@ -19,4 +19,3 @@ export function getLocalePack(locale: RecipeLocale): RecipeLocalePack {
 }
 
 export type { RecipeLocalePack, UnitLexeme } from "./types";
-export { LOCALES };

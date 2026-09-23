@@ -25,6 +25,7 @@ describe("already-recipe view", () => {
     const loadRecipe = vi.fn().mockResolvedValue(recipe());
     const controller: DraftRecipeUiController = {
       listRecipes: async () => [],
+      listArchivedRecipes: async () => [],
       loadRecipe,
       createRecipe: async () => recipe(),
       duplicateRecipe: async () => recipe(),
@@ -38,7 +39,10 @@ describe("already-recipe view", () => {
       setCoverPath: async () => undefined,
       clearCover: async () => undefined,
       saveRecipeEdit: async () => undefined,
-      deleteRecipe: async () => undefined,
+      archiveRecipe: async () => undefined,
+      restoreRecipe: async () => undefined,
+      deleteArchivedRecipe: async () => undefined,
+      openInLogseq: () => undefined,
       close: () => undefined,
     };
 

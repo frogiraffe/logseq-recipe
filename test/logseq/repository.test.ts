@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { decodeIngredientMeta } from "../../src/application/ingredient-meta";
 import { createLogseqRecipeRepository } from "../../src/logseq/logseq-recipe-repository";
 import { PROPERTY_KEYS } from "../../src/logseq/property-keys";
@@ -81,6 +81,7 @@ function fakeHost() {
   }> = [];
   const pageRenames: Array<{ from: string; to: string }> = [];
   const pageDeletions: string[] = [];
+  const libraryMoves: Array<[string, string, { children: true }]> = [];
   let pageEntity: unknown = null;
   const otherPagesByTitle = new Map<string, unknown>();
 
@@ -96,6 +97,7 @@ function fakeHost() {
     movedBlocks,
     pageRenames,
     pageDeletions,
+    libraryMoves,
     setPageEntity(entity: unknown) {
       pageEntity = entity;
     },
@@ -104,8 +106,17 @@ function fakeHost() {
     },
     editor: {
       getBlock: async (id: string) => (id === "recipe-1" ? tree : null),
-      getPage: async (id: string) => otherPagesByTitle.get(id) ?? pageEntity,
-      getPageBlocksTree: async (_id: string) => [] as unknown[],
+      getPage: async (id: string) =>
+        id === "Recipe Library"
+          ? { uuid: "library-page", name: id }
+          : (otherPagesByTitle.get(id) ?? pageEntity),
+      getPageBlocksTree: async (id: string) =>
+        id === "Recipe Library"
+          ? [
+              { id: 90, uuid: "recipes-section", title: "Recipes" },
+              { id: 91, uuid: "archived-section", title: "Archived" },
+            ]
+          : ([] as unknown[]),
       getBlockProperty: async (id: string, key: string) => {
         propertyReads.push({ id, key });
         return values.get(`${id}:${key}`);
@@ -118,9 +129,19 @@ function fakeHost() {
         propertyRemovals.push({ id, key });
         values.delete(`${id}:${key}`);
       },
-      getProperty: async (_key: string) => ({
-        ident: ":plugin.property.logseq-recipe/recipe_marker",
+      getProperty: async (key: string) => ({
+        ident: `:plugin.property.logseq-recipe/${key}`,
       }),
+      isPageBlock: (entity: unknown) =>
+        entity != null &&
+        typeof entity === "object" &&
+        (entity as { uuid?: string }).uuid === "recipe-1" &&
+        pageEntity != null &&
+        typeof pageEntity === "object" &&
+        (pageEntity as { uuid?: string }).uuid === "recipe-1",
+      createPage: async (_title: string) => undefined,
+      restorePage: async (_title: string) => undefined,
+      appendBlockInPage: async (_page: string, _title: string) => undefined,
       updateBlock: async (id: string, content: string) => {
         blockUpdates.push({ id, content });
       },
@@ -138,8 +159,12 @@ function fakeHost() {
       moveBlock: async (
         srcBlock: string,
         targetBlock: string,
-        options?: { before?: boolean },
+        options?: { before?: boolean; children?: boolean },
       ) => {
+        if (options?.children) {
+          libraryMoves.push([srcBlock, targetBlock, { children: true }]);
+          return;
+        }
         movedBlocks.push({
           srcBlock,
           targetBlock,
@@ -177,6 +202,7 @@ function repositoryFor(host: ReturnType<typeof fakeHost>) {
 }
 
 describe("Logseq recipe repository", () => {
+  afterEach(() => vi.useRealTimers());
   it("loads a block-rooted recipe even when getPage answers for a plain block uuid", async () => {
     // Real DB-graph behavior, which the default fake host never modeled:
     // getPage() does not return null for a plain block's uuid, and
@@ -208,6 +234,48 @@ describe("Logseq recipe repository", () => {
     expect(recipe?.title).toBe("Cookie");
     expect(recipe?.ingredients).toHaveLength(2);
     expect(recipe?.steps).toHaveLength(1);
+  });
+
+  it("finds Turkish step durations in a recipe pinned to English", async () => {
+    const host = fakeHost();
+    host.values.set("recipe-1:recipe_meta", recipeMeta("en"));
+
+    const recipe = await repositoryFor(host).getRecipe("recipe-1");
+
+    expect(recipe?.steps[0].durations[0]).toMatchObject({
+      value: { kind: "range", min: 10, max: 12 },
+      unit: "minute",
+    });
+  });
+
+  it("reads step child blocks as notes and graph-local media", async () => {
+    const host = fakeHost();
+    const steps = host.tree.children.find(
+      (child) => child.uuid === "steps-section",
+    ) as { children: Array<{ children: unknown[] }> };
+    steps.children[0].children = [
+      { id: 60, uuid: "step-note", title: "Keep the lid on." },
+      { id: 61, uuid: "step-photo", title: "![done](../assets/done.png)" },
+      { id: 62, uuid: "step-link", title: "![x](https://example.com/x.png)" },
+    ];
+
+    const recipe = await repositoryFor(host).getRecipe("recipe-1");
+
+    expect(recipe?.steps[0].children).toEqual([
+      { id: "step-note", kind: "note", text: "Keep the lid on." },
+      {
+        id: "step-photo",
+        kind: "image",
+        text: "![done](../assets/done.png)",
+        path: "assets/done.png",
+        alt: "done",
+      },
+      {
+        id: "step-link",
+        kind: "note",
+        text: "![x](https://example.com/x.png)",
+      },
+    ]);
   });
 
   it("loads readable block text and persists canonical ingredient metadata", async () => {
@@ -251,6 +319,64 @@ describe("Logseq recipe repository", () => {
     expect(
       host.writes.filter((write) => write.key === "ingredient_meta"),
     ).toHaveLength(2);
+  });
+
+  it("reads sibling section roles concurrently", async () => {
+    const host = fakeHost();
+    const originalGetBlockProperty = host.editor.getBlockProperty;
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    host.editor.getBlockProperty = async (id: string, key: string) => {
+      if (key === "section_role" && id.endsWith("-section")) {
+        started.push(id);
+        await gate;
+      }
+      return originalGetBlockProperty(id, key);
+    };
+
+    const loading = repositoryFor(host).getRecipe("recipe-1");
+    await vi.waitUntil(() => started.length > 0);
+    try {
+      expect(started).toEqual([
+        "ingredients-section",
+        "steps-section",
+        "notes-section",
+      ]);
+    } finally {
+      release();
+      await loading;
+    }
+  });
+
+  it("reads ingredient metadata and scale modes concurrently", async () => {
+    const host = fakeHost();
+    const originalGetBlockProperty = host.editor.getBlockProperty;
+    const metadataReads: string[] = [];
+    const scaleReads: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    host.editor.getBlockProperty = async (id: string, key: string) => {
+      if (key === "ingredient_meta") {
+        metadataReads.push(id);
+        await gate;
+      }
+      if (key === "scale_mode") scaleReads.push(id);
+      return originalGetBlockProperty(id, key);
+    };
+
+    const loading = repositoryFor(host).getRecipe("recipe-1");
+    await vi.waitUntil(() => metadataReads.length === 2);
+    try {
+      expect(scaleReads).toEqual(["ingredient-1", "ingredient-2"]);
+    } finally {
+      release();
+      await loading;
+    }
   });
 
   it("excludes a ref-property's own hidden value-carrier block from a section's content (e.g. section_role's own value block)", async () => {
@@ -419,6 +545,130 @@ describe("Logseq recipe repository", () => {
     expect(recipe?.notes).toEqual([{ id: "note-1", text: "Ilık servis et." }]);
   });
 
+  it("keeps an empty archived block's identity when getPage returns its containing library page", async () => {
+    const host = fakeHost();
+    host.tree.title = "Empty archived recipe";
+    host.tree.children = [];
+    host.values.delete("recipe-1:recipe_marker");
+    host.values.set("recipe-1:recipe_archived", true);
+    host.values.set("recipes-section:recipe_library_section", "recipes");
+    host.values.set("archived-section:recipe_library_section", "archived");
+    host.setPageEntity({
+      id: 50,
+      uuid: "library-page",
+      name: "Recipe Library",
+    });
+    const originalGetPageBlocksTree = host.editor.getPageBlocksTree;
+    host.editor.getPageBlocksTree = async (id: string) =>
+      id === "recipe-1"
+        ? [{ id: 60, uuid: "unrelated", title: "Another recipe", children: [] }]
+        : originalGetPageBlocksTree(id);
+    const repository = repositoryFor(host);
+
+    expect(await repository.getRecipe("recipe-1")).toMatchObject({
+      id: "recipe-1",
+      title: "Empty archived recipe",
+    });
+    const archived = await repository.listArchivedRecipeSummaries();
+    expect(archived).toEqual([
+      expect.objectContaining({
+        id: "recipe-1",
+        title: "Empty archived recipe",
+      }),
+    ]);
+
+    await repository.restoreRecipe(archived[0].id);
+    expect(host.libraryMoves).toContainEqual([
+      "recipe-1",
+      "recipes-section",
+      { children: true },
+    ]);
+    expect(
+      (await repository.listRecipeSummaries()).map((recipe) => recipe.id),
+    ).toEqual(["recipe-1"]);
+  });
+
+  describe("summary cache", () => {
+    function countingHost() {
+      const host = fakeHost();
+      const listeners: Array<(payload: ChangePayload) => void> = [];
+      host.db.onChanged = (callback: (payload: ChangePayload) => void) => {
+        listeners.push(callback);
+        return () => undefined;
+      };
+      let reads = 0;
+      const getBlock = host.editor.getBlock;
+      const getBlockProperty = host.editor.getBlockProperty;
+      host.editor.getBlock = async (id: string) => {
+        reads += 1;
+        return getBlock(id);
+      };
+      host.editor.getBlockProperty = async (id: string, key: string) => {
+        reads += 1;
+        return getBlockProperty(id, key);
+      };
+      return {
+        host,
+        reads: () => reads,
+        emit: (payload: ChangePayload) => {
+          for (const listener of listeners) listener(payload);
+        },
+      };
+    }
+
+    it("serves a repeat list without re-reading any recipe", async () => {
+      const { host, reads } = countingHost();
+      const repository = repositoryFor(host);
+      await repository.listRecipeSummaries();
+      const afterFirst = reads();
+      expect(afterFirst).toBeGreaterThan(5);
+
+      await repository.listRecipeSummaries();
+      expect(reads()).toBe(afterFirst);
+      // A later open of the plugin UI (new repository) shares the cache.
+      await repositoryFor(host).listRecipeSummaries();
+      expect(reads()).toBe(afterFirst);
+    });
+
+    it("reloads only after a change touches the recipe", async () => {
+      const { host, reads, emit } = countingHost();
+      const repository = repositoryFor(host);
+      await repository.listRecipeSummaries();
+      const afterFirst = reads();
+
+      emit({ blocks: [{ id: 500, uuid: "unrelated-block" }] });
+      await repository.listRecipeSummaries();
+      expect(reads()).toBe(afterFirst);
+
+      host.tree.title = "Renamed outside the plugin";
+      emit({ blocks: [{ id: 1, uuid: "recipe-1" }] });
+      const summaries = await repository.listRecipeSummaries();
+      expect(reads()).toBeGreaterThan(afterFirst);
+      expect(summaries[0].title).toBe("Renamed outside the plugin");
+    });
+
+    it("drops a recipe the plugin archives, without waiting for an event", async () => {
+      const { host } = countingHost();
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const repository = repositoryFor(host);
+      expect(await repository.listRecipeSummaries()).toHaveLength(1);
+
+      await repository.archiveRecipe("recipe-1");
+
+      expect(await repository.listRecipeSummaries()).toEqual([]);
+    });
+
+    it("re-reads everything on an explicit fresh refresh", async () => {
+      const { host, reads } = countingHost();
+      const repository = repositoryFor(host);
+      await repository.listRecipeSummaries();
+      const afterFirst = reads();
+      await repository.listRecipeSummaries({ fresh: true });
+      expect(reads()).toBe(afterFirst * 2);
+    });
+  });
+
   it("refreshes when a newly created block has a known recipe parent", async () => {
     const host = fakeHost();
     let onChanged: ((payload: ChangePayload) => void) | undefined;
@@ -507,6 +757,7 @@ describe("Logseq recipe repository", () => {
 
   describe("discovery against a modeled real Datascript representation", () => {
     const MARKER_IDENT = ":plugin.property.logseq-recipe/recipe_marker";
+    const ARCHIVE_IDENT = ":plugin.property.logseq-recipe/recipe_archived";
 
     interface FakeDatom {
       entity: string;
@@ -664,11 +915,65 @@ describe("Logseq recipe repository", () => {
       const summaries = await repository.listRecipeSummaries();
       expect(summaries).toEqual([]);
     });
+
+    it("excludes an archived recipe from active discovery even if its active marker remains after a partial write", async () => {
+      const host = fakeHostWithGraph(
+        [{ id: 1, uuid: "recipe-1", title: "Cookie" }],
+        [
+          { entity: "recipe-1", attr: MARKER_IDENT },
+          { entity: "recipe-1", attr: ARCHIVE_IDENT },
+        ],
+        new Map([["recipe-1", true]]),
+      );
+      host.values.set("recipe-1:recipe_archived", true);
+
+      expect(await repositoryFor(host).listRecipeSummaries()).toEqual([]);
+    });
+
+    it("discovers an archived recipe even when its timestamp was never written", async () => {
+      const host = fakeHostWithGraph(
+        [{ id: 1, uuid: "recipe-1", title: "Cookie" }],
+        [{ entity: "recipe-1", attr: ARCHIVE_IDENT }],
+        new Map(),
+      );
+      host.values.set("recipe-1:recipe_archived", true);
+
+      expect(await repositoryFor(host).listArchivedRecipeSummaries()).toEqual([
+        expect.objectContaining({ id: "recipe-1", title: "Cookie" }),
+      ]);
+      expect(
+        (await repositoryFor(host).listArchivedRecipeSummaries())[0].archivedAt,
+      ).toBeUndefined();
+    });
+
+    it("keeps archived recipes discoverable with malformed or future timestamps", async () => {
+      const host = fakeHostWithGraph(
+        [{ id: 1, uuid: "recipe-1", title: "Cookie" }],
+        [{ entity: "recipe-1", attr: ARCHIVE_IDENT }],
+        new Map(),
+      );
+      host.values.set("recipe-1:recipe_archived", true);
+      host.values.set("recipe-1:recipe_archived_at", "not-a-time");
+      const repository = repositoryFor(host);
+
+      expect(
+        (await repository.listArchivedRecipeSummaries())[0].archivedAt,
+      ).toBeUndefined();
+      host.values.set("recipe-1:recipe_archived_at", Date.UTC(2040, 0, 1));
+      expect(
+        (await repository.listArchivedRecipeSummaries())[0].archivedAt,
+      ).toBe(Date.UTC(2040, 0, 1));
+    });
   });
 
   describe("content editing and delete", () => {
     it("renames a block-root recipe via updateBlock, never renamePage", async () => {
       const host = fakeHost();
+      host.setPageEntity({
+        id: 20,
+        uuid: "library-page",
+        originalName: "Recipe Library",
+      });
       const repository = repositoryFor(host);
 
       await repository.renameRecipe("recipe-1", "  New Title  ");
@@ -681,7 +986,7 @@ describe("Logseq recipe repository", () => {
 
     it("renames a page-root recipe via renamePage, never updateBlock", async () => {
       const host = fakeHost();
-      host.setPageEntity({ originalName: "Cookie" });
+      host.setPageEntity({ uuid: "recipe-1", originalName: "Cookie" });
       const repository = repositoryFor(host);
 
       await repository.renameRecipe("recipe-1", "New Title");
@@ -700,7 +1005,7 @@ describe("Logseq recipe repository", () => {
 
     it("rejects renaming a page-root recipe onto a title that already exists", async () => {
       const host = fakeHost();
-      host.setPageEntity({ originalName: "Cookie" });
+      host.setPageEntity({ uuid: "recipe-1", originalName: "Cookie" });
       host.setOtherPage("Existing Page", { originalName: "Existing Page" });
       const repository = repositoryFor(host);
 
@@ -712,7 +1017,7 @@ describe("Logseq recipe repository", () => {
 
     it("allows renaming a page-root recipe when the target title is unused", async () => {
       const host = fakeHost();
-      host.setPageEntity({ originalName: "Cookie" });
+      host.setPageEntity({ uuid: "recipe-1", originalName: "Cookie" });
       const repository = repositoryFor(host);
 
       await repository.renameRecipe("recipe-1", "Brand New Title");
@@ -880,25 +1185,239 @@ describe("Logseq recipe repository", () => {
       expect(host.blockRemovals).toEqual(["ingredient-2"]);
     });
 
-    it("deletes a block-root recipe via removeBlock, never deletePage", async () => {
+    it("archives a block recipe without removing source content", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
+      const host = fakeHost();
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const repository = repositoryFor(host);
+
+      await repository.archiveRecipe("recipe-1");
+
+      expect(host.blockRemovals).toEqual([]);
+      expect(host.pageDeletions).toEqual([]);
+      expect(host.writes).toEqual(
+        expect.arrayContaining([
+          { id: "recipe-1", key: "recipe_archived", value: true },
+          {
+            id: "recipe-1",
+            key: "recipe_archived_at",
+            value: 1_790_164_800,
+          },
+        ]),
+      );
+      expect(host.propertyRemovals).toContainEqual({
+        id: "recipe-1",
+        key: "recipe_marker",
+      });
+      expect(host.libraryMoves).toEqual([
+        ["recipe-1", "archived-section", { children: true }],
+      ]);
+    });
+
+    it("starts archive preflight reads concurrently", async () => {
+      const host = fakeHost();
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const originalGetBlock = host.editor.getBlock;
+      const originalGetBlockProperty = host.editor.getBlockProperty;
+      const started: string[] = [];
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      host.editor.getBlock = async (id: string) => {
+        started.push("entity");
+        await gate;
+        return originalGetBlock(id);
+      };
+      host.editor.getBlockProperty = async (id: string, key: string) => {
+        if (id === "recipe-1" && key.startsWith("recipe_archived")) {
+          started.push(key);
+          await gate;
+        }
+        return originalGetBlockProperty(id, key);
+      };
+
+      const archiving = repositoryFor(host).archiveRecipe("recipe-1");
+      while (started.length === 0) await Promise.resolve();
+      try {
+        expect(started).toEqual([
+          "entity",
+          "recipe_archived",
+          "recipe_archived_at",
+        ]);
+      } finally {
+        release();
+        await archiving;
+      }
+    });
+
+    it("stores archive time as Unix seconds while exposing milliseconds", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
+      const host = fakeHost();
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const repository = repositoryFor(host);
+
+      await repository.archiveRecipe("recipe-1");
+
+      expect(host.values.get("recipe-1:recipe_archived_at")).toBe(
+        1_790_164_800,
+      );
+      expect(
+        (await repository.listArchivedRecipeSummaries())[0].archivedAt,
+      ).toBe(1_790_164_800_000);
+    });
+
+    it("archives a legacy page recipe in place", async () => {
+      const host = fakeHost();
+      host.setPageEntity({ uuid: "recipe-1", originalName: "Cookie" });
+      host.editor.getBlock = async () => null;
+      const repository = repositoryFor(host);
+
+      await repository.archiveRecipe("recipe-1");
+
+      expect(host.libraryMoves).toEqual([]);
+      expect(host.pageDeletions).toEqual([]);
+      expect(host.blockRemovals).toEqual([]);
+    });
+
+    it("restores an archived block recipe into the active library section", async () => {
+      const host = fakeHost();
+      host.values.set("recipe-1:recipe_archived", true);
+      host.values.set("recipe-1:recipe_archived_at", 1_790_164_800_000);
+      host.values.delete("recipe-1:recipe_marker");
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+
+      await repositoryFor(host).restoreRecipe("recipe-1");
+
+      expect(host.libraryMoves).toEqual([
+        ["recipe-1", "recipes-section", { children: true }],
+      ]);
+      expect(host.writes).toContainEqual({
+        id: "recipe-1",
+        key: "recipe_marker",
+        value: true,
+      });
+      expect(host.propertyRemovals).toEqual(
+        expect.arrayContaining([
+          { id: "recipe-1", key: "recipe_archived" },
+          { id: "recipe-1", key: "recipe_archived_at" },
+        ]),
+      );
+    });
+
+    it("permanently deletes only archived recipes", async () => {
       const host = fakeHost();
       const repository = repositoryFor(host);
 
-      await repository.deleteRecipe("recipe-1");
+      await expect(repository.deleteArchivedRecipe("recipe-1")).rejects.toThrow(
+        "not archived",
+      );
+      expect(host.blockRemovals).toEqual([]);
 
+      host.values.set("recipe-1:recipe_archived", true);
+      await repository.deleteArchivedRecipe("recipe-1");
       expect(host.blockRemovals).toEqual(["recipe-1"]);
       expect(host.pageDeletions).toEqual([]);
     });
 
-    it("deletes a page-root recipe via deletePage, never removeBlock", async () => {
+    it("permanently deletes an archived legacy page recipe's page", async () => {
       const host = fakeHost();
-      host.setPageEntity({ originalName: "Cookie" });
-      const repository = repositoryFor(host);
+      host.setPageEntity({ uuid: "recipe-1", originalName: "Cookie" });
+      host.editor.getBlock = async () => null;
+      host.values.set("recipe-1:recipe_archived", true);
 
-      await repository.deleteRecipe("recipe-1");
+      await repositoryFor(host).deleteArchivedRecipe("recipe-1");
 
       expect(host.pageDeletions).toEqual(["Cookie"]);
       expect(host.blockRemovals).toEqual([]);
+    });
+
+    it("keeps the original archive timestamp when retried", async () => {
+      const host = fakeHost();
+      host.values.set("recipe-1:recipe_archived", true);
+      host.values.set("recipe-1:recipe_archived_at", 1_790_164_800_000);
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+
+      await repositoryFor(host).archiveRecipe("recipe-1");
+
+      expect(host.values.get("recipe-1:recipe_archived_at")).toBe(
+        1_790_164_800_000,
+      );
+      expect(host.writes.some(({ key }) => key === "recipe_archived_at")).toBe(
+        false,
+      );
+      expect(host.libraryMoves).toHaveLength(1);
+    });
+
+    it("preserves archived discovery and the original error if a move fails", async () => {
+      const host = fakeHost();
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const moveError = new Error("Logseq move failed");
+      host.editor.moveBlock = async () => {
+        throw moveError;
+      };
+
+      await expect(repositoryFor(host).archiveRecipe("recipe-1")).rejects.toBe(
+        moveError,
+      );
+      expect(host.values.get("recipe-1:recipe_archived")).toBe(true);
+      expect(host.values.has("recipe-1:recipe_marker")).toBe(false);
+      expect(host.blockRemovals).toEqual([]);
+      expect(host.pageDeletions).toEqual([]);
+    });
+
+    it("leaves an archived recipe recoverable when restore movement fails", async () => {
+      const host = fakeHost();
+      host.values.set("recipe-1:recipe_archived", true);
+      host.values.set("recipe-1:recipe_archived_at", 1_790_164_800_000);
+      host.values.delete("recipe-1:recipe_marker");
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      const moveError = new Error("Logseq move failed");
+      host.editor.moveBlock = async () => {
+        throw moveError;
+      };
+
+      await expect(repositoryFor(host).restoreRecipe("recipe-1")).rejects.toBe(
+        moveError,
+      );
+      expect(host.values.get("recipe-1:recipe_archived")).toBe(true);
+      expect(host.values.has("recipe-1:recipe_marker")).toBe(false);
+    });
+
+    it("does not mutate anything for a missing recipe", async () => {
+      const host = fakeHost();
+      const repository = repositoryFor(host);
+
+      await expect(repository.archiveRecipe("missing")).rejects.toThrow(
+        "Recipe not found: missing",
+      );
+      await expect(repository.restoreRecipe("missing")).rejects.toThrow(
+        "Recipe not found: missing",
+      );
+      expect(host.writes).toEqual([]);
+      expect(host.propertyRemovals).toEqual([]);
+      expect(host.libraryMoves).toEqual([]);
+    });
+
+    it("does not mark a containing page when a stale block id resolves only to that page", async () => {
+      const host = fakeHost();
+      host.editor.getBlock = async () => null;
+      host.setPageEntity({ uuid: "containing-page", name: "Recipe Library" });
+
+      await expect(
+        repositoryFor(host).archiveRecipe("recipe-1"),
+      ).rejects.toThrow("Recipe not found: recipe-1");
+      expect(host.writes).toEqual([]);
+      expect(host.propertyRemovals).toEqual([]);
     });
   });
 

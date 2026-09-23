@@ -36,7 +36,7 @@ dist
 examples
 logo.svg
 package.json"
-ACTUAL_TOP_LEVEL="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)"
+ACTUAL_TOP_LEVEL="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
 [ "$ACTUAL_TOP_LEVEL" = "$EXPECTED_TOP_LEVEL" ] ||
   fail "unexpected top-level package contents: $ACTUAL_TOP_LEVEL"
 

@@ -63,11 +63,17 @@ describe("ServingControl", () => {
     render(<Harness initial={2} />);
     const input = screen.getByLabelText("Servings") as HTMLInputElement;
 
-    fireEvent.click(screen.getByRole("button", { name: "+" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.moreServings }),
+    );
     expect(input.value).toBe("3");
 
-    fireEvent.click(screen.getByRole("button", { name: "-" }));
-    fireEvent.click(screen.getByRole("button", { name: "-" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.fewerServings }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.fewerServings }),
+    );
     expect(input.value).toBe("1");
   });
 });

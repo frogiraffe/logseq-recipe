@@ -21,7 +21,7 @@ export interface FacetSuggestion {
   count: number;
 }
 
-export function normalizeSearchText(value: string): string {
+function normalizeSearchText(value: string): string {
   return foldCaseLocaleIndependent(value).replace(/\s+/gu, " ").trim();
 }
 
@@ -30,6 +30,21 @@ function matchesSelectedValues(values: string[], selected?: string[]): boolean {
   const normalizedValues = new Set(values.map(normalizeSearchText));
   return selected.every((value) =>
     normalizedValues.has(normalizeSearchText(value)),
+  );
+}
+
+// Every whitespace-separated query term must appear in some field; one
+// newline-joined string keeps a term from matching across two fields.
+function searchHaystack(recipe: RecipeSummary): string {
+  return normalizeSearchText(
+    [
+      recipe.title,
+      ...recipe.categories,
+      ...recipe.tags,
+      ...recipe.ingredientTexts,
+      ...(recipe.stepTexts ?? []),
+      ...(recipe.noteTexts ?? []),
+    ].join("\n"),
   );
 }
 
@@ -51,14 +66,18 @@ export function filterRecipeSummaries(
   recipes: readonly RecipeSummary[],
   filter: RecipeFilter,
 ): RecipeSummary[] {
-  const query = filter.query ? normalizeSearchText(filter.query) : "";
+  const terms = filter.query
+    ? normalizeSearchText(filter.query).split(" ").filter(Boolean)
+    : [];
   const ingredient = filter.ingredient
     ? normalizeSearchText(filter.ingredient)
     : "";
 
   return recipes.filter((recipe) => {
-    if (query && !normalizeSearchText(recipe.title).includes(query))
-      return false;
+    if (terms.length > 0) {
+      const haystack = searchHaystack(recipe);
+      if (!terms.every((term) => haystack.includes(term))) return false;
+    }
     if (!matchesSelectedValues(recipe.categories, filter.categories))
       return false;
     if (!matchesSelectedValues(recipe.tags, filter.tags)) return false;

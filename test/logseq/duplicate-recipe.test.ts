@@ -30,6 +30,20 @@ function fakeHost() {
     return block;
   }
 
+  function addActiveRecipe(title: string): FakeBlock {
+    const block = makeBlock(title);
+    properties.set(`${block.uuid}:recipe_marker`, true);
+    properties.set(`${block.uuid}:base_yield`, 8);
+    return block;
+  }
+
+  function addArchivedRecipe(title: string): FakeBlock {
+    const block = makeBlock(title);
+    properties.set(`${block.uuid}:recipe_archived`, true);
+    properties.set(`${block.uuid}:base_yield`, 8);
+    return block;
+  }
+
   const root = makeBlock("Cookie");
   pagesByTitle.set("Cookie", root);
   const ingredientsSection = makeBlock("Ingredients");
@@ -65,9 +79,11 @@ function fakeHost() {
   properties.set(`${notesSection.uuid}:section_role`, "notes");
 
   const editor = {
+    isPageBlock: (_entity: unknown) => false,
     getBlock: async (id: string) => blocksByUuid.get(id) ?? null,
     getPage: async (id: string) => pagesByTitle.get(id) ?? null,
-    getPageBlocksTree: async (_id: string) => [] as unknown[],
+    getPageBlocksTree: async (id: string) =>
+      pagesByTitle.get(id)?.children ?? [],
     getBlockProperty: async (id: string, key: string) =>
       properties.get(`${id}:${key}`),
     upsertBlockProperty: async (id: string, key: string, value: unknown) => {
@@ -77,8 +93,8 @@ function fakeHost() {
     removeBlockProperty: async (id: string, key: string) => {
       properties.delete(`${id}:${key}`);
     },
-    getProperty: async (_key: string) => ({
-      ident: ":plugin.property.logseq-recipe/recipe_marker",
+    getProperty: async (key: string) => ({
+      ident: `:plugin.property.logseq-recipe/${key}`,
     }),
     updateBlock: async (_id: string, _content: string) => undefined,
     removeBlock: async (_id: string) => undefined,
@@ -125,7 +141,14 @@ function fakeHost() {
     host: {
       editor,
       db: {
-        datascriptQuery: async <T = unknown>() => [] as T,
+        datascriptQuery: async <T = unknown>(query: string) =>
+          [...blocksByUuid.values()]
+            .filter((block) =>
+              query.includes("/recipe_archived")
+                ? properties.get(`${block.uuid}:recipe_archived`) === true
+                : properties.get(`${block.uuid}:recipe_marker`) === true,
+            )
+            .map((block) => [{ uuid: block.uuid, title: block.title }]) as T,
         onChanged: () => () => undefined,
       },
       app: { getUserConfigs: async () => ({}) },
@@ -138,6 +161,8 @@ function fakeHost() {
     writes,
     pagesByTitle,
     properties,
+    addActiveRecipe,
+    addArchivedRecipe,
   };
 }
 
@@ -148,7 +173,7 @@ const settings = {
 };
 
 describe("duplicateRecipe", () => {
-  it("copies content, structured ingredient metadata, and root metadata into a new page", async () => {
+  it("copies content, structured ingredient metadata, and root metadata into a library block", async () => {
     const fake = fakeHost();
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
@@ -176,9 +201,21 @@ describe("duplicateRecipe", () => {
       "Bake for 10 minutes.",
     ]);
     expect(duplicated.notes.map((n) => n.text)).toEqual(["Best served warm."]);
+    expect(fake.writes.at(-1)).toEqual({
+      id: duplicated.id,
+      key: "recipe_marker",
+      value: true,
+    });
+    expect(
+      (await repository.listRecipeSummaries()).map((recipe) => recipe.title),
+    ).toEqual(["Cookie", "Cookie (copy)"]);
 
-    expect(fake.createPageCalls).toEqual(["Cookie (copy)"]);
+    expect(fake.createPageCalls).toEqual(["Recipe Library"]);
     expect(fake.insertedBlocks.map((b) => b.content)).toEqual([
+      "Cookie (copy)",
+      "Ingredients",
+      "Steps",
+      "Notes",
       "2 eggs",
       "1 cup flour",
       "Bake for 10 minutes.",
@@ -241,12 +278,7 @@ describe("duplicateRecipe", () => {
 
   it("avoids a title collision by appending an incrementing suffix", async () => {
     const fake = fakeHost();
-    fake.pagesByTitle.set("Cookie (copy)", {
-      id: 1,
-      uuid: "existing-copy",
-      title: "Cookie (copy)",
-      children: [],
-    });
+    fake.addActiveRecipe("COOKIE (copy)");
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
       schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
@@ -255,5 +287,94 @@ describe("duplicateRecipe", () => {
     const duplicated = await repository.duplicateRecipe(fake.root.uuid);
 
     expect(duplicated.title).toBe("Cookie (copy 2)");
+  });
+
+  it("reserves an archived recipe title when duplicating", async () => {
+    const fake = fakeHost();
+    fake.addArchivedRecipe("Cookie (copy)");
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    expect((await repository.duplicateRecipe(fake.root.uuid)).title).toBe(
+      "Cookie (copy 2)",
+    );
+  });
+
+  it("ignores an unrelated page when choosing a duplicate title", async () => {
+    const fake = fakeHost();
+    fake.pagesByTitle.set("Cookie (copy)", {
+      id: 1,
+      uuid: "unrelated-page",
+      title: "Cookie (copy)",
+      children: [],
+    });
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    expect((await repository.duplicateRecipe(fake.root.uuid)).title).toBe(
+      "Cookie (copy)",
+    );
+  });
+
+  it("rejects creating another active recipe with the same title", async () => {
+    const fake = fakeHost();
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    await expect(
+      repository.createRecipe({
+        title: " cookie ",
+        baseYield: 8,
+        locale: "en",
+      }),
+    ).rejects.toThrow(/already exists/i);
+    expect(fake.createPageCalls).toHaveLength(0);
+  });
+
+  it("rejects creating a recipe with an archived title", async () => {
+    const fake = fakeHost();
+    fake.addArchivedRecipe("Soup");
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    await expect(
+      repository.createRecipe({ title: " soup ", baseYield: 4, locale: "en" }),
+    ).rejects.toThrow(/already exists/i);
+    expect(fake.createPageCalls).toHaveLength(0);
+  });
+
+  it("keeps a failed duplicate undiscoverable and preserves the original error", async () => {
+    const fake = fakeHost();
+    const failure = new Error("Could not copy a step");
+    const insertBlock = fake.host.editor.insertBlock;
+    fake.host.editor.insertBlock = async (parentId, content) => {
+      if (content === "Bake for 10 minutes.") throw failure;
+      return insertBlock(parentId, content);
+    };
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+    });
+
+    await expect(repository.duplicateRecipe(fake.root.uuid)).rejects.toBe(
+      failure,
+    );
+
+    const library = fake.pagesByTitle.get("Recipe Library");
+    const copy = library?.children[0]?.children[0];
+    expect(copy?.title).toBe("Cookie (copy)");
+    expect(fake.properties.get(`${copy?.uuid}:recipe_marker`)).toBeUndefined();
+    expect(fake.properties.get(`${fake.root.uuid}:recipe_marker`)).toBe(true);
+    expect(
+      (await repository.listRecipeSummaries()).map((recipe) => recipe.title),
+    ).toEqual(["Cookie"]);
   });
 });

@@ -4,7 +4,11 @@ import type {
 } from "../application/convert-recipe";
 import type { RecipeEditPatch } from "../application/edit-recipe";
 import type { OutlineNode } from "../application/split-outline";
-import type { NewRecipeInput, RecipeSummary } from "../application/types";
+import type {
+  ArchivedRecipeSummary,
+  NewRecipeInput,
+  RecipeSummary,
+} from "../application/types";
 import type { Recipe, RecipeLocale, RecipeMeta } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
 
@@ -31,7 +35,8 @@ export type DraftRecipeInitialView =
   | { kind: "already-recipe"; recipeId: string; title: string };
 
 export interface DraftRecipeUiController {
-  listRecipes(): Promise<RecipeSummary[]>;
+  listRecipes(options?: { fresh?: boolean }): Promise<RecipeSummary[]>;
+  listArchivedRecipes(): Promise<ArchivedRecipeSummary[]>;
   loadRecipe(id: string): Promise<Recipe | null>;
   createRecipe(input: NewRecipeInput): Promise<Recipe>;
   duplicateRecipe(id: string): Promise<Recipe>;
@@ -41,13 +46,19 @@ export interface DraftRecipeUiController {
     outline: OutlineNode,
     staleChildIds: string[],
   ): Promise<DraftRecipeInitialView>;
-  resolveCover(recipe: Recipe): Promise<string | null>;
+  // Takes a Recipe or a RecipeSummary: only the cover reference is read.
+  resolveCover(recipe: Pick<Recipe, "cover">): Promise<string | null>;
   listImageAssets(): Promise<string[]>;
+  listStepMediaAssets?(): Promise<string[]>;
+  resolveAssetUrl?(path: string): Promise<string | null>;
   saveRecipeMeta(id: string, meta: RecipeMeta): Promise<void>;
   setCoverPath(id: string, path: string): Promise<void>;
   clearCover(id: string): Promise<void>;
   saveRecipeEdit(id: string, patch: RecipeEditPatch): Promise<void>;
-  deleteRecipe(id: string): Promise<void>;
+  archiveRecipe(id: string): Promise<void>;
+  restoreRecipe(id: string): Promise<void>;
+  deleteArchivedRecipe(id: string): Promise<void>;
+  openInLogseq(id: string): void;
   watchRecipe?(id: string, listener: () => void): () => void;
   close(): void;
 }
@@ -58,5 +69,7 @@ export interface DraftRecipeAppConfig {
   defaultParserLocale: RecipeLocale;
   defaultSourceMeasurementSystem: MeasurementSystem;
   themeMode?: "light" | "dark";
+  /** Stable current-graph identity; scopes resumable Cooking Mode state. */
+  graphKey?: string;
   themeCssProperties?: Record<string, string>;
 }

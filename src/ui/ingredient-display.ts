@@ -1,4 +1,3 @@
-import { formatRecipeNumber } from "../domain/fractions";
 import type { Quantity } from "../domain/quantity";
 import type { Ingredient } from "../domain/recipe";
 import { scaleIngredient } from "../domain/scaling";
@@ -9,7 +8,11 @@ import {
   displayUnitForSystem,
   unitFamily,
 } from "../units/convert";
-import { type UiLocale, unitLabel } from "../units/format";
+import {
+  formatLocalizedNumber,
+  type UiLocale,
+  unitLabel,
+} from "../units/format";
 import type { IngredientConversionProvider } from "../units/ingredient-registry";
 
 const MASS_UNITS: readonly CanonicalUnit[] = ["mg", "g", "kg", "oz_mass", "lb"];
@@ -50,18 +53,22 @@ function mapNumericQuantity(
   }
 }
 
-export function formatQuantity(quantity: Quantity): string {
+export function formatQuantity(
+  quantity: Quantity,
+  locale: UiLocale = "en",
+): string {
+  const number = (value: number) => formatLocalizedNumber(value, locale);
   switch (quantity.kind) {
     case "exact":
-      return formatRecipeNumber(quantity.value);
+      return number(quantity.value);
     case "range":
-      return `${formatRecipeNumber(quantity.min)}–${formatRecipeNumber(quantity.max)}`;
+      return `${number(quantity.min)}–${number(quantity.max)}`;
     case "minimum":
-      return `≥${formatRecipeNumber(quantity.value)}`;
+      return `≥${number(quantity.value)}`;
     case "maximum":
-      return `≤${formatRecipeNumber(quantity.value)}`;
+      return `≤${number(quantity.value)}`;
     case "approximate":
-      return `~${formatRecipeNumber(quantity.value)}`;
+      return `~${number(quantity.value)}`;
     case "inexact":
       return quantity.expression;
   }
@@ -156,17 +163,46 @@ function displayQuantityAndUnit(
   return applyAdaptiveDisplay(converted, targetUnit);
 }
 
+/** An ingredient line split for a quantity column: "225 g" + "butter". */
+export interface IngredientDisplayParts {
+  quantity: string;
+  name: string;
+}
+
+export function joinIngredientParts({
+  quantity,
+  name,
+}: IngredientDisplayParts): string {
+  return `${quantity}${quantity && name ? " " : ""}${name}`.trim();
+}
+
 function formatIngredientParts(
   ingredient: Ingredient,
   quantity: Quantity,
   unit: CanonicalUnit | undefined,
   locale: UiLocale,
-): string {
-  const amount = formatQuantity(quantity);
-  const unitText = visibleUnitText(unit, quantity, locale);
-  const ingredientText = ingredient.ingredientText.trim();
+): IngredientDisplayParts {
   const note = ingredient.note ? ` (${ingredient.note})` : "";
-  return `${amount}${unitText}${ingredientText ? ` ${ingredientText}` : ""}${note}`.trim();
+  return {
+    quantity:
+      `${formatQuantity(quantity, locale)}${visibleUnitText(unit, quantity, locale)}`.trim(),
+    name: `${ingredient.ingredientText.trim()}${note}`.trim(),
+  };
+}
+
+export function ingredientDisplayParts(
+  ingredient: Ingredient,
+  baseYield: number,
+  targetYield: number,
+  system: MeasurementSystem,
+  locale: UiLocale = "en",
+): IngredientDisplayParts {
+  const scaled = scaleIngredient(ingredient, baseYield, targetYield);
+  // No parsed amount: the written line is shown whole, nothing to align.
+  if (!scaled.amount) return { quantity: "", name: scaled.rawText };
+
+  const display = displayQuantityAndUnit(scaled.amount, scaled.unit, system);
+  return formatIngredientParts(scaled, display.quantity, display.unit, locale);
 }
 
 export function formatIngredientForDisplay(
@@ -176,11 +212,9 @@ export function formatIngredientForDisplay(
   system: MeasurementSystem,
   locale: UiLocale = "en",
 ): string {
-  const scaled = scaleIngredient(ingredient, baseYield, targetYield);
-  if (!scaled.amount) return scaled.rawText;
-
-  const display = displayQuantityAndUnit(scaled.amount, scaled.unit, system);
-  return formatIngredientParts(scaled, display.quantity, display.unit, locale);
+  return joinIngredientParts(
+    ingredientDisplayParts(ingredient, baseYield, targetYield, system, locale),
+  );
 }
 
 export function ingredientDisplayUnitOptions(
@@ -202,22 +236,34 @@ export function ingredientDisplayUnitOptions(
   return [ingredient.unit];
 }
 
+const UNIT_SYSTEM_SUFFIXES: Record<
+  Exclude<UiLocale, "tr">,
+  Record<"us" | "imperial" | "metric", string>
+> = {
+  en: { us: " US", imperial: " Imperial", metric: " Metric" },
+  fr: { us: " (US)", imperial: " (impérial)", metric: " (métrique)" },
+  de: { us: " (US)", imperial: " (imperial)", metric: " (metrisch)" },
+  es: { us: " (EE. UU.)", imperial: " (imperial)", metric: " (métrico)" },
+};
+
 export function ingredientUnitOptionLabel(
   unit: CanonicalUnit,
   locale: UiLocale = "en",
 ): string {
   // The Turkish labels for the _us/_imperial/_metric variants already carry
-  // their own system suffix (see UNIT_LABELS.tr) - only English needs one
-  // appended here.
+  // their own system suffix (see UNIT_LABELS.tr); the others share one label
+  // across systems, so the picker needs the system spelled out.
   if (locale === "tr") return unitLabel(unit, locale);
-  const suffix = unit.endsWith("_us")
-    ? " US"
+  const system = unit.endsWith("_us")
+    ? "us"
     : unit.endsWith("_imperial")
-      ? " Imperial"
+      ? "imperial"
       : unit.endsWith("_metric")
-        ? " Metric"
-        : "";
-  return `${unitLabel(unit, locale)}${suffix}`;
+        ? "metric"
+        : null;
+  return system
+    ? `${unitLabel(unit, locale)}${UNIT_SYSTEM_SUFFIXES[locale][system]}`
+    : unitLabel(unit, locale);
 }
 
 export function formatIngredientForTargetUnit(
@@ -228,6 +274,26 @@ export function formatIngredientForTargetUnit(
   provider: IngredientConversionProvider,
   locale: UiLocale = "en",
 ): string | null {
+  const parts = ingredientTargetUnitParts(
+    ingredient,
+    baseYield,
+    targetYield,
+    targetUnit,
+    provider,
+    locale,
+  );
+  return parts ? joinIngredientParts(parts) : null;
+}
+
+/** Parts in an explicitly chosen unit, or null when it can't convert. */
+export function ingredientTargetUnitParts(
+  ingredient: Ingredient,
+  baseYield: number,
+  targetYield: number,
+  targetUnit: CanonicalUnit,
+  provider: IngredientConversionProvider,
+  locale: UiLocale = "en",
+): IngredientDisplayParts | null {
   const scaled = scaleIngredient(ingredient, baseYield, targetYield);
   if (!scaled.amount || !scaled.unit) return null;
   if (scaled.amount.kind === "inexact") {

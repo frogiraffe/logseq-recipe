@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RecipeEditPatch } from "../../src/application/edit-recipe";
 import type { Recipe } from "../../src/domain/recipe";
@@ -92,12 +92,9 @@ describe("RecipeEditor", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByLabelText(`${enMessages.ingredients}: ingredient-1`),
-      {
-        target: { value: "130 g butter" },
-      },
-    );
+    fireEvent.change(screen.getByLabelText(`${enMessages.ingredients} 1`), {
+      target: { value: "130 g butter" },
+    });
 
     const addIngredientInput = screen.getByLabelText(enMessages.addIngredient);
     fireEvent.change(addIngredientInput, { target: { value: "2 eggs" } });
@@ -215,44 +212,6 @@ describe("RecipeEditor", () => {
     );
   });
 
-  it("reorders ingredients via the move-down button", () => {
-    const twoIngredientRecipe: Recipe = {
-      ...recipe,
-      ingredients: [
-        ...recipe.ingredients,
-        {
-          id: "ingredient-2",
-          rawText: "2 eggs",
-          amount: { kind: "exact", value: 2 },
-          ingredientText: "eggs",
-          scaleMode: "linear",
-        },
-      ],
-    };
-    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
-    render(
-      <RecipeEditor
-        recipe={twoIngredientRecipe}
-        messages={enMessages}
-        onSave={onSave}
-        onCancel={() => undefined}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: `${enMessages.moveDown}: 120 g butter`,
-      }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
-
-    expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ingredientOrder: ["ingredient-2", "ingredient-1"],
-      }),
-    );
-  });
-
   it("disables Save while the title is empty or servings is invalid", () => {
     render(
       <RecipeEditor
@@ -345,5 +304,178 @@ describe("RecipeEditor", () => {
     expect(
       container.querySelector(".draft-recipe-sticky-actions"),
     ).not.toBeNull();
+  });
+});
+
+describe("RecipeEditor step notes and media", () => {
+  it("adds a step note and attaches an existing asset", async () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+        listStepMediaAssets={async () => ["assets/dough.jpg"]}
+      />,
+    );
+
+    const noteInput = screen.getByRole("textbox", {
+      name: enMessages.addStepNote,
+    });
+    fireEvent.change(noteInput, { target: { value: "Don't overmix." } });
+    fireEvent.keyDown(noteInput, { key: "Enter" });
+    fireEvent.change(
+      await screen.findByRole("combobox", {
+        name: `${enMessages.attachAsset}: Mix well.`,
+      }),
+      { target: { value: "assets/dough.jpg" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepChildren: [
+          {
+            stepId: "step-1",
+            diff: {
+              added: [
+                { tempId: "new:1", text: "Don't overmix." },
+                { tempId: "new:2", text: "![dough](../assets/dough.jpg)" },
+              ],
+              updated: [],
+              removed: [],
+            },
+            order: ["new:1", "new:2"],
+          },
+        ],
+      }),
+    );
+  });
+
+  it("reports removing an existing step note", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={{
+          ...recipe,
+          steps: [
+            {
+              ...recipe.steps[0],
+              children: [{ id: "c1", kind: "note", text: "Old tip" }],
+            },
+          ],
+        }}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: `${enMessages.remove}: Old tip` }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+    expect(onSave.mock.calls[0][0].stepChildren).toEqual([
+      { stepId: "step-1", diff: { added: [], updated: [], removed: ["c1"] } },
+    ]);
+  });
+});
+
+describe("RecipeEditor drag-and-drop", () => {
+  // dnd-kit measures on animation frames; let a few pass between keys.
+  const settle = () =>
+    act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+
+  const twoNotes: Recipe = {
+    ...recipe,
+    notes: [
+      { id: "note-1", text: "First" },
+      { id: "note-2", text: "Second" },
+    ],
+  };
+
+  // happy-dom has no layout: give each row a 40px slot by list position so
+  // dnd-kit's keyboard sensor can measure where "down" is.
+  function mockRowLayout() {
+    return vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const row = this.closest("li");
+        const index = row?.parentElement
+          ? [...row.parentElement.children].indexOf(row)
+          : 0;
+        const top = index * 40;
+        return {
+          x: 0,
+          y: top,
+          top,
+          left: 0,
+          right: 300,
+          bottom: top + 40,
+          width: 300,
+          height: 40,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+  }
+
+  it("reorders with the keyboard through the drag handle", async () => {
+    const layout = mockRowLayout();
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    try {
+      render(
+        <RecipeEditor
+          recipe={twoNotes}
+          messages={enMessages}
+          onSave={onSave}
+          onCancel={() => undefined}
+        />,
+      );
+      const handle = screen.getByRole("button", {
+        name: `${enMessages.dragToReorder}: First`,
+      });
+      handle.focus();
+      fireEvent.keyDown(handle, { code: "Space", key: " " });
+      await settle();
+      fireEvent.keyDown(handle, { code: "ArrowDown", key: "ArrowDown" });
+      await settle();
+      fireEvent.keyDown(handle, { code: "Space", key: " " });
+      await settle();
+
+      fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+      expect(onSave.mock.calls[0][0].noteOrder).toEqual(["note-2", "note-1"]);
+    } finally {
+      layout.mockRestore();
+    }
+  });
+
+  it("leaves the order unchanged when a keyboard drag is cancelled", async () => {
+    const layout = mockRowLayout();
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    try {
+      render(
+        <RecipeEditor
+          recipe={twoNotes}
+          messages={enMessages}
+          onSave={onSave}
+          onCancel={() => undefined}
+        />,
+      );
+      const handle = screen.getByRole("button", {
+        name: `${enMessages.dragToReorder}: First`,
+      });
+      handle.focus();
+      fireEvent.keyDown(handle, { code: "Space", key: " " });
+      await settle();
+      fireEvent.keyDown(handle, { code: "ArrowDown", key: "ArrowDown" });
+      await settle();
+      fireEvent.keyDown(handle, { code: "Escape", key: "Escape" });
+      await settle();
+
+      fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+      expect(onSave.mock.calls[0][0].noteOrder).toBeUndefined();
+    } finally {
+      layout.mockRestore();
+    }
   });
 });

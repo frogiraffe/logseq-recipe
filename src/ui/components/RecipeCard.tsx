@@ -2,9 +2,11 @@ import { useState } from "react";
 import type { Recipe } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
 import type { UiMessages } from "../i18n";
+import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import { CoverImage } from "./CoverImage";
 import { IngredientList } from "./IngredientList";
 import { ServingControl } from "./ServingControl";
+import { StepChildren } from "./StepChildren";
 
 export interface RecipeCardProps {
   recipe: Recipe;
@@ -20,10 +22,14 @@ export interface RecipeCardProps {
   ): void;
   onTargetYieldChange(value: number): void;
   onStartCooking?(): void;
+  /** A saved Cooking Mode session exists: offer to resume it. */
+  cookingInProgress?: boolean;
+  resolveAssetUrl?(path: string): Promise<string | null>;
   onEditSettings?(): void;
   onEditRecipe?(): void;
   onDuplicateRecipe?(): void;
-  onDeleteRecipe?(): void;
+  onArchiveRecipe?(): void;
+  onOpenInLogseq?(): void;
 }
 
 function timeLabel(
@@ -67,12 +73,15 @@ export function RecipeCard({
   onIngredientUnitOverrideChange,
   onTargetYieldChange,
   onStartCooking,
+  cookingInProgress = false,
+  resolveAssetUrl,
   onEditSettings,
   onEditRecipe,
   onDuplicateRecipe,
-  onDeleteRecipe,
+  onArchiveRecipe,
+  onOpenInLogseq,
 }: RecipeCardProps) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
   const notes = recipe.notes;
   const total = totalMinutes(recipe);
   const sourceUrl = safeSourceUrl(recipe.sourceUrl);
@@ -81,6 +90,27 @@ export function RecipeCard({
   const tags = uniqueValues(recipe.tags);
   const isNewEmptyRecipe =
     recipe.ingredients.length === 0 && recipe.steps.length === 0;
+
+  const menuItems: ActionMenuItem[] = [
+    ...(onDuplicateRecipe
+      ? [{ label: messages.duplicateRecipe, onSelect: onDuplicateRecipe }]
+      : []),
+    ...(onEditSettings
+      ? [{ label: messages.editRecipeSettings, onSelect: onEditSettings }]
+      : []),
+    ...(onOpenInLogseq
+      ? [{ label: messages.openInLogseq, onSelect: onOpenInLogseq }]
+      : []),
+    ...(onArchiveRecipe
+      ? [
+          {
+            label: messages.archiveRecipe,
+            danger: true,
+            onSelect: () => setConfirmingArchive(true),
+          },
+        ]
+      : []),
+  ].map((item) => ({ ...item, disabled: pending }));
 
   return (
     <article className="draft-recipe-card">
@@ -138,13 +168,60 @@ export function RecipeCard({
             )
           )}
         </div>
+      </header>
+
+      <div className="draft-recipe-card-toolbar">
+        {onStartCooking && (
+          <button
+            type="button"
+            className="draft-recipe-primary-action"
+            onClick={onStartCooking}
+            disabled={pending || recipe.steps.length === 0}
+          >
+            {cookingInProgress ? messages.resumeCooking : messages.startCooking}
+          </button>
+        )}
+        {onEditRecipe && !isNewEmptyRecipe && (
+          <button type="button" onClick={onEditRecipe} disabled={pending}>
+            {messages.editRecipe}
+          </button>
+        )}
         <ServingControl
           value={targetYield}
           messages={messages}
           yieldUnit={recipe.yieldUnit}
           onChange={onTargetYieldChange}
         />
-      </header>
+        {menuItems.length > 0 && (
+          <ActionMenu label={messages.moreActions} icon="⋯" items={menuItems} />
+        )}
+      </div>
+
+      {confirmingArchive && (
+        <div
+          className="draft-recipe-archive-confirm"
+          data-testid="archive-confirm"
+        >
+          <p>
+            {messages.archiveRecipeConfirm}
+            <br />
+            <strong>{recipe.title}</strong>
+          </p>
+          <div className="draft-recipe-actions">
+            <button type="button" onClick={() => setConfirmingArchive(false)}>
+              {messages.cancel}
+            </button>
+            <button
+              type="button"
+              className="draft-recipe-danger-action"
+              onClick={onArchiveRecipe}
+              disabled={pending}
+            >
+              {messages.archiveRecipeConfirmAction}
+            </button>
+          </div>
+        </div>
+      )}
 
       {isNewEmptyRecipe && onEditRecipe && (
         <div className="draft-recipe-empty-state">
@@ -172,7 +249,14 @@ export function RecipeCard({
         <h2>{messages.steps}</h2>
         <ol className="draft-recipe-steps">
           {recipe.steps.map((step) => (
-            <li key={step.id}>{step.rawText}</li>
+            <li key={step.id}>
+              {step.rawText}
+              <StepChildren
+                items={step.children}
+                messages={messages}
+                resolveAssetUrl={resolveAssetUrl}
+              />
+            </li>
           ))}
         </ol>
       </section>
@@ -186,74 +270,6 @@ export function RecipeCard({
             ))}
           </ul>
         </section>
-      )}
-
-      {confirmingDelete ? (
-        <div
-          className="draft-recipe-delete-confirm"
-          data-testid="delete-confirm"
-        >
-          <p>
-            {messages.deleteRecipeConfirm}
-            <br />
-            <strong>{recipe.title}</strong>
-          </p>
-          <div className="draft-recipe-actions">
-            <button type="button" onClick={() => setConfirmingDelete(false)}>
-              {messages.cancel}
-            </button>
-            <button
-              type="button"
-              className="draft-recipe-destructive-action"
-              onClick={onDeleteRecipe}
-              disabled={pending}
-            >
-              {messages.deleteRecipeConfirmAction}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="draft-recipe-actions">
-          {onDeleteRecipe && (
-            <button
-              type="button"
-              className="draft-recipe-destructive-action draft-recipe-actions-leading"
-              onClick={() => setConfirmingDelete(true)}
-              disabled={pending}
-            >
-              {messages.deleteRecipe}
-            </button>
-          )}
-          {onEditRecipe && !isNewEmptyRecipe && (
-            <button type="button" onClick={onEditRecipe} disabled={pending}>
-              {messages.editRecipe}
-            </button>
-          )}
-          {onDuplicateRecipe && (
-            <button
-              type="button"
-              onClick={onDuplicateRecipe}
-              disabled={pending}
-            >
-              {messages.duplicateRecipe}
-            </button>
-          )}
-          {onEditSettings && (
-            <button type="button" onClick={onEditSettings} disabled={pending}>
-              {messages.editRecipeSettings}
-            </button>
-          )}
-          {onStartCooking && (
-            <button
-              type="button"
-              className="draft-recipe-primary-action"
-              onClick={onStartCooking}
-              disabled={pending || recipe.steps.length === 0}
-            >
-              {messages.startCooking}
-            </button>
-          )}
-        </div>
       )}
     </article>
   );

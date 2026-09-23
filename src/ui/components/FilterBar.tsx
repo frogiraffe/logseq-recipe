@@ -64,6 +64,18 @@ export function FilterBar({
 
   return (
     <section className="draft-recipe-filters" aria-label={messages.filters}>
+      <label className="draft-recipe-search-field">
+        {messages.searchRecipes}
+        <input
+          aria-label={messages.searchRecipes}
+          type="search"
+          placeholder={messages.searchRecipesPlaceholder}
+          value={filter.query ?? ""}
+          onChange={(event) =>
+            update({ query: event.currentTarget.value || undefined })
+          }
+        />
+      </label>
       <label>
         {messages.sortBy}
         <select
@@ -76,17 +88,6 @@ export function FilterBar({
           <option value="title">{messages.sortByTitle}</option>
           <option value="totalTime">{messages.sortByTotalTime}</option>
         </select>
-      </label>
-
-      <label>
-        {messages.searchRecipes}
-        <input
-          aria-label={messages.searchRecipes}
-          value={filter.query ?? ""}
-          onChange={(event) =>
-            update({ query: event.currentTarget.value || undefined })
-          }
-        />
       </label>
 
       {hasActiveFilters(filter) && (

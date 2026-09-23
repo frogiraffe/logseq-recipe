@@ -44,6 +44,35 @@ describe("filterRecipeSummaries", () => {
     ).toEqual(["cookie"]);
   });
 
+  it("searches every field and requires every query term", () => {
+    const searchable: RecipeSummary[] = [
+      {
+        id: "soup",
+        title: "Mercimek Çorbası",
+        categories: ["Çorba"],
+        tags: ["Kış"],
+        ingredientTexts: ["kırmızı mercimek"],
+        stepTexts: ["Blend until smooth."],
+        noteTexts: ["Freezes well for a month."],
+      },
+      ...recipes,
+    ];
+    const ids = (query: string) =>
+      filterRecipeSummaries(searchable, { query }).map((r) => r.id);
+
+    expect(ids("çorba")).toEqual(["soup"]);
+    expect(ids("KIŞ")).toEqual(["soup"]);
+    expect(ids("mercimek")).toEqual(["soup"]);
+    expect(ids("smooth")).toEqual(["soup"]);
+    expect(ids("freezes")).toEqual(["soup"]);
+    expect(ids("blend freezes")).toEqual(["soup"]);
+    expect(ids("blend cookie")).toEqual([]);
+    expect(ids("  ")).toHaveLength(searchable.length);
+    // A term never spans two fields.
+    expect(ids("smooth. freezes")).toEqual(["soup"]);
+    expect(ids("smoothfreezes")).toEqual([]);
+  });
+
   it("filters by free-form categories and tags without a fixed vocabulary", () => {
     expect(
       filterRecipeSummaries(recipes, {

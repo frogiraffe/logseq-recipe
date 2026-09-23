@@ -7,6 +7,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
+import {
+  cookingSessionKey,
+  loadCookingSession,
+} from "../application/cooking-session";
+import { IncompleteSaveError } from "../application/edit-recipe";
 import {
   collectFacetSuggestions,
   type FacetSuggestion,
@@ -14,6 +20,7 @@ import {
 import type { Recipe } from "../domain/recipe";
 import type { CanonicalUnit } from "../domain/unit";
 import { defaultParseContext } from "../parsing/context";
+import { ArchivedRecipesView } from "./components/ArchivedRecipesView";
 import { ConvertPreview } from "./components/ConvertPreview";
 import { CookingMode } from "./components/CookingMode";
 import { NewRecipeForm } from "./components/NewRecipeForm";
@@ -24,6 +31,7 @@ import {
   RecipeSettingsPanel,
 } from "./components/RecipeSettingsPanel";
 import { RecipesView } from "./components/RecipesView";
+import { TimerDock } from "./components/Timers";
 import { confirmDiscardIfDirty } from "./dirty-guard";
 import { useFocusTrap } from "./focus-trap";
 import type { UiMessages } from "./i18n";
@@ -39,11 +47,34 @@ export interface DraftRecipeAppProps {
   messages: UiMessages;
 }
 
+// Screen changes cross-fade through the View Transitions API where the host
+// has it; elsewhere, or with reduced motion requested, they are instant.
+function withViewTransition(update: () => void): void {
+  const start = (
+    document as Document & {
+      startViewTransition?(callback: () => void): unknown;
+    }
+  ).startViewTransition;
+  const reduced =
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!start || reduced) {
+    update();
+    return;
+  }
+  start.call(document, () => flushSync(update));
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 type ActiveView =
   | DraftRecipeInitialView
   | { kind: "recipe-loaded" }
   | { kind: "cooking" }
   | { kind: "settings" }
+  | { kind: "archived" }
   | { kind: "edit" };
 
 export function DraftRecipeApp({
@@ -69,13 +100,21 @@ export function DraftRecipeApp({
   // a cosmetic issue, for an element marked aria-modal="true".
   useFocusTrap(shellRef);
 
-  const [view, setView] = useState<ActiveView>(config.initialView);
+  const [view, setViewState] = useState<ActiveView>(config.initialView);
+  const setView = useCallback(
+    (next: ActiveView) => withViewTransition(() => setViewState(next)),
+    [],
+  );
   const [recipes, setRecipes] = useState<
     Awaited<ReturnType<typeof controller.listRecipes>>
   >([]);
   // False only until the first `listRecipes` call settles, so an empty
   // initial array isn't mistaken for a confirmed-empty graph.
   const [recipesLoaded, setRecipesLoaded] = useState(false);
+  const [archivedRecipes, setArchivedRecipes] = useState<
+    Awaited<ReturnType<typeof controller.listArchivedRecipes>>
+  >([]);
+  const [archivedRecipesLoaded, setArchivedRecipesLoaded] = useState(false);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [targetYield, setTargetYield] = useState(1);
   // Lifted above Recipe Card/Cooking Mode (rather than owned by either) so a
@@ -91,6 +130,20 @@ export function DraftRecipeApp({
   >([]);
   const [tagSuggestions, setTagSuggestions] = useState<FacetSuggestion[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Short-lived success feedback; the live region itself always stays
+  // mounted so screen readers announce each new notice.
+  const [notice, setNotice] = useState<{ id: number; text: string } | null>(
+    null,
+  );
+  const announce = useCallback(
+    (text: string) => setNotice({ id: Date.now(), text }),
+    [],
+  );
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timeout = window.setTimeout(() => setNotice(null), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
   const [pending, setPending] = useState(false);
   // Whichever of Edit/Settings/Convert is currently active reports its own
   // isDirty state up here, so the shell's global Close button - which has
@@ -100,7 +153,7 @@ export function DraftRecipeApp({
   const [formDirty, setFormDirty] = useState(false);
 
   // A double-click (or a slow Logseq call) must never start a second Create/
-  // Convert/Save/Duplicate/Delete before the first one finishes and creates
+  // Convert/Save/Duplicate/Archive before the first one finishes and creates
   // duplicate blocks or pages. `pending` blocks re-entry into any of them;
   // callers also disable their trigger button while it's true.
   const runExclusive = useCallback(
@@ -114,6 +167,20 @@ export function DraftRecipeApp({
       }
     },
     [pending],
+  );
+  // Every user-triggered write: one at a time, clears the previous error,
+  // and reports a failure instead of letting it escape as a rejection.
+  const runAction = useCallback(
+    (task: () => Promise<void>) =>
+      runExclusive(async () => {
+        setError(null);
+        try {
+          await task();
+        } catch (cause) {
+          setError(errorMessage(cause));
+        }
+      }),
+    [runExclusive],
   );
 
   const measurementSystem =
@@ -150,7 +217,7 @@ export function DraftRecipeApp({
         return loaded;
       } catch (cause) {
         if (loadTokenRef.current === token) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(errorMessage(cause));
         }
         return undefined;
       }
@@ -158,52 +225,69 @@ export function DraftRecipeApp({
     [controller],
   );
 
+  const openCookingById = useCallback(
+    async (id: string): Promise<void> => {
+      setFormDirty(false);
+      const loaded = await refreshRecipeById(id, id !== recipe?.id);
+      if (loaded) setView({ kind: "cooking" });
+    },
+    [recipe?.id, refreshRecipeById, setView],
+  );
+
   const openRecipeById = useCallback(
     async (id: string, resetYield: boolean): Promise<void> => {
       const loaded = await refreshRecipeById(id, resetYield);
       if (loaded) setView({ kind: "recipe-loaded" });
     },
-    [refreshRecipeById],
+    [refreshRecipeById, setView],
   );
 
-  const refreshRecipes = useCallback(async () => {
+  const refreshRecipes = useCallback(
+    async (fresh = false) => {
+      try {
+        setError(null);
+        setRecipes(await controller.listRecipes(fresh ? { fresh } : undefined));
+      } catch (cause) {
+        setError(errorMessage(cause));
+      } finally {
+        setRecipesLoaded(true);
+      }
+    },
+    [controller],
+  );
+
+  const refreshArchivedRecipes = useCallback(async () => {
+    setArchivedRecipesLoaded(false);
     try {
       setError(null);
-      setRecipes(await controller.listRecipes());
+      setArchivedRecipes(await controller.listArchivedRecipes());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
-      setRecipesLoaded(true);
+      setArchivedRecipesLoaded(true);
     }
   }, [controller]);
 
   const openSettings = useCallback(async () => {
-    // Matches every other Create/Convert/Save/Duplicate/Delete action: keep
+    // Matches every other Create/Convert/Save/Duplicate/Archive action: keep
     // trigger buttons disabled (via `pending`) while this asset/list fetch
     // is in flight, rather than leaving the click with no visible feedback
     // until the settings panel simply appears.
-    await runExclusive(async () => {
-      try {
-        setError(null);
-        // Asset listing is optional (cover support degrades gracefully when
-        // unavailable) - its failure must not also block the rest of Recipe
-        // Settings (categories, tags, parser/measurement overrides) from
-        // opening at all.
-        const [assets, summaries] = await Promise.all([
-          controller.listImageAssets().catch(() => []),
-          controller.listRecipes(),
-        ]);
-        setCoverAssets(assets);
-        setCategorySuggestions(
-          collectFacetSuggestions(summaries, "categories"),
-        );
-        setTagSuggestions(collectFacetSuggestions(summaries, "tags"));
-        setView({ kind: "settings" });
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-      }
+    await runAction(async () => {
+      // Asset listing is optional (cover support degrades gracefully when
+      // unavailable) - its failure must not also block the rest of Recipe
+      // Settings (categories, tags, parser/measurement overrides) from
+      // opening at all.
+      const [assets, summaries] = await Promise.all([
+        controller.listImageAssets().catch(() => []),
+        controller.listRecipes(),
+      ]);
+      setCoverAssets(assets);
+      setCategorySuggestions(collectFacetSuggestions(summaries, "categories"));
+      setTagSuggestions(collectFacetSuggestions(summaries, "tags"));
+      setView({ kind: "settings" });
     });
-  }, [controller, runExclusive]);
+  }, [controller, runAction, setView]);
 
   useEffect(() => {
     const initial = config.initialView;
@@ -238,7 +322,7 @@ export function DraftRecipeApp({
     return controller.watchRecipe(recipeId, () => {
       void refreshRecipeById(recipeId, false).then((loaded) => {
         // The recipe was removed/recycled from outside the plugin (or by
-        // this plugin's own Delete) while its card was open - don't leave a
+        // this plugin's own Archive) while its card was open - don't leave a
         // stale card on screen with nothing behind it. `undefined` means
         // this particular load was superseded by a newer one, not that the
         // recipe is actually gone - only `null` is a confirmed deletion.
@@ -248,7 +332,7 @@ export function DraftRecipeApp({
         }
       });
     });
-  }, [controller, recipeId, refreshRecipeById, refreshRecipes]);
+  }, [controller, recipeId, refreshRecipeById, refreshRecipes, setView]);
 
   const handleIngredientUnitOverrideChange = useCallback(
     (ingredientId: string, unit: CanonicalUnit | null) => {
@@ -265,7 +349,12 @@ export function DraftRecipeApp({
     [],
   );
 
-  const shell = (content: ReactNode) => (
+  const backToRecipes = () => {
+    setView({ kind: "recipes" });
+    void refreshRecipes();
+  };
+
+  const shell = (content: ReactNode, onBack?: () => void) => (
     <div
       ref={shellRef}
       className="draft-recipe-app"
@@ -276,9 +365,17 @@ export function DraftRecipeApp({
       aria-label={messages.recipes}
       tabIndex={-1}
     >
-      <div className="draft-recipe-app-toolbar">
+      <header className="draft-recipe-app-bar">
+        {onBack && (
+          <button type="button" className="draft-recipe-back" onClick={onBack}>
+            <span aria-hidden="true">←</span> {messages.back}
+          </button>
+        )}
         <button
           type="button"
+          className="draft-recipe-close"
+          aria-label={messages.close}
+          title={messages.close}
           onClick={() =>
             confirmDiscardIfDirty(
               formDirty,
@@ -287,11 +384,35 @@ export function DraftRecipeApp({
             )
           }
         >
-          {messages.close}
+          <span aria-hidden="true">×</span>
         </button>
-      </div>
+      </header>
       {error && <div className="draft-recipe-error">{error}</div>}
+      <div
+        className="draft-recipe-notice-region"
+        role="status"
+        aria-live="polite"
+      >
+        {notice && (
+          <div key={notice.id} className="draft-recipe-notice">
+            {notice.text}
+          </div>
+        )}
+      </div>
       {content}
+      {config.graphKey && view.kind !== "cooking" && (
+        <TimerDock
+          graphKey={config.graphKey}
+          messages={messages}
+          onOpenRecipe={(id) =>
+            confirmDiscardIfDirty(
+              formDirty,
+              messages.discardChangesConfirm,
+              () => void openCookingById(id),
+            )
+          }
+        />
+      )}
     </div>
   );
 
@@ -312,21 +433,13 @@ export function DraftRecipeApp({
         locale={createDefaults.locale}
         sourceMeasurementSystem={createDefaults.sourceMeasurementSystem}
         pending={pending}
-        onCancel={() => {
-          setView({ kind: "recipes" });
-          void refreshRecipes();
-        }}
+        onCancel={backToRecipes}
         onSubmit={(input) => {
-          void runExclusive(async () => {
-            try {
-              setError(null);
-              const created = await controller.createRecipe(input);
-              setRecipe(created);
-              setTargetYield(created.baseYield);
-              setView({ kind: "recipe-loaded" });
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
+          void runAction(async () => {
+            const created = await controller.createRecipe(input);
+            setRecipe(created);
+            setTargetYield(created.baseYield);
+            setView({ kind: "recipe-loaded" });
           });
         }}
       />,
@@ -343,14 +456,9 @@ export function DraftRecipeApp({
         onCancel={controller.close}
         onDirtyChange={setFormDirty}
         onConfirm={(resolvedDraft) => {
-          void runExclusive(async () => {
-            try {
-              setError(null);
-              await controller.commitConversion(resolvedDraft);
-              await openRecipeById(resolvedDraft.rootId, true);
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
+          void runAction(async () => {
+            await controller.commitConversion(resolvedDraft);
+            await openRecipeById(resolvedDraft.rootId, true);
           });
         }}
       />,
@@ -380,13 +488,7 @@ export function DraftRecipeApp({
       <div className="draft-recipe-outline-split">
         <p>{messages.outlineNeedsSplitMessage}</p>
         <div className="draft-recipe-actions">
-          <button
-            type="button"
-            onClick={() => {
-              setView({ kind: "recipes" });
-              void refreshRecipes();
-            }}
-          >
+          <button type="button" onClick={backToRecipes}>
             {messages.cancel}
           </button>
           <button
@@ -394,20 +496,13 @@ export function DraftRecipeApp({
             className="draft-recipe-primary-action"
             disabled={pending}
             onClick={() => {
-              void runExclusive(async () => {
-                try {
-                  setError(null);
-                  const next = await controller.splitOutlineAndConvert(
-                    view.uuid,
-                    view.outline,
-                    view.staleChildIds,
-                  );
-                  setView(next);
-                } catch (cause) {
-                  setError(
-                    cause instanceof Error ? cause.message : String(cause),
-                  );
-                }
+              void runAction(async () => {
+                const next = await controller.splitOutlineAndConvert(
+                  view.uuid,
+                  view.outline,
+                  view.staleChildIds,
+                );
+                setView(next);
               });
             }}
           >
@@ -440,19 +535,15 @@ export function DraftRecipeApp({
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onDirtyChange={setFormDirty}
         onSave={(meta, cover: CoverSelection) => {
-          void runExclusive(async () => {
-            try {
-              setError(null);
-              await controller.saveRecipeMeta(recipe.id, meta);
-              if (cover === null) await controller.clearCover(recipe.id);
-              else if (typeof cover === "string") {
-                await controller.setCoverPath(recipe.id, cover);
-              }
-              const refreshed = await refreshRecipeById(recipe.id, false);
-              if (refreshed) setView({ kind: "recipe-loaded" });
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
+          void runAction(async () => {
+            await controller.saveRecipeMeta(recipe.id, meta);
+            if (cover === null) await controller.clearCover(recipe.id);
+            else if (typeof cover === "string") {
+              await controller.setCoverPath(recipe.id, cover);
             }
+            setView({ kind: "recipe-loaded" });
+            await refreshRecipeById(recipe.id, false);
+            announce(messages.savedNotice);
           });
         }}
       />,
@@ -467,19 +558,24 @@ export function DraftRecipeApp({
         pending={pending}
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onDirtyChange={setFormDirty}
+        listStepMediaAssets={controller.listStepMediaAssets}
         onSave={(patch) => {
-          void runExclusive(async () => {
+          void runAction(async () => {
             try {
-              setError(null);
               await controller.saveRecipeEdit(recipe.id, patch);
-              const refreshed = await refreshRecipeById(
-                recipe.id,
-                patch.baseYield !== undefined,
-              );
-              if (refreshed) setView({ kind: "recipe-loaded" });
             } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
+              if (!(cause instanceof IncompleteSaveError)) throw cause;
+              // Part of the edit reached Logseq: the editor's baseline is
+              // stale, so show what the graph actually holds now.
+              setView({ kind: "recipe-loaded" });
+              await refreshRecipeById(recipe.id, false);
+              setError(`${messages.saveIncomplete} ${cause.message}`);
+              return;
             }
+            if (patch.baseYield !== undefined) setTargetYield(patch.baseYield);
+            setView({ kind: "recipe-loaded" });
+            await refreshRecipeById(recipe.id, false);
+            announce(messages.savedNotice);
           });
         }}
       />,
@@ -496,91 +592,143 @@ export function DraftRecipeApp({
         coverUrl={coverUrl}
         ingredientUnitOverrides={ingredientUnitOverrides}
         onIngredientUnitOverrideChange={handleIngredientUnitOverrideChange}
+        sessionKey={
+          config.graphKey ? cookingSessionKey(config.graphKey, recipe.id) : null
+        }
+        resolveAssetUrl={controller.resolveAssetUrl}
+        onTargetYieldChange={setTargetYield}
         onExit={() => setView({ kind: "recipe-loaded" })}
       />,
     );
   }
 
+  if (view.kind === "archived") {
+    return shell(
+      <ArchivedRecipesView
+        recipes={archivedRecipes}
+        messages={messages}
+        loading={!archivedRecipesLoaded}
+        pending={pending}
+        onRestore={(id) => {
+          void runAction(async () => {
+            await controller.restoreRecipe(id);
+            const restored = archivedRecipes.find((item) => item.id === id);
+            setArchivedRecipes((current) =>
+              current.filter((item) => item.id !== id),
+            );
+            // The active list was never fetched: nothing to patch, load it.
+            if (!recipesLoaded) void refreshRecipes();
+            else if (restored) {
+              const { archivedAt: _archivedAt, ...summary } = restored;
+              setRecipes((current) => [
+                ...current.filter((item) => item.id !== id),
+                summary,
+              ]);
+            }
+            setView({ kind: "recipes" });
+            announce(messages.restoredNotice);
+          });
+        }}
+        onDelete={(id) => {
+          void runAction(async () => {
+            await controller.deleteArchivedRecipe(id);
+            setArchivedRecipes((current) =>
+              current.filter((item) => item.id !== id),
+            );
+            announce(messages.deletedNotice);
+          });
+        }}
+        onOpenInLogseq={controller.openInLogseq}
+      />,
+      backToRecipes,
+    );
+  }
+
   if (view.kind === "recipe-loaded" && recipe) {
     return shell(
-      <>
-        <button
-          type="button"
-          className="draft-recipe-back"
-          onClick={() => {
+      <RecipeCard
+        recipe={recipe}
+        targetYield={targetYield}
+        measurementSystem={measurementSystem}
+        messages={messages}
+        coverUrl={coverUrl}
+        pending={pending}
+        ingredientUnitOverrides={ingredientUnitOverrides}
+        onIngredientUnitOverrideChange={handleIngredientUnitOverrideChange}
+        onTargetYieldChange={setTargetYield}
+        onEditSettings={() => void openSettings()}
+        onEditRecipe={() => setView({ kind: "edit" })}
+        onDuplicateRecipe={() => {
+          void runAction(async () => {
+            const duplicated = await controller.duplicateRecipe(recipe.id);
+            setRecipe(duplicated);
+            setTargetYield(duplicated.baseYield);
+            setView({ kind: "recipe-loaded" });
+          });
+        }}
+        onArchiveRecipe={() => {
+          void runAction(async () => {
+            await controller.archiveRecipe(recipe.id);
+            if (!recipesLoaded) void refreshRecipes();
+            else
+              setRecipes((current) =>
+                current.filter((item) => item.id !== recipe.id),
+              );
             setView({ kind: "recipes" });
-            void refreshRecipes();
-          }}
-        >
-          {messages.back}
-        </button>
-        <RecipeCard
-          recipe={recipe}
-          targetYield={targetYield}
-          measurementSystem={measurementSystem}
-          messages={messages}
-          coverUrl={coverUrl}
-          pending={pending}
-          ingredientUnitOverrides={ingredientUnitOverrides}
-          onIngredientUnitOverrideChange={handleIngredientUnitOverrideChange}
-          onTargetYieldChange={setTargetYield}
-          onEditSettings={() => void openSettings()}
-          onEditRecipe={() => setView({ kind: "edit" })}
-          onDuplicateRecipe={() => {
-            void runExclusive(async () => {
-              try {
-                setError(null);
-                const duplicated = await controller.duplicateRecipe(recipe.id);
-                setRecipe(duplicated);
-                setTargetYield(duplicated.baseYield);
-                setView({ kind: "recipe-loaded" });
-              } catch (cause) {
-                setError(
-                  cause instanceof Error ? cause.message : String(cause),
-                );
-              }
-            });
-          }}
-          onDeleteRecipe={() => {
-            void runExclusive(async () => {
-              try {
-                setError(null);
-                await controller.deleteRecipe(recipe.id);
-                setView({ kind: "recipes" });
-                void refreshRecipes();
-              } catch (cause) {
-                setError(
-                  cause instanceof Error ? cause.message : String(cause),
-                );
-              }
-            });
-          }}
-          onStartCooking={() => setView({ kind: "cooking" })}
-        />
-      </>,
+            announce(messages.archivedNotice);
+          });
+        }}
+        onOpenInLogseq={() => controller.openInLogseq(recipe.id)}
+        resolveAssetUrl={controller.resolveAssetUrl}
+        cookingInProgress={
+          config.graphKey
+            ? loadCookingSession(
+                cookingSessionKey(config.graphKey, recipe.id),
+              ) !== null
+            : false
+        }
+        onStartCooking={() => setView({ kind: "cooking" })}
+      />,
+      backToRecipes,
     );
   }
 
   return shell(
-    <>
-      <div className="draft-recipe-recipes-toolbar">
-        <button
-          type="button"
-          className="draft-recipe-primary-action"
-          onClick={() => setView({ kind: "create" })}
-        >
-          {messages.createRecipe}
-        </button>
-        <button type="button" onClick={() => void refreshRecipes()}>
-          {messages.refresh}
-        </button>
-      </div>
-      <RecipesView
-        recipes={recipes}
-        messages={messages}
-        loading={!recipesLoaded}
-        onOpen={(id) => void openRecipeById(id, true)}
-      />
-    </>,
+    <RecipesView
+      recipes={recipes}
+      messages={messages}
+      loading={!recipesLoaded}
+      onOpen={(id) => void openRecipeById(id, true)}
+      resolveCover={controller.resolveCover}
+      headerActions={
+        <>
+          <button
+            type="button"
+            className="draft-recipe-icon-button"
+            aria-label={messages.refresh}
+            title={messages.refresh}
+            onClick={() => void refreshRecipes(true)}
+          >
+            <span aria-hidden="true">↻</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setView({ kind: "archived" });
+              void refreshArchivedRecipes();
+            }}
+          >
+            {messages.archivedRecipes}
+          </button>
+          <button
+            type="button"
+            className="draft-recipe-primary-action"
+            onClick={() => setView({ kind: "create" })}
+          >
+            {messages.createRecipe}
+          </button>
+        </>
+      }
+    />,
   );
 }

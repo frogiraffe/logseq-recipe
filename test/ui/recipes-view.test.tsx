@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RecipeSummary } from "../../src/application/types";
 import { RecipesView } from "../../src/ui/components/RecipesView";
@@ -148,5 +148,43 @@ describe("RecipesView", () => {
       screen.getByRole("button", { name: /^Chocolate Cookie\b/ }),
     );
     expect(onOpen).toHaveBeenCalledWith("cookie");
+  });
+});
+
+describe("RecipesView cover thumbnails", () => {
+  it("shows a card's cover and a letter placeholder when there is none", async () => {
+    const resolveCover = vi.fn(async () => "assets://graph/pie.webp");
+    const view = render(
+      <RecipesView
+        recipes={[
+          {
+            id: "pie",
+            title: "Apple Pie",
+            categories: [],
+            tags: [],
+            ingredientTexts: [],
+            cover: { kind: "asset-path", value: "assets/pie.webp" },
+          },
+          {
+            id: "soup",
+            title: "soup",
+            categories: [],
+            tags: [],
+            ingredientTexts: [],
+          },
+        ]}
+        messages={enMessages}
+        resolveCover={resolveCover}
+        onOpen={() => undefined}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(view.container.querySelector("img")?.getAttribute("src")).toBe(
+        "assets://graph/pie.webp",
+      ),
+    );
+    expect(resolveCover).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("S")).toBeTruthy();
   });
 });

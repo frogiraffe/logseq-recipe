@@ -64,13 +64,3 @@ export function scaleIngredient(
     ),
   };
 }
-
-export function scaleIngredients(
-  ingredients: Ingredient[],
-  baseYield: number,
-  targetYield: number,
-): Ingredient[] {
-  return ingredients.map((ingredient) =>
-    scaleIngredient(ingredient, baseYield, targetYield),
-  );
-}

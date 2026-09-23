@@ -1,4 +1,4 @@
-import type { RecipeLocale } from "../domain/recipe";
+import type { CoverRef, RecipeLocale } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
 import type { ParsedIngredient } from "../parsing/ingredient";
 
@@ -20,6 +20,14 @@ export interface RecipeSummary {
   chillMinutes?: number;
   cookMinutes?: number;
   ingredientTexts: string[];
+  cover?: CoverRef;
+  // Full-text search only; absent on summaries built before they existed.
+  stepTexts?: string[];
+  noteTexts?: string[];
+}
+
+export interface ArchivedRecipeSummary extends RecipeSummary {
+  archivedAt?: number;
 }
 
 export interface ValidationIssue {

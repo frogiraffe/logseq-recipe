@@ -46,6 +46,27 @@ export function buildRecipeSchema(
       public: false,
     },
     {
+      key: PROPERTY_KEYS.archivedMarker,
+      type: "checkbox",
+      cardinality: "one",
+      hide: true,
+      public: false,
+    },
+    {
+      key: PROPERTY_KEYS.archivedAt,
+      type: "number",
+      cardinality: "one",
+      hide: true,
+      public: false,
+    },
+    {
+      key: PROPERTY_KEYS.librarySectionRole,
+      type: "default",
+      cardinality: "one",
+      hide: true,
+      public: false,
+    },
+    {
       key: PROPERTY_KEYS.schemaVersion,
       type: "number",
       cardinality: "one",

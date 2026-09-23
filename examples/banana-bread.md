@@ -10,10 +10,9 @@ Bread` down to the end of the `Notes` section, then paste that into a new
 Logseq page. If Logseq doesn't turn the indentation into nested blocks
 automatically, use Tab/Shift+Tab on each line to match the indentation shown
 below, then run **Logseq Recipe: Convert to Recipe** on the root (`Classic
-Banana Bread`) block. Convert reads the actual parent/child block structure -
-a single block containing all these lines as one piece of text (which is what
-you get if the fence markers get pasted in, or if the lines land as one
-Logseq code block) has no Ingredients/Steps children for it to find.
+Banana Bread`) block. Convert reads the parent/child block structure; if the
+whole outline lands in a single block, Convert offers to split it into nested
+blocks for you before continuing.
 
 It deliberately exercises the parser's main behaviors:
 

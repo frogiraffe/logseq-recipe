@@ -43,3 +43,30 @@ describe("formatMeasurement", () => {
     expect(formatMeasurement(180, "celsius", "tr")).toBe("180 °C");
   });
 });
+
+describe("French, German, and Spanish formatting", () => {
+  it("localizes unit labels", () => {
+    expect(unitLabel("tbsp_metric", "fr")).toBe("c. à s.");
+    expect(unitLabel("tbsp_metric", "de")).toBe("EL");
+    expect(unitLabel("tbsp_metric", "es")).toBe("cda.");
+  });
+
+  it("pluralizes count units by each locale's plural rules", () => {
+    expect(unitLabel("egg", "fr", 1.5)).toBe("œuf");
+    expect(unitLabel("egg", "fr", 2)).toBe("œufs");
+    expect(unitLabel("egg", "de", 1)).toBe("Ei");
+    expect(unitLabel("egg", "de", 3)).toBe("Eier");
+    expect(unitLabel("piece", "de", 3)).toBe("Stück");
+    expect(unitLabel("clove", "es", 2)).toBe("dientes");
+    expect(unitLabel("clove", "es", 1)).toBe("diente");
+    expect(unitLabel("g", "es", 500)).toBe("g");
+  });
+
+  it("uses a decimal comma outside English", () => {
+    expect(formatMeasurement(1.25, "l", "en")).toBe("1¼ L");
+    expect(formatMeasurement(1.3, "kg", "en")).toBe("1.3 kg");
+    expect(formatMeasurement(1.3, "kg", "de")).toBe("1,3 kg");
+    expect(formatMeasurement(1.3, "kg", "fr")).toBe("1,3 kg");
+    expect(formatMeasurement(1.3, "kg", "tr")).toBe("1,3 kg");
+  });
+});

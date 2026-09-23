@@ -24,6 +24,21 @@ describe("recipe DB schema", () => {
       type: "checkbox",
       hide: true,
     });
+    expect(schema.recipe_archived).toMatchObject({
+      type: "checkbox",
+      hide: true,
+      public: false,
+    });
+    expect(schema.recipe_archived_at).toMatchObject({
+      type: "number",
+      hide: true,
+      public: false,
+    });
+    expect(schema.recipe_library_section).toMatchObject({
+      type: "default",
+      hide: true,
+      public: false,
+    });
     expect(schema.schema_version).toMatchObject({ type: "number", hide: true });
     expect(schema.recipe_meta).toMatchObject({ type: "json", hide: true });
     expect(schema.ingredient_meta).toMatchObject({

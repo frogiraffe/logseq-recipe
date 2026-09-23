@@ -31,7 +31,7 @@ function resolveCookingUnit(
   return `${generic}_metric` as CanonicalUnit;
 }
 
-export function resolveUnitLexeme(
+function resolveUnitLexeme(
   unit: UnitLexeme,
   system: MeasurementSystem,
 ): CanonicalUnit {

@@ -10,6 +10,7 @@ import {
 import { commitRecipeEdit } from "../src/application/edit-recipe";
 import type { RecipeRepository } from "../src/application/recipe-repository";
 import type {
+  ArchivedRecipeSummary,
   ExistingRecipeStructure,
   NewRecipeInput,
   RecipeSectionRole,
@@ -21,6 +22,7 @@ import type {
   RecipeLocale,
   RecipeMeta,
 } from "../src/domain/recipe";
+import { parseStepChild, safeAssetPath } from "../src/domain/step-media";
 import { defaultParseContext } from "../src/parsing/context";
 import { parseIngredient } from "../src/parsing/ingredient";
 import { parseStep } from "../src/parsing/step";
@@ -28,11 +30,14 @@ import { DraftRecipeApp } from "../src/ui/app";
 import "../src/ui/styles.css";
 import "../src/ui/feature-styles.css";
 import "../src/ui/theme-fallback.css";
-import { enMessages, getUiMessages } from "../src/ui/i18n";
+import { getUiMessages } from "../src/ui/i18n";
 import type { DraftRecipeUiController } from "../src/ui/state";
+import { playTimerCue, watchTimerAlarms } from "../src/ui/timer-alarms";
 
 const params = new URLSearchParams(location.search);
 const locale = (params.get("locale") ?? "en") as RecipeLocale;
+// ?ui= picks the interface language independently of the seed language.
+const uiLanguage = params.get("ui") ?? locale;
 const theme = params.get("theme") === "dark" ? "dark" : "light";
 // Demo seeds are written in metric, so parse and display in metric for
 // both locales - otherwise "225 g" comes back out as "7.94 oz".
@@ -58,6 +63,7 @@ function buildRecipe(seed: {
   ingredients: string[];
   steps: string[];
   notes?: string[];
+  stepChildren?: Record<number, string[]>;
 }): Recipe {
   return {
     id: seed.id,
@@ -69,7 +75,16 @@ function buildRecipe(seed: {
     categories: seed.categories,
     tags: seed.tags,
     ingredients: seed.ingredients.map((text) => makeIngredient(text)),
-    steps: seed.steps.map((text) => makeStep(text)),
+    steps: seed.steps.map((text, index) => ({
+      ...makeStep(text),
+      ...(seed.stepChildren?.[index]
+        ? {
+            children: seed.stepChildren[index].map((child) =>
+              parseStepChild(nextId("child"), child),
+            ),
+          }
+        : {}),
+    })),
     notes: (seed.notes ?? []).map((text) => ({ id: nextId("note"), text })),
     schemaVersion: 1,
     parserLocale: locale,
@@ -125,6 +140,9 @@ const seeds =
             "180 derecede 40 dakika pişirin.",
           ],
           notes: ["Fırından çıkınca 10 dakika kalıpta dinlendirin."],
+          stepChildren: {
+            0: ["Karışım beyazlayıp kabarana kadar çırpın."],
+          },
         },
         {
           id: "mercimek",
@@ -175,6 +193,13 @@ const seeds =
             "Bake at 180 C for 12 minutes.",
           ],
           notes: ["Chill the dough for 30 minutes for a thicker cookie."],
+          stepChildren: {
+            0: [
+              "Stop when the foam turns hazelnut brown.",
+              "![brown butter](../assets/brown-butter.webp)",
+            ],
+            1: ["![whisk tip](../assets/whisk-tip.ogg)"],
+          },
         },
         {
           id: "soup",
@@ -202,6 +227,12 @@ const seeds =
 const store = new Map<string, Recipe>(
   seeds.map((seed) => [seed.id, buildRecipe(seed)]),
 );
+// One seeded cover, so the list shows both a photo card and a placeholder.
+const firstSeed = store.values().next().value;
+if (firstSeed) {
+  firstSeed.cover = { kind: "asset-path", value: "assets/brown-butter.webp" };
+}
+const archivedAt = new Map<string, number>();
 const watchers = new Map<string, Set<() => void>>();
 
 function notify(id: string): void {
@@ -214,16 +245,64 @@ function mustGet(id: string): Recipe {
   return recipe;
 }
 
-function locate(
-  itemId: string,
-): { recipe: Recipe; role: RecipeSectionRole; index: number } | null {
+type Located =
+  | {
+      recipe: Recipe;
+      list: Array<{ id: string }>;
+      index: number;
+      role: RecipeSectionRole;
+    }
+  | {
+      recipe: Recipe;
+      list: Array<{ id: string }>;
+      index: number;
+      role: "stepChild";
+      stepIndex: number;
+    };
+
+function locate(itemId: string): Located | null {
   for (const recipe of store.values()) {
     for (const role of ["ingredients", "steps", "notes"] as const) {
       const index = recipe[role].findIndex((item) => item.id === itemId);
-      if (index >= 0) return { recipe, role, index };
+      if (index >= 0) return { recipe, list: recipe[role], index, role };
+    }
+    for (const [stepIndex, step] of recipe.steps.entries()) {
+      const index = (step.children ?? []).findIndex((c) => c.id === itemId);
+      if (index >= 0 && step.children) {
+        return {
+          recipe,
+          list: step.children,
+          index,
+          role: "stepChild",
+          stepIndex,
+        };
+      }
     }
   }
   return null;
+}
+
+function summary(recipe: Recipe): RecipeSummary {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    categories: recipe.categories,
+    tags: recipe.tags,
+    ...(recipe.prepMinutes ? { prepMinutes: recipe.prepMinutes } : {}),
+    ...(recipe.chillMinutes ? { chillMinutes: recipe.chillMinutes } : {}),
+    ...(recipe.cookMinutes ? { cookMinutes: recipe.cookMinutes } : {}),
+    ingredientTexts: recipe.ingredients.map((item) => item.ingredientText),
+    ...(recipe.cover ? { cover: recipe.cover } : {}),
+    stepTexts: recipe.steps.map((step) => step.rawText),
+    noteTexts: [
+      ...recipe.notes.map((note) => note.text),
+      ...recipe.steps.flatMap((step) =>
+        (step.children ?? [])
+          .filter((child) => child.kind === "note")
+          .map((child) => child.text),
+      ),
+    ],
+  };
 }
 
 const repository: RecipeRepository = {
@@ -252,26 +331,29 @@ const repository: RecipeRepository = {
     store.set(copy.id, copy);
     return copy;
   },
-  // ponytail: convert-from-existing-blocks needs a real Logseq graph; the demo
+  // Convert-from-existing-blocks needs a real Logseq graph; the demo
   // seeds recipes directly instead. Record the convert flow in Logseq itself.
   markExistingRecipe: async (_structure: ExistingRecipeStructure) => undefined,
   listRecipeSummaries: async (): Promise<RecipeSummary[]> =>
-    [...store.values()].map((recipe) => ({
-      id: recipe.id,
-      title: recipe.title,
-      categories: recipe.categories,
-      tags: recipe.tags,
-      ...(recipe.prepMinutes ? { prepMinutes: recipe.prepMinutes } : {}),
-      ...(recipe.chillMinutes ? { chillMinutes: recipe.chillMinutes } : {}),
-      ...(recipe.cookMinutes ? { cookMinutes: recipe.cookMinutes } : {}),
-      ingredientTexts: recipe.ingredients.map((item) => item.ingredientText),
-    })),
+    [...store.values()]
+      .filter((recipe) => !archivedAt.has(recipe.id))
+      .map(summary),
+  listArchivedRecipeSummaries: async (): Promise<ArchivedRecipeSummary[]> =>
+    [...store.values()]
+      .filter((recipe) => archivedAt.has(recipe.id))
+      .map((recipe) => ({
+        ...summary(recipe),
+        archivedAt: archivedAt.get(recipe.id),
+      })),
   validateRecipe: async () => ({ valid: true, issues: [] }),
   watchRecipe: (id, listener) => {
     const set = watchers.get(id) ?? new Set();
     set.add(listener);
     watchers.set(id, set);
     return () => set.delete(listener);
+  },
+  validateRename: async (_id, title) => {
+    if (!title.trim()) throw new RangeError("Recipe title is required.");
   },
   renameRecipe: async (id, title) => {
     mustGet(id).title = title;
@@ -300,23 +382,40 @@ const repository: RecipeRepository = {
     notify(recipeId);
     return note.id;
   },
+  addStepChild: async (stepId, text) => {
+    const found = locate(stepId);
+    if (found?.role !== "steps") throw new Error(`No such step: ${stepId}`);
+    const step = found.recipe.steps[found.index];
+    const child = parseStepChild(nextId("child"), text);
+    step.children = [...(step.children ?? []), child];
+    notify(found.recipe.id);
+    return child.id;
+  },
   updateSectionItem: async (itemId, text) => {
     const found = locate(itemId);
     if (!found) return;
-    const { recipe, role, index } = found;
-    if (role === "ingredients") {
+    const { recipe, index } = found;
+    if (found.role === "ingredients") {
       recipe.ingredients[index] = { ...makeIngredient(text), id: itemId };
-    } else if (role === "steps") {
-      recipe.steps[index] = { ...makeStep(text), id: itemId };
-    } else {
+    } else if (found.role === "steps") {
+      recipe.steps[index] = {
+        ...makeStep(text),
+        id: itemId,
+        ...(recipe.steps[index].children
+          ? { children: recipe.steps[index].children }
+          : {}),
+      };
+    } else if (found.role === "notes") {
       recipe.notes[index] = { id: itemId, text };
+    } else {
+      found.list[index] = parseStepChild(itemId, text);
     }
     notify(recipe.id);
   },
   removeSectionItem: async (itemId) => {
     const found = locate(itemId);
     if (!found) return;
-    found.recipe[found.role].splice(found.index, 1);
+    found.list.splice(found.index, 1);
     notify(found.recipe.id);
   },
   setIngredientScaleMode: async (itemId, scaleMode) => {
@@ -328,24 +427,34 @@ const repository: RecipeRepository = {
   reorderSectionItems: async (orderedIds) => {
     const first = orderedIds[0] ? locate(orderedIds[0]) : null;
     if (!first) return;
-    const { recipe, role } = first;
-    const byId = new Map(recipe[role].map((item) => [item.id, item]));
+    const byId = new Map(first.list.map((item) => [item.id, item]));
     const reordered = orderedIds
       .map((id) => byId.get(id))
       .filter((item) => item !== undefined);
-    if (reordered.length === recipe[role].length) {
-      // biome-ignore lint/suspicious/noExplicitAny: one of three homogeneous section arrays
-      (recipe[role] as any[]).splice(0, reordered.length, ...reordered);
+    if (reordered.length === first.list.length) {
+      first.list.splice(0, reordered.length, ...reordered);
     }
-    notify(recipe.id);
+    notify(first.recipe.id);
   },
-  deleteRecipe: async (id) => {
+  archiveRecipe: async (id) => {
+    mustGet(id);
+    if (!archivedAt.has(id)) archivedAt.set(id, Date.now());
+  },
+  restoreRecipe: async (id) => {
+    archivedAt.delete(id);
+  },
+  deleteArchivedRecipe: async (id) => {
+    if (!archivedAt.has(id)) throw new Error(`Recipe is not archived: ${id}`);
+    archivedAt.delete(id);
     store.delete(id);
   },
 };
 
+const demoAssets = ["assets/brown-butter.webp", "assets/whisk-tip.ogg"];
+
 const controller: DraftRecipeUiController = {
   listRecipes: () => repository.listRecipeSummaries(),
+  listArchivedRecipes: () => repository.listArchivedRecipeSummaries(),
   loadRecipe: (id) => repository.getRecipe(id),
   createRecipe: (input) => repository.createRecipe(input),
   duplicateRecipe: (id) => repository.duplicateRecipe(id),
@@ -354,8 +463,15 @@ const controller: DraftRecipeUiController = {
   splitOutlineAndConvert: async () => {
     throw new Error("Outline splitting needs a real Logseq graph.");
   },
-  resolveCover: async () => null,
+  resolveCover: async (recipe) =>
+    recipe.cover ? `./${recipe.cover.value}` : null,
   listImageAssets: async () => [],
+  listStepMediaAssets: async () => demoAssets,
+  // Demo assets are served from ./demo/assets next to this file.
+  resolveAssetUrl: async (path) => {
+    const safe = safeAssetPath(path);
+    return safe && demoAssets.includes(safe) ? `./${safe}` : null;
+  },
   saveRecipeMeta: async (id: string, meta: RecipeMeta) => {
     Object.assign(mustGet(id), meta);
     notify(id);
@@ -363,22 +479,29 @@ const controller: DraftRecipeUiController = {
   setCoverPath: async () => undefined,
   clearCover: async () => undefined,
   saveRecipeEdit: (id, patch) => commitRecipeEdit(repository, id, patch),
-  deleteRecipe: (id) => repository.deleteRecipe(id),
+  archiveRecipe: (id) => repository.archiveRecipe(id),
+  restoreRecipe: (id) => repository.restoreRecipe(id),
+  deleteArchivedRecipe: (id) => repository.deleteArchivedRecipe(id),
+  openInLogseq: () => undefined,
   watchRecipe: (id, listener) => repository.watchRecipe(id, listener),
   close: () => undefined,
 };
+
+// Same alarm service as the plugin runtime: timers ring off-screen too.
+watchTimerAlarms("demo", () => playTimerCue());
 
 document.documentElement.dataset.theme = theme;
 createRoot(document.getElementById("app") as HTMLElement).render(
   <DraftRecipeApp
     controller={controller}
-    messages={locale === "tr" ? getUiMessages("tr") : enMessages}
+    messages={getUiMessages(uiLanguage)}
     config={{
       initialView: { kind: "recipes" },
       globalMeasurementSystem: sourceMeasurementSystem,
       defaultParserLocale: locale,
       defaultSourceMeasurementSystem: sourceMeasurementSystem,
       themeMode: theme,
+      graphKey: "demo",
     }}
   />,
 );

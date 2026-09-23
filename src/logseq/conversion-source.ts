@@ -16,9 +16,7 @@ import { PROPERTY_KEYS } from "./property-keys";
  * reverse import would create a cycle.
  */
 
-export function toConversionSource(
-  block: RecipeBlockSnapshot,
-): ConversionSourceNode {
+function toConversionSource(block: RecipeBlockSnapshot): ConversionSourceNode {
   return {
     id: block.uuid,
     title: block.title,
@@ -73,8 +71,12 @@ export async function loadConversionRoot(
 }
 
 export async function isAlreadyDraftRecipe(rootId: string): Promise<boolean> {
-  const markerValue = unwrapBlockPropertyValue(
+  const active = unwrapBlockPropertyValue(
     await logseq.Editor.getBlockProperty(rootId, PROPERTY_KEYS.recipeMarker),
   );
-  return isTruthyMarkerValue(markerValue);
+  if (isTruthyMarkerValue(active)) return true;
+  const archived = unwrapBlockPropertyValue(
+    await logseq.Editor.getBlockProperty(rootId, PROPERTY_KEYS.archivedMarker),
+  );
+  return isTruthyMarkerValue(archived);
 }

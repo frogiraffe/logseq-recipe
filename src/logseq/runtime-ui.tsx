@@ -7,11 +7,16 @@ import {
 } from "../application/split-outline";
 import { defaultParseContext } from "../parsing/context";
 import { DraftRecipeApp } from "../ui/app";
-import { getUiMessages } from "../ui/i18n";
+import { getUiMessages, type UiMessages } from "../ui/i18n";
 import type {
   DraftRecipeInitialView,
   DraftRecipeUiController,
 } from "../ui/state";
+import {
+  notifyTimerDone,
+  playTimerCue,
+  watchTimerAlarms,
+} from "../ui/timer-alarms";
 import type { RuntimeCapabilities } from "./capabilities";
 import { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
 import { createRuntimeUiContext } from "./ui-controller";
@@ -32,6 +37,35 @@ const THEME_CSS_PROPERTIES = [
 
 let root: Root | null = null;
 let uiRequest = 0;
+
+// Cooking timers must ring after the plugin UI closes, so their alarms live
+// here, beside the plugin runtime, not inside the unmountable React tree.
+let alarms: { graphKey: string; stop(): void } | null = null;
+let alarmMessages: UiMessages | null = null;
+
+function ensureTimerAlarms(graphKey: string, messages: UiMessages): void {
+  alarmMessages = messages;
+  if (alarms?.graphKey === graphKey) return;
+  alarms?.stop();
+  alarms = {
+    graphKey,
+    stop: watchTimerAlarms(graphKey, (timer) => {
+      const text = alarmMessages?.timerDone ?? "Time's up";
+      const body = [timer.recipeTitle, timer.label].filter(Boolean).join(" · ");
+      playTimerCue();
+      notifyTimerDone(text, body);
+      void logseq.UI.showMsg(`⏰ ${text} — ${body}`, "warning", {
+        timeout: 60_000,
+      });
+    }),
+  };
+}
+
+/** A graph switch must never ring the previous graph's timers. */
+export function stopTimerAlarms(): void {
+  alarms?.stop();
+  alarms = null;
+}
 
 function appElement(): HTMLElement {
   let element = document.getElementById("app");
@@ -59,9 +93,14 @@ function controllerWithLifecycle(
   controller: DraftRecipeUiController,
   request: number,
 ): DraftRecipeUiController {
+  const close = () => closeMountedUi(request);
   return {
     ...controller,
-    close: () => closeMountedUi(request),
+    close,
+    openInLogseq: (id) => {
+      controller.openInLogseq(id);
+      close();
+    },
   };
 }
 
@@ -133,11 +172,17 @@ export async function openDraftRecipeUi(
   const runtime = await createRuntimeUiContext(capabilities);
   if (request !== uiRequest) return;
   const messages = getUiMessages(runtime.settings.uiLanguage);
-  const [configs, themeCssProperties] = await Promise.all([
+  const [configs, themeCssProperties, graph] = await Promise.all([
     logseq.App.getUserConfigs(),
     resolveHostThemeCssProperties(),
+    // Missing or failing graph info only disables Cooking Mode resume.
+    Promise.resolve()
+      .then(() => logseq.App.getCurrentGraph())
+      .catch(() => null),
   ]);
   if (request !== uiRequest) return;
+  const graphKey = graph ? graph.path || graph.url || graph.name : undefined;
+  if (graphKey) ensureTimerAlarms(graphKey, messages);
   const appRoot = resetRoot();
 
   appRoot.render(
@@ -151,6 +196,7 @@ export async function openDraftRecipeUi(
         defaultSourceMeasurementSystem: runtime.defaultSourceMeasurementSystem,
         themeMode: configs.preferredThemeMode,
         themeCssProperties,
+        ...(graphKey ? { graphKey } : {}),
       }}
     />,
   );

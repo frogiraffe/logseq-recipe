@@ -1,10 +1,13 @@
+import type { UiLocale } from "../../units/format";
+
 export interface UiMessages {
   // Drives locale-aware formatting (unit labels, count-unit pluralization)
   // wherever a component only has `messages` in scope, not a separate
   // locale prop.
-  uiLocale: "en" | "tr";
+  uiLocale: UiLocale;
   recipes: string;
   searchRecipes: string;
+  searchRecipesPlaceholder: string;
   ingredients: string;
   steps: string;
   notes: string;
@@ -78,9 +81,15 @@ export interface UiMessages {
   conversionRulesHelp: string;
   editRecipe: string;
   duplicateRecipe: string;
-  deleteRecipe: string;
-  deleteRecipeConfirm: string;
-  deleteRecipeConfirmAction: string;
+  archivedRecipes: string;
+  noArchivedRecipes: string;
+  archiveRecipe: string;
+  archiveRecipeConfirm: string;
+  archiveRecipeConfirmAction: string;
+  restoreRecipe: string;
+  deleteRecipePermanently: string;
+  deleteRecipePermanentlyConfirm: string;
+  openInLogseq: string;
   addIngredient: string;
   addStep: string;
   addNote: string;
@@ -88,10 +97,41 @@ export interface UiMessages {
   sortBy: string;
   sortByTitle: string;
   sortByTotalTime: string;
-  moveUp: string;
-  moveDown: string;
   doesNotScale: string;
   blankItemError: string;
+  saveIncomplete: string;
+  resumeCooking: string;
+  finishCooking: string;
+  exitCookingForNow: string;
+  timers: string;
+  startTimer: string;
+  cancelTimer: string;
+  dismissTimer: string;
+  timerDone: string;
+  addTimer: string;
+  pauseTimer: string;
+  resumeTimer: string;
+  timerMinutes: string;
+  mediaMissing: string;
+  stepNotes: string;
+  addStepNote: string;
+  attachAsset: string;
+  dragToReorder: string;
+  dragInstructions: string;
+  dragPickedUp: string;
+  dragMovedTo: string;
+  dragDropped: string;
+  dragCancelled: string;
+  saving: string;
+  savedNotice: string;
+  archivedNotice: string;
+  restoredNotice: string;
+  deletedNotice: string;
+  archivedOn: string;
+  moreActions: string;
+  fewerServings: string;
+  moreServings: string;
+  noRecipesHint: string;
   cookingNoSteps: string;
   stepProgress: string;
   discardChangesConfirm: string;

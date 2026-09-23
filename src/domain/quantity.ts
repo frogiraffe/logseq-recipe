@@ -5,9 +5,3 @@ export type Quantity =
   | { kind: "maximum"; value: number }
   | { kind: "approximate"; value: number }
   | { kind: "inexact"; expression: string };
-
-export function isNumericQuantity(
-  quantity: Quantity,
-): quantity is Exclude<Quantity, { kind: "inexact" }> {
-  return quantity.kind !== "inexact";
-}

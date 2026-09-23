@@ -1,11 +1,8 @@
-export const PHASE0_PROBE_PREFIX = "__draft_recipe_probe_";
-
-export function phase0ProbeKey(suffix: string, runId: string): string {
-  return `${PHASE0_PROBE_PREFIX}${runId}_${suffix}`;
-}
-
 export const PROPERTY_KEYS = {
   recipeMarker: "recipe_marker",
+  archivedMarker: "recipe_archived",
+  archivedAt: "recipe_archived_at",
+  librarySectionRole: "recipe_library_section",
   schemaVersion: "schema_version",
   baseYield: "base_yield",
   yieldUnit: "yield_unit",

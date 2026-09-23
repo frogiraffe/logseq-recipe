@@ -9,6 +9,11 @@
     0 10px 24px
     color-mix(in srgb, var(--ls-primary-text-color) 10%, transparent);
 
+  /* The one colour this plugin adds to the host theme: heat. Only timers
+     (the only thing in the UI that is about the stove) use it. */
+  --dr-ember: #d9480f;
+  --dr-ember-soft: color-mix(in srgb, var(--dr-ember) 14%, transparent);
+
   box-sizing: border-box;
   min-height: 100vh;
   padding: 20px;
@@ -67,23 +72,12 @@
   margin-right: auto;
 }
 
-.draft-recipe-app button.draft-recipe-destructive-action {
-  font-weight: 600;
-  border-color: var(--ls-error-color, #d1453b);
-  color: var(--ls-error-color, #d1453b);
-}
-
-.draft-recipe-app button.draft-recipe-destructive-action:not(:disabled):hover {
-  background: var(--ls-error-color, #d1453b);
-  color: var(--ls-primary-background-color);
-}
-
-.draft-recipe-delete-confirm {
+.draft-recipe-archive-confirm {
   display: grid;
   gap: 10px;
   padding: 14px;
   margin-top: 12px;
-  border: 1px solid var(--ls-error-color, #d1453b);
+  border: 1px solid var(--ls-border-color);
   border-radius: 12px;
 }
 
@@ -92,8 +86,6 @@
   margin: 4px 0;
 }
 
-.draft-recipe-app-toolbar,
-.draft-recipe-recipes-toolbar,
 .draft-recipe-actions,
 .draft-recipe-cooking-header-actions,
 .draft-recipe-cooking-nav,
@@ -105,9 +97,125 @@
   flex-wrap: wrap;
 }
 
-.draft-recipe-app-toolbar {
-  justify-content: flex-end;
-  margin-bottom: 8px;
+.draft-recipe-app[data-theme-mode="dark"] {
+  --dr-ember: #ff8a4c;
+}
+
+/* App bar: Back (when there is somewhere to go back to) and Close. */
+.draft-recipe-app-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(920px, 100%);
+  margin: 0 auto 12px;
+}
+
+.draft-recipe-app .draft-recipe-back {
+  background: transparent;
+  border-color: transparent;
+  padding-left: 4px;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-app .draft-recipe-back:not(:disabled):hover {
+  border-color: transparent;
+  color: var(--ls-primary-text-color);
+}
+
+.draft-recipe-app .draft-recipe-close {
+  margin-left: auto;
+}
+
+.draft-recipe-app .draft-recipe-icon-button,
+.draft-recipe-app .draft-recipe-close,
+.draft-recipe-menu > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.draft-recipe-app button.draft-recipe-danger-action {
+  color: var(--ls-error-color, #d1453b);
+  border-color: color-mix(
+    in srgb,
+    var(--ls-error-color, #d1453b) 45%,
+    transparent
+  );
+}
+
+/* Page header: title with its page-level actions on the same line. */
+.draft-recipe-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.draft-recipe-app .draft-recipe-page-header h1 {
+  margin: 0;
+}
+
+.draft-recipe-page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Overflow menu (recipe card "More actions"). */
+.draft-recipe-menu {
+  position: relative;
+}
+
+.draft-recipe-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid var(--ls-border-color);
+  border-radius: 8px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.draft-recipe-menu[open] > summary {
+  border-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-md);
+  background: var(--ls-primary-background-color);
+  box-shadow: var(--dr-shadow-raised);
+}
+
+.draft-recipe-app .draft-recipe-menu-items button {
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+
+.draft-recipe-app .draft-recipe-menu-items button:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-app .draft-recipe-menu-items .draft-recipe-menu-danger {
+  color: var(--ls-error-color, #d1453b);
 }
 
 /* Long forms (Edit recipe, Recipe settings, Convert to Recipe) put Save/
@@ -129,6 +237,7 @@
 .draft-recipe-convert-preview,
 .draft-recipe-new-form,
 .draft-recipe-recipes-view,
+.draft-recipe-archived-view,
 .draft-recipe-cooking-mode,
 .draft-recipe-settings-panel,
 .draft-recipe-already-recipe {
@@ -177,6 +286,7 @@
 
 .draft-recipe-card h1,
 .draft-recipe-recipes-view h1,
+.draft-recipe-archived-view h1,
 .draft-recipe-convert-preview h1,
 .draft-recipe-new-form h1,
 .draft-recipe-settings-panel h1 {
@@ -259,6 +369,24 @@
 .draft-recipe-meta-row {
   color: var(--ls-secondary-text-color);
   font-size: 0.9rem;
+  gap: 0;
+}
+
+.draft-recipe-meta-row > span + span::before {
+  content: "·";
+  margin: 0 8px;
+}
+
+.draft-recipe-card-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 16px;
+}
+
+.draft-recipe-card-toolbar .draft-recipe-serving-control {
+  margin-left: auto;
 }
 
 .draft-recipe-serving-control {
@@ -299,22 +427,122 @@
   color: var(--ls-secondary-text-color);
 }
 
-.draft-recipe-ingredients,
-.draft-recipe-steps {
+/* Ingredients: a quantity column. Rows share the list's columns through
+   subgrid, so every amount right-aligns against every other amount. */
+.draft-recipe-ingredients {
   display: grid;
-  gap: 8px;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  gap: 2px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-ingredients-checkable {
+  grid-template-columns: auto max-content minmax(0, 1fr) auto;
 }
 
 .draft-recipe-ingredient-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 10px;
+  min-height: 36px;
+  border-bottom: 1px dashed
+    color-mix(in srgb, var(--ls-border-color) 70%, transparent);
 }
 
-.draft-recipe-ingredient-row small {
+.draft-recipe-ingredient-row:last-child {
+  border-bottom: none;
+}
+
+.draft-recipe-ingredient-line {
+  display: grid;
+  grid-column: 1 / -2;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+}
+
+.draft-recipe-ingredient-line > input[type="checkbox"] {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--ls-link-text-color);
+}
+
+.draft-recipe-quantity {
+  justify-self: end;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.draft-recipe-ingredient-checked .draft-recipe-quantity,
+.draft-recipe-ingredient-checked .draft-recipe-ingredient-name {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.draft-recipe-ingredient-row > small {
   grid-column: 1 / -1;
   color: var(--ls-secondary-text-color);
+}
+
+/* The per-ingredient unit picker stays quiet until the row is in use;
+   touch screens have no hover, so it is always shown there. */
+.draft-recipe-app .draft-recipe-unit-picker {
+  grid-column: -2;
+  padding: 3px 6px;
+  font-size: 0.8rem;
+  opacity: 0.45;
+}
+
+.draft-recipe-ingredient-row:hover .draft-recipe-unit-picker,
+.draft-recipe-app .draft-recipe-unit-picker:focus-visible,
+.draft-recipe-app
+  .draft-recipe-unit-picker:has(option:checked:not([value=""])) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .draft-recipe-app .draft-recipe-unit-picker {
+    opacity: 1;
+  }
+}
+
+/* Steps: numbered markers, because steps are a real sequence. */
+.draft-recipe-steps {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: draft-recipe-step;
+}
+
+.draft-recipe-steps > li {
+  position: relative;
+  padding-left: 40px;
+  counter-increment: draft-recipe-step;
+  line-height: 1.55;
+}
+
+.draft-recipe-steps > li::before {
+  content: counter(draft-recipe-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--ls-secondary-background-color);
+  border: 1px solid var(--ls-border-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .draft-recipe-editor-items {
@@ -325,28 +553,38 @@
   list-style: none;
 }
 
+/* Child combinators throughout: a row can contain a nested list (step
+   notes), which must not inherit the outer row's sizing. */
 .draft-recipe-editor-item,
 .draft-recipe-editor-add-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.draft-recipe-editor-item input,
-.draft-recipe-editor-add-row input {
-  flex: 1;
+.draft-recipe-editor-item > input,
+.draft-recipe-editor-add-row > input {
+  flex: 1 1 200px;
   min-width: 0;
 }
 
-.draft-recipe-editor-item button,
-.draft-recipe-editor-add-row button {
+.draft-recipe-editor-item > button,
+.draft-recipe-editor-add-row > button {
   flex: 0 0 auto;
   min-width: 108px;
 }
 
-.draft-recipe-editor-item .draft-recipe-editor-move-button {
+.draft-recipe-editor-item > .draft-recipe-icon-button,
+.draft-recipe-editor-item > .draft-recipe-drag-handle {
   min-width: 32px;
   padding-left: 8px;
   padding-right: 8px;
+}
+
+.draft-recipe-editor-item-below {
+  flex: 1 0 100%;
+  padding-left: 40px;
 }
 
 .draft-recipe-scale-toggle {
@@ -361,7 +599,8 @@
 
 .draft-recipe-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(160px, 1fr) auto;
+  align-items: end;
   gap: 10px;
   padding: 12px;
   margin-bottom: 14px;
@@ -399,9 +638,26 @@
 /* Groups related Edit recipe fields (basic info / timing / source) with the
    same border-top rhythm already used to separate Ingredients/Steps/Notes,
    instead of one undifferentiated stack of labels. */
+/* Related fields share a row and wrap when narrow (servings + unit,
+   the three times); flex lets a group of any size fill its row. */
 .draft-recipe-field-group {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+.draft-recipe-field-group > label {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.draft-recipe-field-group > label > input {
+  width: 100%;
+  min-width: 0;
+}
+
+.draft-recipe-field-group > .draft-recipe-field-wide {
+  flex-basis: 100%;
 }
 
 .draft-recipe-field-group + .draft-recipe-field-group {
@@ -436,18 +692,93 @@
 
 .draft-recipe-recipe-list {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
 }
 
-.draft-recipe-recipe-list-item {
+.draft-recipe-archived-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-archived-item {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 12px 14px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-md);
+}
+
+.draft-recipe-archived-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Recipe card: cover edge to edge on top, text below. */
+.draft-recipe-app .draft-recipe-recipe-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 0 0 14px;
+  overflow: hidden;
   border-radius: var(--dr-radius-md);
   text-align: left;
   box-shadow: var(--dr-shadow-resting);
+}
+
+.draft-recipe-recipe-list-item > :not(.draft-recipe-thumb) {
+  margin: 0 14px;
+}
+
+.draft-recipe-thumb {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: color-mix(
+    in srgb,
+    var(--ls-link-text-color) 7%,
+    var(--ls-secondary-background-color)
+  );
+  border-bottom: 1px solid var(--ls-border-color);
+}
+
+.draft-recipe-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.draft-recipe-recipe-list-item:not(:disabled):hover .draft-recipe-thumb img {
+  transform: scale(1.04);
+}
+
+.draft-recipe-thumb-letter {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ls-link-text-color);
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-thumb img {
+    transition: none;
+  }
+
+  .draft-recipe-recipe-list-item:not(:disabled):hover .draft-recipe-thumb img {
+    transform: none;
+  }
 }
 
 .draft-recipe-recipe-list-item:not(:disabled):hover {
@@ -456,8 +787,9 @@
   transform: translateY(-1px);
 }
 
-.draft-recipe-recipe-list-item span {
-  color: var(--ls-secondary-text-color);
+.draft-recipe-recipe-list-heading strong {
+  font-size: 1rem;
+  color: var(--ls-primary-text-color);
 }
 
 .draft-recipe-warning-list,
@@ -606,24 +938,6 @@
   min-height: 45vh;
   font-size: clamp(1.2rem, 3vw, 2rem);
   line-height: 1.45;
-  animation: draft-recipe-step-in 0.22s ease;
-}
-
-@keyframes draft-recipe-step-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .draft-recipe-current-step {
-    animation: none;
-  }
 }
 
 .draft-recipe-annotation {
@@ -638,40 +952,17 @@
   justify-content: space-between;
 }
 
-.draft-recipe-cooking-nav progress {
-  flex: 1;
-  max-width: 420px;
-  height: 8px;
-  border: none;
-  border-radius: 999px;
-  overflow: hidden;
-  accent-color: var(--ls-link-text-color);
-}
-
-.draft-recipe-cooking-nav progress::-webkit-progress-bar {
-  border-radius: 999px;
-  background: var(--ls-secondary-background-color);
-}
-
-.draft-recipe-cooking-nav progress::-webkit-progress-value {
-  border-radius: 999px;
-  background: var(--ls-link-text-color);
-  transition: width 0.2s ease;
-}
-
-.draft-recipe-cooking-nav progress::-moz-progress-bar {
-  border-radius: 999px;
-  background: var(--ls-link-text-color);
-  transition: width 0.2s ease;
-}
-
-.draft-recipe-back {
-  margin-bottom: 10px;
-}
-
 @media (max-width: 640px) {
   .draft-recipe-app {
     padding: 12px;
+  }
+
+  .draft-recipe-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-recipe-card-toolbar .draft-recipe-serving-control {
+    margin-left: 0;
   }
 
   .draft-recipe-card-header,
@@ -679,15 +970,35 @@
     flex-direction: column;
   }
 
-  .draft-recipe-recipe-list-item,
-  .draft-recipe-ingredient-row {
-    grid-template-columns: 1fr;
-    flex-direction: column;
+  .draft-recipe-app .draft-recipe-unit-picker {
+    max-width: 6.5rem;
   }
 
-  .draft-recipe-editor-item,
-  .draft-recipe-editor-add-row {
-    flex-direction: column;
-    align-items: stretch;
+  /* Narrow windows: the text field takes its own full line, the handle
+     and buttons wrap beneath it at touch size. */
+  .draft-recipe-editor-item > input,
+  .draft-recipe-editor-add-row > input {
+    flex-basis: 100%;
+    order: -1;
+  }
+
+  .draft-recipe-editor-item > button,
+  .draft-recipe-editor-add-row > button {
+    min-width: 0;
+    min-height: 40px;
+  }
+
+  .draft-recipe-editor-item > .draft-recipe-drag-handle {
+    min-width: 44px;
+  }
+
+  .draft-recipe-editor-item > .draft-recipe-scale-toggle {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .draft-recipe-editor-item-below {
+    padding-left: 12px;
   }
 }

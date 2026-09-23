@@ -8,36 +8,51 @@ import {
 function fakeHost(
   initialProperties: Record<string, unknown> = {},
   existingPages: Record<string, unknown> = {},
-  existingChildren: Record<string, Array<{ uuid: string }>> = {},
 ) {
   const writes: Array<{ id: string; key: string; value: unknown }> = [];
   const appended: Array<{ page: string; title: string; uuid: string }> = [];
-  const removed: string[] = [];
-  const restored: string[] = [];
+  const inserted: Array<{ parentId: string; title: string; uuid: string }> = [];
   const createPageCalls: string[] = [];
+  const libraryBlocks: Array<{ id: number; uuid: string; title: string }> = [];
   const properties = new Map<string, unknown>(
     Object.entries(initialProperties),
   );
   let next = 1;
+  let nextInserted = 1;
 
   return {
     writes,
     appended,
-    removed,
-    restored,
+    inserted,
     createPageCalls,
     properties,
     host: {
-      getPage: async (id: string) => existingPages[id] ?? null,
+      getPage: async (id: string) =>
+        id === "Recipe Library" && createPageCalls.includes(id)
+          ? { id: 100, uuid: "library-page", title: id }
+          : (existingPages[id] ?? null),
       createPage: async (title: string) => {
         createPageCalls.push(title);
-        return { id: 100, uuid: "recipe-root", title };
+        return { id: 100, uuid: "library-page", title };
       },
       appendBlockInPage: async (page: string, title: string) => {
-        const block = { id: next, uuid: `block-${next++}`, title };
+        const uuid =
+          title === "Recipes" ? "recipes-section" : "archived-section";
+        const block = { id: next++, uuid, title };
         appended.push({ page, title, uuid: block.uuid });
+        libraryBlocks.push(block);
         return block;
       },
+      insertBlock: async (parentId: string, title: string) => {
+        const block = {
+          id: nextInserted,
+          uuid: `inserted-${nextInserted++}`,
+          title,
+        };
+        inserted.push({ parentId, title, uuid: block.uuid });
+        return block;
+      },
+      moveBlock: async () => undefined,
       getBlockProperty: async (id: string, key: string) =>
         properties.get(`${id}:${key}`),
       upsertBlockProperty: async (id: string, key: string, value: unknown) => {
@@ -47,20 +62,16 @@ function fakeHost(
       removeBlockProperty: async (id: string, key: string) => {
         properties.delete(`${id}:${key}`);
       },
-      getPageBlocksTree: async (page: string) => existingChildren[page] ?? [],
-      removeBlock: async (id: string) => {
-        removed.push(id);
-      },
-      restorePage: async (page: string) => {
-        restored.push(page);
-        return true;
-      },
+      getPageBlocksTree: async (page: string) =>
+        page === "Recipe Library" ? libraryBlocks : [],
+      removeBlock: async () => undefined,
+      restorePage: async () => true,
     },
   };
 }
 
 describe("recipe authoring", () => {
-  it("creates a readable recipe skeleton through the page append API", async () => {
+  it("creates a readable recipe block tree under Recipe Library", async () => {
     const fake = fakeHost();
     const result = await createRecipeInLogseq(
       fake.host,
@@ -74,17 +85,19 @@ describe("recipe authoring", () => {
       { jsonProperty: false },
     );
 
-    expect(result.rootId).toBe("recipe-root");
-    expect(fake.appended.map((item) => [item.page, item.title])).toEqual([
-      ["Cookie", "Ingredients"],
-      ["Cookie", "Steps"],
-      ["Cookie", "Notes"],
+    expect(result.rootId).toBe("inserted-1");
+    expect(fake.inserted.map((item) => [item.parentId, item.title])).toEqual([
+      ["recipes-section", "Cookie"],
+      ["inserted-1", "Ingredients"],
+      ["inserted-1", "Steps"],
+      ["inserted-1", "Notes"],
     ]);
-    expect(
-      fake.writes.some(
-        (write) => write.key === "recipe_marker" && write.value === true,
-      ),
-    ).toBe(true);
+    expect(fake.createPageCalls).toEqual(["Recipe Library"]);
+    expect(fake.writes.at(-1)).toEqual({
+      id: "inserted-1",
+      key: "recipe_marker",
+      value: true,
+    });
     expect(
       fake.writes.some(
         (write) => write.key === "base_yield" && write.value === 8,
@@ -94,7 +107,7 @@ describe("recipe authoring", () => {
     expect(fake.writes.some((write) => write.key === "unit")).toBe(false);
   });
 
-  it("writes the recipe marker only after every other structural write, so a partial failure never leaves an incomplete page discoverable as a recipe", async () => {
+  it("writes the recipe marker only after every other structural write, so a partial failure stays undiscoverable", async () => {
     const fake = fakeHost();
 
     await createRecipeInLogseq(
@@ -109,76 +122,10 @@ describe("recipe authoring", () => {
     expect(markerIndex).toBe(fake.writes.length - 1);
   });
 
-  it("refuses to mutate a pre-existing page with the requested recipe title", async () => {
+  it("leaves an unrelated same-title page untouched", async () => {
     const fake = fakeHost({}, { Cookie: { id: 55, uuid: "existing-cookie" } });
 
-    await expect(
-      createRecipeInLogseq(
-        fake.host,
-        {
-          title: "Cookie",
-          baseYield: 8,
-          locale: "en",
-          sourceMeasurementSystem: "us",
-        },
-        { jsonProperty: false },
-      ),
-    ).rejects.toThrow(/already exists/i);
-
-    expect(fake.appended).toHaveLength(0);
-    expect(fake.writes).toHaveLength(0);
-  });
-
-  it("restores a recycled page with the requested title through restorePage, never createPage", async () => {
-    const fake = fakeHost(
-      {},
-      {
-        Cookie: {
-          id: 55,
-          uuid: "recycled-cookie",
-          ":logseq.property/deleted-at": 1_789_000_000_000,
-        },
-      },
-    );
-
-    await expect(
-      createRecipeInLogseq(
-        fake.host,
-        {
-          title: "Cookie",
-          baseYield: 8,
-          locale: "en",
-          sourceMeasurementSystem: "us",
-        },
-        { jsonProperty: false },
-      ),
-    ).resolves.toMatchObject({ rootId: "recycled-cookie" });
-
-    expect(fake.restored).toEqual(["Cookie"]);
-    expect(fake.createPageCalls).toHaveLength(0);
-    expect(fake.appended).toHaveLength(3);
-  });
-
-  it("purges every leftover child when reusing a recycled page's title, so old content can never resurface", async () => {
-    const fake = fakeHost(
-      {},
-      {
-        Cookie: {
-          id: 55,
-          uuid: "recycled-cookie",
-          ":logseq.property/deleted-at": 1_789_000_000_000,
-        },
-      },
-      {
-        Cookie: [
-          { uuid: "old-ingredients-section" },
-          { uuid: "old-steps-section" },
-          { uuid: "old-notes-section" },
-        ],
-      },
-    );
-
-    await createRecipeInLogseq(
+    const result = await createRecipeInLogseq(
       fake.host,
       {
         title: "Cookie",
@@ -189,65 +136,11 @@ describe("recipe authoring", () => {
       { jsonProperty: false },
     );
 
-    expect(fake.removed.sort()).toEqual([
-      "old-ingredients-section",
-      "old-notes-section",
-      "old-steps-section",
-    ]);
-  });
-
-  it("clears the previous life's plugin-owned root properties when reusing a recycled page's title", async () => {
-    const fake = fakeHost(
-      {
-        "recycled-cookie:yield_unit": "cookies",
-        "recycled-cookie:prep_minutes": 15,
-        "recycled-cookie:chill_minutes": 30,
-        "recycled-cookie:cook_minutes": 20,
-        "recycled-cookie:source_url": "https://example.com/old-recipe",
-        "recycled-cookie:cover_ref": "assets/old-cover.png",
-      },
-      {
-        Cookie: {
-          id: 55,
-          uuid: "recycled-cookie",
-          ":logseq.property/deleted-at": 1_789_000_000_000,
-        },
-      },
+    expect(result.rootId).toBe("inserted-1");
+    expect(fake.createPageCalls).toEqual(["Recipe Library"]);
+    expect(fake.writes.every((write) => write.id !== "existing-cookie")).toBe(
+      true,
     );
-
-    await createRecipeInLogseq(
-      fake.host,
-      { title: "Cookie", baseYield: 8, locale: "en" },
-      { jsonProperty: false },
-    );
-
-    for (const key of [
-      "yield_unit",
-      "prep_minutes",
-      "chill_minutes",
-      "cook_minutes",
-      "source_url",
-      "cover_ref",
-    ]) {
-      expect(fake.properties.has(`recycled-cookie:${key}`)).toBe(false);
-    }
-  });
-
-  it("never touches existing children when creating a genuinely fresh page", async () => {
-    const fake = fakeHost();
-
-    await createRecipeInLogseq(
-      fake.host,
-      {
-        title: "Brand New Cookie",
-        baseYield: 8,
-        locale: "en",
-        sourceMeasurementSystem: "us",
-      },
-      { jsonProperty: false },
-    );
-
-    expect(fake.removed).toHaveLength(0);
   });
 
   it("marks an existing subtree without rewriting visible block text", async () => {

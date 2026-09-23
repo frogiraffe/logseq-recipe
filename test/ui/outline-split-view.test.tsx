@@ -31,6 +31,7 @@ function baseController(
 ): DraftRecipeUiController {
   return {
     listRecipes: async () => [],
+    listArchivedRecipes: async () => [],
     loadRecipe: async () => null,
     createRecipe: async () => {
       throw new Error("not used");
@@ -48,7 +49,10 @@ function baseController(
     setCoverPath: async () => undefined,
     clearCover: async () => undefined,
     saveRecipeEdit: async () => undefined,
-    deleteRecipe: async () => undefined,
+    archiveRecipe: async () => undefined,
+    restoreRecipe: async () => undefined,
+    deleteArchivedRecipe: async () => undefined,
+    openInLogseq: () => undefined,
     close: () => undefined,
     ...overrides,
   };

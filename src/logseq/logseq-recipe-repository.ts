@@ -12,6 +12,7 @@ import {
 } from "../application/recipe-metadata";
 import type { RecipeRepository } from "../application/recipe-repository";
 import type {
+  ArchivedRecipeSummary,
   ExistingRecipeStructure,
   NewRecipeInput,
   RecipeSummary,
@@ -24,7 +25,12 @@ import type {
   RecipeLocale,
 } from "../domain/recipe";
 import { RECIPE_SCHEMA_VERSION } from "../domain/recipe";
+import { parseStepChild } from "../domain/step-media";
 import { defaultParseContext, type ParseContext } from "../parsing/context";
+import {
+  ingredientParseContext,
+  stepParseContext,
+} from "../parsing/detect-locale";
 import { type ParsedIngredient, parseIngredient } from "../parsing/ingredient";
 import { parseStep } from "../parsing/step";
 import {
@@ -36,11 +42,15 @@ import {
   unwrapBlockPropertyValue,
 } from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
+import {
+  moveRecipeToLibrarySection,
+  type RecipeLibraryHost,
+} from "./recipe-library";
 import type { DraftRecipeSettings } from "./settings";
 import { resolveParserLocale } from "./settings";
 
 export interface LogseqRecipeHost {
-  editor: {
+  editor: RecipeLibraryHost & {
     getBlock(
       id: string,
       options?: { includeChildren?: boolean },
@@ -69,6 +79,7 @@ export interface LogseqRecipeHost {
     ): Promise<unknown>;
     renamePage(oldName: string, newName: string): Promise<unknown>;
     deletePage(name: string): Promise<unknown>;
+    isPageBlock(entity: unknown): boolean;
   };
   db: {
     datascriptQuery<T = unknown>(
@@ -95,18 +106,16 @@ function isSectionRole(value: unknown): value is SectionRole {
   return typeof value === "string" && SECTION_ROLES.has(value as SectionRole);
 }
 
-function markerIdentFromProperty(value: unknown): string {
+function markerIdentFromProperty(value: unknown, label: string): string {
   if (!value || typeof value !== "object") {
-    throw new Error("Logseq Recipe marker property has not been created yet.");
+    throw new Error(`Logseq ${label} property has not been created yet.`);
   }
   const ident = (value as Record<string, unknown>).ident;
   if (
     typeof ident !== "string" ||
     !/^:plugin\.property\.[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/u.test(ident)
   ) {
-    throw new Error(
-      "Logseq Recipe marker property ident is not safe to query.",
-    );
+    throw new Error(`Logseq ${label} property ident is not safe to query.`);
   }
   return ident;
 }
@@ -172,10 +181,8 @@ function pageWithChildren(page: unknown, children: unknown): unknown {
  * at all (no ingredients, no steps), even though its root properties, which
  * are read directly by uuid rather than through this tree, all look fine.
  *
- * So don't trust either lookup on its own: take whichever one actually
- * yields children. `loadConversionRoot` asks block-first for the same
- * reason, which is why Convert's preview always saw the right tree while
- * the reload right after committing it did not.
+ * A page tree is a fallback only when the page is the requested recipe;
+ * getPage(blockUuid) may instead return the block's containing page.
  */
 async function loadRoot(
   host: LogseqRecipeHost,
@@ -187,7 +194,11 @@ async function loadRoot(
   if (blockSnapshot && blockSnapshot.children.length > 0) return blockSnapshot;
 
   const page = await host.editor.getPage(id);
-  if (page) {
+  if (
+    page &&
+    typeof page === "object" &&
+    (page as { uuid?: unknown }).uuid === id
+  ) {
     const children = await host.editor.getPageBlocksTree(id);
     const pageSnapshot = toRecipeBlockSnapshot(
       pageWithChildren(page, children),
@@ -214,8 +225,12 @@ async function readSectionMap(
   root: RecipeBlockSnapshot,
 ): Promise<Partial<Record<SectionRole, RecipeBlockSnapshot>>> {
   const result: Partial<Record<SectionRole, RecipeBlockSnapshot>> = {};
-  for (const child of root.children) {
-    const role = await readRole(host, child);
+  const children = root.children.filter((child) => !child.isPropertyValue);
+  const roles = await Promise.all(
+    children.map((child) => readRole(host, child)),
+  );
+  for (const [index, child] of children.entries()) {
+    const role = roles[index];
     if (role && !result[role]) result[role] = child;
   }
   return result;
@@ -423,11 +438,128 @@ async function resolveSectionBlock(
   return section;
 }
 
+interface ChangePayloadLike {
+  blocks?: unknown[];
+  txData?: unknown[];
+}
+
+/**
+ * Read-side cache for the Recipes browser: summary loads and marker checks,
+ * kept per Logseq editor (so it outlives one open of the plugin UI) and
+ * dropped per recipe as soon as a DB change touches any of its blocks - the
+ * same detection the open Recipe Card uses to refresh live. Without it every
+ * return to the list re-read every recipe (20-40 host calls each).
+ */
+interface RecipeReadCache {
+  // Recipe root id -> every entity ref inside it (root, sections, items).
+  refs: Map<string, Set<string>>;
+  summaries: Map<string, Promise<Recipe | null>>;
+  markers: Map<string, Promise<boolean>>;
+  // Drops every cached recipe that is, or contains, this entity.
+  forgetTouching(entityId: string): void;
+  clear(): void;
+  stop(): void;
+}
+
+let readCaches = new WeakMap<object, RecipeReadCache>();
+const liveReadCaches = new Set<RecipeReadCache>();
+
+function touches(payload: ChangePayloadLike, known: ReadonlySet<string>) {
+  return (
+    (payload.blocks ?? []).some((block) =>
+      changedEntityTouchesKnown(block, known),
+    ) ||
+    (payload.txData ?? []).some((datom) =>
+      transactionDatomTouchesKnown(datom, known),
+    )
+  );
+}
+
+function readCacheFor(host: LogseqRecipeHost): RecipeReadCache {
+  const key = host.editor as object;
+  const existing = readCaches.get(key);
+  if (existing) return existing;
+  const cache: RecipeReadCache = {
+    refs: new Map(),
+    summaries: new Map(),
+    markers: new Map(),
+    forgetTouching: () => undefined,
+    clear: () => undefined,
+    stop: () => undefined,
+  };
+  const forget = (id: string) => {
+    cache.summaries.delete(id);
+    cache.refs.delete(id);
+    for (const markerKey of [...cache.markers.keys()]) {
+      if (markerKey.startsWith(`${id}\u0000`)) cache.markers.delete(markerKey);
+    }
+  };
+  const cachedIds = () =>
+    new Set([
+      ...cache.summaries.keys(),
+      ...[...cache.markers.keys()].map(
+        (markerKey) => markerKey.split("\u0000")[0],
+      ),
+    ]);
+  cache.forgetTouching = (entityId) => {
+    for (const id of cachedIds()) {
+      if (id === entityId || cache.refs.get(id)?.has(entityId)) forget(id);
+    }
+  };
+  cache.clear = () => {
+    cache.summaries.clear();
+    cache.markers.clear();
+    cache.refs.clear();
+  };
+  cache.stop = host.db.onChanged((payload: ChangePayloadLike) => {
+    for (const id of cachedIds()) {
+      if (touches(payload, cache.refs.get(id) ?? new Set([id]))) forget(id);
+    }
+  });
+  readCaches.set(key, cache);
+  liveReadCaches.add(cache);
+  return cache;
+}
+
+/** A graph switch must never serve another graph's cached recipes. */
+export function clearRecipeReadCaches(): void {
+  for (const cache of liveReadCaches) cache.stop();
+  liveReadCaches.clear();
+  readCaches = new WeakMap();
+}
+
+// Caches a promise so concurrent readers share one load; a failed load is
+// not cached, so the next read retries.
+function cached<T>(
+  map: Map<string, Promise<T>>,
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const hit = map.get(key);
+  if (hit) return hit;
+  const pending = load();
+  map.set(key, pending);
+  pending.catch(() => {
+    if (map.get(key) === pending) map.delete(key);
+  });
+  return pending;
+}
+
 export function createLogseqRecipeRepository(
   host: LogseqRecipeHost,
   options: LogseqRecipeRepositoryOptions,
 ): RecipeRepository {
-  const knownEntityRefs = new Map<string, Set<string>>();
+  const cache = readCacheFor(host);
+  const knownEntityRefs = cache.refs;
+  // Read once per repository (one open of the plugin UI), not once per
+  // recipe: a list of 100 recipes used to ask for it 100 times.
+  let userConfigs: ReturnType<
+    LogseqRecipeHost["app"]["getUserConfigs"]
+  > | null = null;
+  const getUserConfigs = () => {
+    userConfigs ??= host.app.getUserConfigs();
+    return userConfigs;
+  };
 
   async function loadRecipe(
     id: string,
@@ -462,7 +594,14 @@ export function createLogseqRecipeRepository(
     const canSynchronizeIngredientMetadata =
       synchronizeIngredientMetadata && schemaVersion <= RECIPE_SCHEMA_VERSION;
     const meta = decodeRecipeMeta(unwrapBlockPropertyValue(metaRaw));
-    const userConfigs = await host.app.getUserConfigs();
+    const sections = await readSectionMap(host, root);
+    const [userConfigs, ingredientChildren, stepChildren, noteChildren] =
+      await Promise.all([
+        getUserConfigs(),
+        contentChildren(host, sections.ingredients),
+        contentChildren(host, sections.steps),
+        contentChildren(host, sections.notes),
+      ]);
     const locale: RecipeLocale = resolveParserLocale(
       meta.parserLocale,
       options.settings,
@@ -474,12 +613,6 @@ export function createLogseqRecipeRepository(
         ? { sourceMeasurementSystem: meta.sourceMeasurementSystem }
         : {}),
     };
-    const sections = await readSectionMap(host, root);
-    const [ingredientChildren, stepChildren, noteChildren] = await Promise.all([
-      contentChildren(host, sections.ingredients),
-      contentChildren(host, sections.steps),
-      contentChildren(host, sections.notes),
-    ]);
 
     // A summary (synchronizeIngredientMetadata=false, e.g. the Recipes
     // browser listing every recipe at once) only ever reads ingredientText
@@ -490,18 +623,20 @@ export function createLogseqRecipeRepository(
     const ingredients = synchronizeIngredientMetadata
       ? await Promise.all(
           ingredientChildren.map(async (block) => {
-            const parsed = await parsedIngredientForBlock(
-              host,
-              block,
-              context,
-              canSynchronizeIngredientMetadata,
-            );
-            const scaleMode = propertyString(
-              await host.editor.getBlockProperty(
-                block.uuid,
-                PROPERTY_KEYS.scaleMode,
+            const [parsed, scaleModeRaw] = await Promise.all([
+              parsedIngredientForBlock(
+                host,
+                block,
+                ingredientParseContext(
+                  block.title,
+                  context,
+                  meta.sourceMeasurementSystem,
+                ),
+                canSynchronizeIngredientMetadata,
               ),
-            );
+              host.editor.getBlockProperty(block.uuid, PROPERTY_KEYS.scaleMode),
+            ]);
+            const scaleMode = propertyString(scaleModeRaw);
             return {
               id: block.uuid,
               rawText: parsed.rawText,
@@ -517,7 +652,14 @@ export function createLogseqRecipeRepository(
           }),
         )
       : ingredientChildren.map((block) => {
-          const parsed = parseIngredient(block.title, context);
+          const parsed = parseIngredient(
+            block.title,
+            ingredientParseContext(
+              block.title,
+              context,
+              meta.sourceMeasurementSystem,
+            ),
+          );
           return {
             id: block.uuid,
             rawText: parsed.rawText,
@@ -529,11 +671,20 @@ export function createLogseqRecipeRepository(
           };
         });
 
-    const steps = stepChildren.map((block) => ({
-      id: block.uuid,
-      rawText: block.title,
-      ...parseStep(block.title, context),
-    }));
+    const steps = stepChildren.map((block) => {
+      const children = block.children
+        .filter((child) => !child.isPropertyValue && child.title.trim())
+        .map((child) => parseStepChild(child.uuid, child.title));
+      return {
+        id: block.uuid,
+        rawText: block.title,
+        ...parseStep(
+          block.title,
+          stepParseContext(block.title, context, meta.sourceMeasurementSystem),
+        ),
+        ...(children.length > 0 ? { children } : {}),
+      };
+    });
 
     const cover = decodeCoverRef(coverRaw);
 
@@ -656,11 +807,13 @@ export function createLogseqRecipeRepository(
     return recipe;
   }
 
-  async function listRecipeIds(): Promise<string[]> {
-    const markerProperty = await host.editor.getProperty(
-      PROPERTY_KEYS.recipeMarker,
-    );
-    const ident = markerIdentFromProperty(markerProperty);
+  async function listMarkedRecipeIds(
+    markerKey:
+      | typeof PROPERTY_KEYS.recipeMarker
+      | typeof PROPERTY_KEYS.archivedMarker,
+  ): Promise<string[]> {
+    const markerProperty = await host.editor.getProperty(markerKey);
+    const ident = markerIdentFromProperty(markerProperty, markerKey);
     // Bind the marker's value instead of requiring a literal `true`: real DB
     // graphs may represent a checkbox property's stored value in ways this
     // plugin cannot fully control (wrapped value entity, non-boolean scalar,
@@ -675,15 +828,88 @@ export function createLogseqRecipeRepository(
       .filter((uuid): uuid is string => typeof uuid === "string");
 
     const verified = await Promise.all(
-      candidateIds.map(async (uuid) => {
-        const raw = await host.editor.getBlockProperty(
-          uuid,
-          PROPERTY_KEYS.recipeMarker,
-        );
-        return isTruthyMarkerValue(unwrapBlockPropertyValue(raw)) ? uuid : null;
-      }),
+      candidateIds.map((uuid) =>
+        cached(cache.markers, `${uuid}\u0000${markerKey}`, async () => {
+          const raw = await host.editor.getBlockProperty(uuid, markerKey);
+          if (!isTruthyMarkerValue(unwrapBlockPropertyValue(raw))) return false;
+          if (markerKey !== PROPERTY_KEYS.recipeMarker) return true;
+          const archived = await host.editor.getBlockProperty(
+            uuid,
+            PROPERTY_KEYS.archivedMarker,
+          );
+          return !isTruthyMarkerValue(unwrapBlockPropertyValue(archived));
+        }).then((ok) => (ok ? uuid : null)),
+      ),
     );
     return verified.filter((uuid): uuid is string => uuid !== null);
+  }
+
+  function loadSummaryRecipe(id: string): Promise<Recipe | null> {
+    return cached(cache.summaries, id, () => loadRecipe(id, false));
+  }
+
+  function toSummary(recipe: Recipe): RecipeSummary {
+    return {
+      id: recipe.id,
+      title: recipe.title,
+      categories: recipe.categories,
+      tags: recipe.tags,
+      ...(recipe.prepMinutes !== undefined
+        ? { prepMinutes: recipe.prepMinutes }
+        : {}),
+      ...(recipe.chillMinutes !== undefined
+        ? { chillMinutes: recipe.chillMinutes }
+        : {}),
+      ...(recipe.cookMinutes !== undefined
+        ? { cookMinutes: recipe.cookMinutes }
+        : {}),
+      ingredientTexts: recipe.ingredients.map(
+        (ingredient) => ingredient.ingredientText,
+      ),
+      ...(recipe.cover ? { cover: recipe.cover } : {}),
+      stepTexts: recipe.steps.map((step) => step.rawText),
+      noteTexts: [
+        ...recipe.notes.map((note) => note.text),
+        ...recipe.steps.flatMap((step) =>
+          (step.children ?? [])
+            .filter((child) => child.kind === "note")
+            .map((child) => child.text),
+        ),
+      ],
+    };
+  }
+
+  // Page-root recipes rename their page, so a title another page already
+  // owns is refused; block-root titles are plain block content.
+  async function checkRename(
+    id: string,
+    title: string,
+  ): Promise<{ trimmed: string; pageName: string | null }> {
+    const trimmed = title.trim();
+    if (!trimmed) throw new RangeError("Recipe title is required.");
+    const page = await host.editor.getPage(id);
+    const name = pageName(page);
+    if (!name || (page as Record<string, unknown>).uuid !== id) {
+      return { trimmed, pageName: null };
+    }
+    if (trimmed !== name) {
+      const collision = pageName(await host.editor.getPage(trimmed));
+      if (collision && collision !== name) {
+        throw new Error(`A Logseq page named "${trimmed}" already exists.`);
+      }
+    }
+    return { trimmed, pageName: name };
+  }
+
+  async function recipeEntity(id: string): Promise<unknown> {
+    const block = await host.editor.getBlock(id);
+    if (block) return block;
+    const page = await host.editor.getPage(id);
+    return page &&
+      typeof page === "object" &&
+      (page as { uuid?: unknown }).uuid === id
+      ? page
+      : null;
   }
 
   return {
@@ -709,29 +935,43 @@ export function createLogseqRecipeRepository(
       );
     },
 
-    async listRecipeSummaries(): Promise<RecipeSummary[]> {
-      const ids = await listRecipeIds();
-      const loaded = await Promise.all(ids.map((id) => loadRecipe(id, false)));
+    async listRecipeSummaries(options?: {
+      fresh?: boolean;
+    }): Promise<RecipeSummary[]> {
+      if (options?.fresh) cache.clear();
+      const ids = await listMarkedRecipeIds(PROPERTY_KEYS.recipeMarker);
+      const loaded = await Promise.all(ids.map(loadSummaryRecipe));
       return loaded
         .filter((recipe): recipe is Recipe => recipe !== null)
-        .map((recipe) => ({
-          id: recipe.id,
-          title: recipe.title,
-          categories: recipe.categories,
-          tags: recipe.tags,
-          ...(recipe.prepMinutes !== undefined
-            ? { prepMinutes: recipe.prepMinutes }
-            : {}),
-          ...(recipe.chillMinutes !== undefined
-            ? { chillMinutes: recipe.chillMinutes }
-            : {}),
-          ...(recipe.cookMinutes !== undefined
-            ? { cookMinutes: recipe.cookMinutes }
-            : {}),
-          ingredientTexts: recipe.ingredients.map(
-            (ingredient) => ingredient.ingredientText,
-          ),
-        }));
+        .map(toSummary);
+    },
+
+    async listArchivedRecipeSummaries(): Promise<ArchivedRecipeSummary[]> {
+      const ids = await listMarkedRecipeIds(PROPERTY_KEYS.archivedMarker);
+      const loaded = await Promise.all(ids.map(loadSummaryRecipe));
+      return Promise.all(
+        loaded
+          .filter((recipe): recipe is Recipe => recipe !== null)
+          .map(async (recipe) => {
+            const archivedAt = propertyNumber(
+              await host.editor.getBlockProperty(
+                recipe.id,
+                PROPERTY_KEYS.archivedAt,
+              ),
+            );
+            return {
+              ...toSummary(recipe),
+              ...(archivedAt !== undefined
+                ? {
+                    archivedAt:
+                      archivedAt <= 2_147_483_647
+                        ? archivedAt * 1_000
+                        : archivedAt,
+                  }
+                : {}),
+            };
+          }),
+      );
     },
 
     async validateRecipe(id: string): Promise<ValidationResult> {
@@ -775,21 +1015,15 @@ export function createLogseqRecipeRepository(
       });
     },
 
+    async validateRename(id: string, title: string): Promise<void> {
+      await checkRename(id, title);
+    },
+
     async renameRecipe(id: string, title: string): Promise<void> {
-      const trimmed = title.trim();
-      if (!trimmed) throw new RangeError("Recipe title is required.");
-      const name = pageName(await host.editor.getPage(id));
-      if (name) {
-        if (trimmed !== name) {
-          const collision = pageName(await host.editor.getPage(trimmed));
-          if (collision && collision !== name) {
-            throw new Error(`A Logseq page named "${trimmed}" already exists.`);
-          }
-        }
-        await host.editor.renamePage(name, trimmed);
-      } else {
-        await host.editor.updateBlock(id, trimmed);
-      }
+      cache.forgetTouching(id);
+      const { trimmed, pageName: name } = await checkRename(id, title);
+      if (name) await host.editor.renamePage(name, trimmed);
+      else await host.editor.updateBlock(id, trimmed);
     },
 
     async updateRecipeFields(
@@ -803,6 +1037,7 @@ export function createLogseqRecipeRepository(
         sourceUrl?: string | null;
       },
     ): Promise<void> {
+      cache.forgetTouching(id);
       if (
         patch.baseYield !== undefined &&
         (!Number.isFinite(patch.baseYield) || patch.baseYield <= 0)
@@ -947,6 +1182,7 @@ export function createLogseqRecipeRepository(
       role: SectionRole,
       text: string,
     ): Promise<string> {
+      cache.forgetTouching(recipeId);
       const trimmed = text.trim();
       if (!trimmed) throw new RangeError("Item text is required.");
       const section = await resolveSectionBlock(host, recipeId, role);
@@ -961,13 +1197,28 @@ export function createLogseqRecipeRepository(
       return created.uuid;
     },
 
+    async addStepChild(stepId: string, text: string): Promise<string> {
+      cache.forgetTouching(stepId);
+      const trimmed = text.trim();
+      if (!trimmed) throw new RangeError("Item text is required.");
+      const created = toRecipeBlockSnapshot(
+        await host.editor.insertBlock(stepId, trimmed, { sibling: false }),
+      );
+      if (!created) {
+        throw new Error("Logseq did not return the newly created block.");
+      }
+      return created.uuid;
+    },
+
     async updateSectionItem(itemId: string, text: string): Promise<void> {
+      cache.forgetTouching(itemId);
       const trimmed = text.trim();
       if (!trimmed) throw new RangeError("Item text is required.");
       await host.editor.updateBlock(itemId, trimmed);
     },
 
     async removeSectionItem(itemId: string): Promise<void> {
+      cache.forgetTouching(itemId);
       await host.editor.removeBlock(itemId);
     },
 
@@ -975,6 +1226,7 @@ export function createLogseqRecipeRepository(
       id: string,
       scaleMode: IngredientScaleMode,
     ): Promise<void> {
+      cache.forgetTouching(id);
       await host.editor.upsertBlockProperty(
         id,
         PROPERTY_KEYS.scaleMode,
@@ -983,6 +1235,7 @@ export function createLogseqRecipeRepository(
     },
 
     async reorderSectionItems(orderedIds: string[]): Promise<void> {
+      cache.forgetTouching(orderedIds[0] ?? "");
       for (let i = 1; i < orderedIds.length; i++) {
         await host.editor.moveBlock(orderedIds[i], orderedIds[i - 1], {
           before: false,
@@ -990,13 +1243,71 @@ export function createLogseqRecipeRepository(
       }
     },
 
-    async deleteRecipe(id: string): Promise<void> {
-      const name = pageName(await host.editor.getPage(id));
-      if (name) {
-        await host.editor.deletePage(name);
-      } else {
-        await host.editor.removeBlock(id);
+    async archiveRecipe(id: string): Promise<void> {
+      cache.forgetTouching(id);
+      const [entity, archivedMarkerRaw, archivedAtRaw] = await Promise.all([
+        recipeEntity(id),
+        host.editor.getBlockProperty(id, PROPERTY_KEYS.archivedMarker),
+        host.editor.getBlockProperty(id, PROPERTY_KEYS.archivedAt),
+      ]);
+      if (!entity) throw new Error(`Recipe not found: ${id}`);
+      const alreadyArchived = isTruthyMarkerValue(
+        unwrapBlockPropertyValue(archivedMarkerRaw),
+      );
+      await host.editor.upsertBlockProperty(
+        id,
+        PROPERTY_KEYS.archivedMarker,
+        true,
+      );
+      const archivedAt = propertyNumber(archivedAtRaw);
+      if (!alreadyArchived || archivedAt === undefined) {
+        await host.editor.upsertBlockProperty(
+          id,
+          PROPERTY_KEYS.archivedAt,
+          Math.floor(Date.now() / 1_000),
+        );
       }
+      await host.editor.removeBlockProperty(id, PROPERTY_KEYS.recipeMarker);
+      if (!host.editor.isPageBlock(entity)) {
+        await moveRecipeToLibrarySection(host.editor, id, "archived");
+      }
+    },
+
+    async restoreRecipe(id: string): Promise<void> {
+      cache.forgetTouching(id);
+      const entity = await recipeEntity(id);
+      if (!entity) throw new Error(`Recipe not found: ${id}`);
+      if (!host.editor.isPageBlock(entity)) {
+        await moveRecipeToLibrarySection(host.editor, id, "recipes");
+      }
+      await host.editor.upsertBlockProperty(
+        id,
+        PROPERTY_KEYS.recipeMarker,
+        true,
+      );
+      await host.editor.removeBlockProperty(id, PROPERTY_KEYS.archivedMarker);
+      await host.editor.removeBlockProperty(id, PROPERTY_KEYS.archivedAt);
+    },
+
+    // The only destructive path: refuses anything not archived, so an active
+    // recipe can never be deleted without first passing through the archive.
+    async deleteArchivedRecipe(id: string): Promise<void> {
+      cache.forgetTouching(id);
+      const [entity, archivedMarkerRaw] = await Promise.all([
+        recipeEntity(id),
+        host.editor.getBlockProperty(id, PROPERTY_KEYS.archivedMarker),
+      ]);
+      if (!entity) throw new Error(`Recipe not found: ${id}`);
+      if (!isTruthyMarkerValue(unwrapBlockPropertyValue(archivedMarkerRaw))) {
+        throw new Error(`Recipe is not archived: ${id}`);
+      }
+      if (!host.editor.isPageBlock(entity)) {
+        await host.editor.removeBlock(id);
+        return;
+      }
+      const name = pageName(entity) ?? pageName(await host.editor.getPage(id));
+      if (!name) throw new Error(`Recipe page not found: ${id}`);
+      await host.editor.deletePage(name);
     },
   };
 }

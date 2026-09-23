@@ -4,6 +4,7 @@ import type {
   TemperatureAnnotation,
 } from "./annotations";
 import type { Quantity } from "./quantity";
+import type { StepChild } from "./step-media";
 import type { CanonicalUnit, MeasurementSystem } from "./unit";
 
 export type IngredientScaleMode = "linear" | "fixed";
@@ -58,6 +59,8 @@ export interface RecipeStep {
   durations: DurationAnnotation[];
   temperatures: TemperatureAnnotation[];
   heat: HeatAnnotation[];
+  // Ordered child blocks: step notes and graph-local image/audio.
+  children?: StepChild[];
 }
 
 export interface RecipeNote {

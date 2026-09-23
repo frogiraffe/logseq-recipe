@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commitRecipeEdit,
+  IncompleteSaveError,
   orderDiff,
   sectionDiff,
 } from "../../src/application/edit-recipe";
@@ -53,6 +54,7 @@ function fakeRepository() {
     },
     markExistingRecipe: async () => undefined,
     listRecipeSummaries: async () => [],
+    listArchivedRecipeSummaries: async () => [],
     validateRecipe: async () => ({ valid: true, issues: [] }),
     watchRecipe: () => () => undefined,
     renameRecipe: async (id, title) => {
@@ -68,6 +70,10 @@ function fakeRepository() {
     updateSectionItem: async (itemId, text) => {
       calls.push(`update:${itemId}:${text}`);
     },
+    addStepChild: async (stepId, text) => {
+      calls.push(`child:${stepId}:${text}`);
+      return `child-${text}`;
+    },
     removeSectionItem: async (itemId) => {
       calls.push(`remove:${itemId}`);
     },
@@ -77,15 +83,16 @@ function fakeRepository() {
     reorderSectionItems: async (orderedIds) => {
       calls.push(`reorder:${orderedIds.join(",")}`);
     },
-    deleteRecipe: async (id) => {
-      calls.push(`delete:${id}`);
-    },
+    archiveRecipe: async () => undefined,
+    restoreRecipe: async () => undefined,
+    deleteArchivedRecipe: async () => undefined,
+    validateRename: async () => undefined,
   };
   return { repository, calls };
 }
 
 describe("commitRecipeEdit", () => {
-  it("renames, re-yields, and applies each section's diff in remove/update/add order", async () => {
+  it("adds, updates, renames, re-yields, and removes last", async () => {
     const { repository, calls } = fakeRepository();
 
     await commitRecipeEdit(repository, "r1", {
@@ -102,12 +109,158 @@ describe("commitRecipeEdit", () => {
     });
 
     expect(calls).toEqual([
+      "add:ingredients:butter",
+      "update:i1:120 g flour",
       "rename:r1:New Title",
       `fields:r1:${JSON.stringify({ baseYield: 6, yieldUnit: "cookies" })}`,
       "remove:i2",
-      "update:i1:120 g flour",
-      "add:ingredients:butter",
     ]);
+  });
+
+  const emptySections = {
+    ingredients: { added: [], updated: [], removed: [] },
+    steps: { added: [], updated: [], removed: [] },
+    notes: { added: [], updated: [], removed: [] },
+  };
+
+  it.each([
+    ["a blank title", { title: "  " }],
+    ["a non-positive yield", { baseYield: 0 }],
+    ["a negative time", { cookMinutes: -1 }],
+    ["a duplicate order entry", { stepOrder: ["s1", "s1"] }],
+  ])("writes nothing for %s", async (_label, fields) => {
+    const { repository, calls } = fakeRepository();
+    await expect(
+      commitRecipeEdit(repository, "r1", { ...emptySections, ...fields }),
+    ).rejects.toBeInstanceOf(RangeError);
+    expect(calls).toEqual([]);
+  });
+
+  it("writes nothing when an order still lists a removed item", async () => {
+    const { repository, calls } = fakeRepository();
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...emptySections,
+        steps: { added: [], updated: [], removed: ["s2"] },
+        stepOrder: ["s1", "s2"],
+      }),
+    ).rejects.toBeInstanceOf(RangeError);
+    expect(calls).toEqual([]);
+  });
+
+  it("writes nothing when the new title is refused", async () => {
+    const { repository, calls } = fakeRepository();
+    const refusal = new Error('A Logseq page named "Soup" already exists.');
+    repository.validateRename = async () => {
+      throw refusal;
+    };
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...emptySections,
+        title: "Soup",
+        ingredients: {
+          added: [{ tempId: "new:1", text: "salt" }],
+          updated: [],
+          removed: ["i1"],
+        },
+      }),
+    ).rejects.toBe(refusal);
+    expect(calls).toEqual([]);
+  });
+
+  it("reports an incomplete save and keeps removals when a later write fails", async () => {
+    const { repository, calls } = fakeRepository();
+    const failure = new Error("Logseq write failed");
+    repository.updateSectionItem = async () => {
+      throw failure;
+    };
+    const saving = commitRecipeEdit(repository, "r1", {
+      ...emptySections,
+      ingredients: {
+        added: [{ tempId: "new:1", text: "salt" }],
+        updated: [{ id: "i1", text: "pepper" }],
+        removed: ["i2"],
+      },
+    });
+    await expect(saving).rejects.toBeInstanceOf(IncompleteSaveError);
+    await expect(saving).rejects.toMatchObject({ cause: failure });
+    expect(calls).toEqual(["add:ingredients:salt"]);
+  });
+
+  it("resolves same-named temp ids per list, not across lists", async () => {
+    const { repository, calls } = fakeRepository();
+    await commitRecipeEdit(repository, "r1", {
+      ...emptySections,
+      ingredients: {
+        added: [{ tempId: "new:1", text: "salt" }],
+        updated: [],
+        removed: [],
+      },
+      steps: {
+        added: [{ tempId: "new:1", text: "Stir" }],
+        updated: [],
+        removed: [],
+      },
+      ingredientOrder: ["i0", "new:1"],
+      stepOrder: ["new:1", "s0"],
+      stepChildren: [
+        {
+          stepId: "new:1",
+          diff: {
+            added: [{ tempId: "new:1", text: "Use a whisk" }],
+            updated: [],
+            removed: [],
+          },
+        },
+      ],
+    });
+    expect(calls).toEqual([
+      "add:ingredients:salt",
+      "add:steps:Stir",
+      "child:new-Stir:Use a whisk",
+      "reorder:i0,new-salt",
+      "reorder:new-Stir,s0",
+    ]);
+  });
+
+  it("rejects attachments outside the graph's assets before writing", async () => {
+    const { repository, calls } = fakeRepository();
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...emptySections,
+        stepChildren: [
+          {
+            stepId: "s1",
+            diff: {
+              added: [
+                { tempId: "new:1", text: "![x](https://example.com/x.png)" },
+              ],
+              updated: [],
+              removed: [],
+            },
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(RangeError);
+    expect(calls).toEqual([]);
+  });
+
+  it("passes the original error through when the first write fails", async () => {
+    const { repository } = fakeRepository();
+    const failure = new Error("Logseq write failed");
+    repository.addSectionItem = async () => {
+      throw failure;
+    };
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...emptySections,
+        steps: {
+          added: [{ tempId: "new:1", text: "Stir" }],
+          updated: [],
+          removed: [],
+        },
+      }),
+    ).rejects.toBe(failure);
   });
 
   it("skips rename/field writes when the patch omits them", async () => {

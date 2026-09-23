@@ -3,7 +3,7 @@ import type { FacetSuggestion } from "../../application/list-recipes";
 
 export type ChipVariant = "category" | "tag";
 
-export function addChipValue(values: string[], raw: string): string[] {
+function addChipValue(values: string[], raw: string): string[] {
   const value = raw.trim();
   if (!value) return values;
   if (

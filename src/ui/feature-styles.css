@@ -183,3 +183,603 @@
     height: 160px;
   }
 }
+
+/* Cooking Mode timers */
+.draft-recipe-timer-start {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.draft-recipe-cooking-timers ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-timer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-timer {
+  border-left: 3px solid var(--dr-ember);
+}
+
+.draft-recipe-timer [role="timer"] {
+  margin-left: auto;
+  color: var(--dr-ember);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.draft-recipe-timer-done {
+  border-color: var(--dr-ember);
+  background: var(--dr-ember-soft);
+}
+
+.draft-recipe-app .draft-recipe-timer-start {
+  color: var(--dr-ember);
+  border-color: color-mix(in srgb, var(--dr-ember) 40%, transparent);
+  background: var(--dr-ember-soft);
+}
+
+/* Step notes and graph-local media */
+.draft-recipe-current-step .draft-recipe-step-children {
+  justify-self: center;
+  width: min(100%, 560px);
+  font-size: 1rem;
+}
+
+.draft-recipe-step-children {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+  font-size: 0.92rem;
+  opacity: 0.9;
+}
+
+.draft-recipe-step-image,
+.draft-recipe-step-audio {
+  list-style: none;
+}
+
+.draft-recipe-step-image img {
+  display: block;
+  max-width: min(100%, 420px);
+  max-height: 320px;
+  border-radius: var(--dr-radius-sm);
+  object-fit: contain;
+}
+
+.draft-recipe-step-audio audio {
+  width: min(100%, 420px);
+}
+
+.draft-recipe-media-missing {
+  margin: 0;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.draft-recipe-step-children-editor {
+  flex-basis: 100%;
+}
+
+.draft-recipe-app .draft-recipe-nested-section {
+  padding: 8px 0 4px;
+  border-top: none;
+}
+
+.draft-recipe-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Drag-and-drop ordering */
+.draft-recipe-drag-handle {
+  cursor: grab;
+  touch-action: none;
+  padding: 4px 6px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-drag-handle:hover,
+.draft-recipe-drag-handle:focus-visible {
+  border-color: var(--ls-border-color);
+}
+
+.draft-recipe-editor-item-dragging {
+  position: relative;
+  z-index: 2;
+  background: var(--ls-primary-background-color);
+  box-shadow: var(--dr-shadow-raised);
+  border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-editor-item-dragging .draft-recipe-drag-handle {
+  cursor: grabbing;
+}
+
+/* Recipe list and archive details */
+.draft-recipe-recipe-list-heading,
+.draft-recipe-archived-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.draft-recipe-recipe-list-heading small,
+.draft-recipe-archived-title small {
+  color: var(--ls-secondary-text-color);
+  font-size: 0.82rem;
+}
+
+/* Success notices: an always-present live region, so every new notice is
+   announced; the visible toast floats above the content. */
+.draft-recipe-notice-region {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 10;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.draft-recipe-notice {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--ls-primary-text-color);
+  color: var(--ls-primary-background-color);
+  font-weight: 600;
+  box-shadow: var(--dr-shadow-raised);
+  animation: draft-recipe-notice-in 2.6s ease both;
+}
+
+@keyframes draft-recipe-notice-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  8%,
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* Disclosures (filters, step notes) reveal instead of popping open. */
+.draft-recipe-app details[open] > :not(summary) {
+  animation: draft-recipe-reveal 0.18s ease;
+}
+
+@keyframes draft-recipe-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.draft-recipe-app summary {
+  cursor: pointer;
+  border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-app summary:focus-visible {
+  outline: 2px solid var(--ls-link-text-color);
+  outline-offset: 2px;
+}
+
+/* Timers: the running countdown stays prominent, a finished one pulses
+   until dismissed. */
+.draft-recipe-cooking-timers {
+  margin-bottom: 12px;
+}
+
+.draft-recipe-cooking-timers h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.draft-recipe-timer {
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.draft-recipe-timer [role="timer"] {
+  font-size: 1.15rem;
+}
+
+.draft-recipe-timer-done {
+  animation: draft-recipe-timer-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes draft-recipe-timer-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dr-ember) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--dr-ember) 0%, transparent);
+  }
+}
+
+.draft-recipe-editor-item {
+  transition: box-shadow 0.15s ease;
+}
+
+.draft-recipe-editor-item-dragging {
+  transition: none;
+}
+
+/* Reduced motion keeps every state change visible but drops movement:
+   notices still appear and fade, nothing slides or pulses. */
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-app details[open] > :not(summary),
+  .draft-recipe-timer-done {
+    animation: none;
+  }
+
+  .draft-recipe-timer-done {
+    outline: 2px solid var(--dr-ember);
+  }
+
+  .draft-recipe-notice {
+    animation-name: draft-recipe-notice-fade;
+  }
+
+  .draft-recipe-editor-item {
+    transition: none;
+  }
+}
+
+@keyframes draft-recipe-notice-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  85% {
+    opacity: 1;
+  }
+}
+
+/* Cooking Mode: the step itself is the page. A large ordinal anchors where
+   you are; the track below has one segment per step and jumps to any. */
+.draft-recipe-step-number {
+  justify-self: center;
+  color: var(--ls-secondary-text-color);
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  opacity: 0.35;
+}
+
+.draft-recipe-current-step > p {
+  margin: 0;
+  max-width: 34ch;
+  justify-self: center;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.draft-recipe-current-step .draft-recipe-annotation-row {
+  justify-content: center;
+}
+
+.draft-recipe-step-track {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  max-width: 480px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-step-track > li {
+  flex: 1;
+}
+
+/* A 24px-tall hit area around a 6px bar keeps segments tappable. */
+.draft-recipe-app .draft-recipe-step-segment {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.draft-recipe-step-segment::before {
+  content: "";
+  position: absolute;
+  inset: 9px 0;
+  border-radius: 999px;
+  background: var(--ls-border-color);
+  transition: background-color 0.2s ease;
+}
+
+.draft-recipe-step-segment-done::before {
+  background: color-mix(in srgb, var(--ls-link-text-color) 45%, transparent);
+}
+
+.draft-recipe-step-segment[aria-current="step"]::before {
+  background: var(--ls-link-text-color);
+}
+
+.draft-recipe-app .draft-recipe-step-segment:not(:disabled):hover::before {
+  background: color-mix(in srgb, var(--ls-link-text-color) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-step-segment::before {
+    transition: none;
+  }
+}
+
+/* ---- Motion ------------------------------------------------------------
+   One vocabulary: things arrive by fading in over a short upward or
+   sideways travel (8-16px, 160-260ms, ease-out); nothing bounces. Every
+   rule here is switched off together under prefers-reduced-motion. */
+:root {
+  --dr-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Screen changes (View Transitions API): the old view fades, the new one
+   rises into place. */
+::view-transition-old(root) {
+  animation: 140ms ease-in both draft-recipe-fade-out;
+}
+
+::view-transition-new(root) {
+  animation: 240ms var(--dr-ease-out) both draft-recipe-rise-in;
+}
+
+@keyframes draft-recipe-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes draft-recipe-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Cooking steps slide in from the side they came from. */
+.draft-recipe-current-step[data-direction="forward"] {
+  animation: draft-recipe-step-forward 260ms var(--dr-ease-out);
+}
+
+.draft-recipe-current-step[data-direction="back"] {
+  animation: draft-recipe-step-back 260ms var(--dr-ease-out);
+}
+
+@keyframes draft-recipe-step-forward {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes draft-recipe-step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+/* Recipe cards arrive in a short cascade (capped, so long lists don't
+   wait on it). */
+.draft-recipe-recipe-list-item {
+  animation: draft-recipe-rise-in 260ms var(--dr-ease-out) both;
+}
+
+.draft-recipe-recipe-list-item:nth-child(2) {
+  animation-delay: 30ms;
+}
+.draft-recipe-recipe-list-item:nth-child(3) {
+  animation-delay: 60ms;
+}
+.draft-recipe-recipe-list-item:nth-child(4) {
+  animation-delay: 90ms;
+}
+.draft-recipe-recipe-list-item:nth-child(n + 5) {
+  animation-delay: 120ms;
+}
+
+/* Menu pops from its button. */
+.draft-recipe-menu[open] > .draft-recipe-menu-items {
+  transform-origin: top right;
+  animation: draft-recipe-menu-in 160ms var(--dr-ease-out);
+}
+
+@keyframes draft-recipe-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+/* Checking an ingredient draws the strike through it. */
+.draft-recipe-ingredients-checkable .draft-recipe-ingredient-name,
+.draft-recipe-ingredients-checkable .draft-recipe-quantity {
+  text-decoration: none;
+  background:
+    linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0% 1px;
+  transition:
+    background-size 220ms var(--dr-ease-out),
+    opacity 220ms ease;
+}
+
+.draft-recipe-ingredients-checkable
+  .draft-recipe-ingredient-checked
+  .draft-recipe-ingredient-name,
+.draft-recipe-ingredients-checkable
+  .draft-recipe-ingredient-checked
+  .draft-recipe-quantity {
+  text-decoration: none;
+  background-size: 100% 1px;
+}
+
+/* Timers: a bar that drains smoothly between the 250ms ticks, a dock that
+   slides up, and new rows that rise in. */
+.draft-recipe-timer {
+  position: relative;
+  overflow: hidden;
+  animation: draft-recipe-rise-in 220ms var(--dr-ease-out);
+}
+
+.draft-recipe-timer-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--dr-ember);
+  opacity: 0.55;
+  transform-origin: left;
+  transition: transform 250ms linear;
+}
+
+.draft-recipe-step-timers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.draft-recipe-app .draft-recipe-step-timers .draft-recipe-timer-start {
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.draft-recipe-timer-form {
+  display: flex;
+  gap: 6px;
+}
+
+.draft-recipe-timer-form input {
+  width: 7rem;
+}
+
+.draft-recipe-app .draft-recipe-timer-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.draft-recipe-timer-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 8;
+  width: min(360px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-md);
+  background: var(--ls-primary-background-color);
+  box-shadow: var(--dr-shadow-raised);
+  animation: draft-recipe-rise-in 260ms var(--dr-ease-out);
+}
+
+.draft-recipe-timer-dock ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Keep the success notice clear of the dock. */
+.draft-recipe-app:has(.draft-recipe-timer-dock) .draft-recipe-notice-region {
+  bottom: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  .draft-recipe-current-step[data-direction],
+  .draft-recipe-recipe-list-item,
+  .draft-recipe-menu[open] > .draft-recipe-menu-items,
+  .draft-recipe-timer,
+  .draft-recipe-timer-dock {
+    animation: none;
+  }
+
+  .draft-recipe-timer-bar,
+  .draft-recipe-ingredients-checkable .draft-recipe-ingredient-name,
+  .draft-recipe-ingredients-checkable .draft-recipe-quantity {
+    transition: none;
+  }
+}
+
+/* A paused timer keeps its place but visibly stops: muted, no drain. */
+.draft-recipe-timer-paused {
+  border-left-color: var(--ls-border-color);
+}
+
+.draft-recipe-timer-paused [role="timer"] {
+  color: var(--ls-secondary-text-color);
+  animation: draft-recipe-paused-blink 1.6s steps(2, jump-none) infinite;
+}
+
+.draft-recipe-timer-paused .draft-recipe-timer-bar {
+  background: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-timer > .draft-recipe-icon-button {
+  width: 30px;
+  height: 30px;
+  font-size: 0.75rem;
+  letter-spacing: -1px;
+}
+
+@keyframes draft-recipe-paused-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft-recipe-timer-paused [role="timer"] {
+    animation: none;
+  }
+}
