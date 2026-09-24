@@ -45,10 +45,20 @@ export const BUILTIN_INGREDIENT_RULES: readonly IngredientMassVolumeRule[] = [
     aliases: [
       "granulated sugar",
       "white sugar",
+      "sugar",
       "toz şeker",
       "toz seker",
+      "beyaz şeker",
+      "beyaz seker",
+      "şeker",
+      "seker",
       "sucre en poudre",
+      "sucre blanc",
+      "sucre",
+      "weißer zucker",
       "zucker",
+      "azúcar blanco",
+      "azucar blanco",
       "azúcar",
       "azucar",
     ],
@@ -203,6 +213,51 @@ export const BUILTIN_INGREDIENT_RULES: readonly IngredientMassVolumeRule[] = [
     gramsPerMilliliter: 28 / (0.25 * US_CUP_ML),
     sourceNote:
       "King Arthur Ingredient Weight Chart: 1/4 US cup cornstarch = 28 g.",
+  },
+  {
+    key: "water",
+    aliases: ["water", "su", "eau", "wasser", "agua"],
+    gramsPerMilliliter: 227 / US_CUP_ML,
+    sourceNote: "King Arthur Ingredient Weight Chart: 1 US cup water = 227 g.",
+  },
+  {
+    key: "table-salt",
+    aliases: ["salt", "table salt", "tuz", "sel", "sel fin", "salz", "sal"],
+    gramsPerMilliliter: 18 / US_TBSP_ML,
+    sourceNote:
+      "King Arthur Ingredient Weight Chart: 1 US tablespoon table salt = 18 g.",
+  },
+  {
+    key: "baking-soda",
+    aliases: [
+      "baking soda",
+      "bicarbonate of soda",
+      "karbonat",
+      "bicarbonate de soude",
+      "bicarbonate",
+      "natron",
+      "bicarbonato",
+      "bicarbonato de sodio",
+    ],
+    gramsPerMilliliter: 3 / (US_TBSP_ML / 6),
+    sourceNote:
+      "King Arthur Ingredient Weight Chart: 1/2 US teaspoon baking soda = 3 g.",
+  },
+  {
+    key: "baking-powder",
+    aliases: [
+      "baking powder",
+      "kabartma tozu",
+      "levure chimique",
+      "backpulver",
+      "polvo de hornear",
+      "polvo para hornear",
+      "levadura química",
+      "levadura quimica",
+    ],
+    gramsPerMilliliter: 4 / (US_TBSP_ML / 3),
+    sourceNote:
+      "King Arthur Ingredient Weight Chart: 1 US teaspoon baking powder = 4 g.",
   },
 ];
 

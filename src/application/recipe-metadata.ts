@@ -1,9 +1,11 @@
+import type { RecipeLocale } from "../domain/recipe";
 import type { ParseContext } from "../parsing/context";
 import { parseDurations } from "../parsing/duration";
 import { parseIngredient } from "../parsing/ingredient";
-import { getLocalePack } from "../parsing/locales";
+import { getLocalePack, RECIPE_LOCALES } from "../parsing/locales";
 import type { RecipeMetadataField } from "../parsing/locales/types";
-import { normalizeLookup } from "../parsing/normalize";
+import { foldLabel } from "../parsing/normalize";
+import { findPhraseSpans } from "../parsing/phrases";
 import { convertUnit } from "../units/convert";
 
 export interface YieldMetadataValue {
@@ -44,12 +46,13 @@ export function replaceLeadingNumber(text: string, value: number): string {
 
 function metadataField(
   label: string,
-  context: ParseContext,
+  locale: RecipeLocale,
 ): RecipeMetadataField | null {
-  const pack = getLocalePack(context.locale);
-  const normalized = normalizeLookup(label, context.locale);
-  for (const [alias, field] of Object.entries(pack.metadataAliases)) {
-    if (normalizeLookup(alias, context.locale) === normalized) return field;
+  const folded = foldLabel(label);
+  for (const [alias, field] of Object.entries(
+    getLocalePack(locale).metadataAliases,
+  )) {
+    if (foldLabel(alias) === folded) return field;
   }
   return null;
 }
@@ -76,6 +79,32 @@ function parseExactMinutes(
 ): number | null {
   const durations = parseDurations(value, context);
   if (durations.length === 0) return null;
+  // "10 min or 12 min" offers alternatives, not a sum; "45 min or until
+  // golden" is still one time.
+  const first = durations[0];
+  const last = durations[durations.length - 1];
+  if (
+    RECIPE_LOCALES.some((locale) =>
+      findPhraseSpans(
+        value,
+        getLocalePack(locale).relationConnectors,
+        locale,
+      ).some(
+        (span) =>
+          span.value === "or" &&
+          span.startOffset >= first.endOffset &&
+          span.endOffset <= last.startOffset,
+      ),
+    )
+  )
+    return null;
+  // A number left outside every recognized duration ("1 h 5 min" when "h"
+  // isn't a known unit) must reject the value, not silently drop an hour.
+  let rest = value;
+  for (const duration of [...durations].reverse()) {
+    rest = rest.slice(0, duration.startOffset) + rest.slice(duration.endOffset);
+  }
+  if (/\d/.test(rest)) return null;
 
   let total = 0;
   for (const duration of durations) {
@@ -97,7 +126,16 @@ export function parseRecipeMetadataLine(
 ): ParsedRecipeMetadataLine | null {
   const pair = splitLabelValue(text);
   if (!pair) return null;
-  const field = metadataField(pair.label, context);
+  // A label in any supported language is accepted; durations try that
+  // language first, then the other supported languages.
+  let field: RecipeMetadataField | null = null;
+  for (const locale of [context.locale, ...RECIPE_LOCALES]) {
+    field = metadataField(pair.label, locale);
+    if (field) {
+      context = { ...context, locale };
+      break;
+    }
+  }
   if (!field) return null;
 
   if (field === "yield") {
@@ -106,7 +144,14 @@ export function parseRecipeMetadataLine(
   if (field === "source") {
     return { field, value: parseSource(pair.value) };
   }
-  return { field, value: parseExactMinutes(pair.value, context) };
+  const ownValue = parseExactMinutes(pair.value, context);
+  if (ownValue !== null) return { field, value: ownValue };
+  for (const locale of RECIPE_LOCALES) {
+    if (locale === context.locale) continue;
+    const value = parseExactMinutes(pair.value, { ...context, locale });
+    if (value !== null) return { field, value };
+  }
+  return { field, value: null };
 }
 
 export interface ScannedMetadataLine<T> {

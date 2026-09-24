@@ -3,11 +3,13 @@ import {
   acceptConversionIngredientAsRaw,
   analyzeRecipeConversion,
   type ConversionDraft,
+  type ConversionIssue,
   type ConversionSourceNode,
   classifyConversionSection,
   correctConversionIngredient,
   correctConversionYield,
   isConversionCommittable,
+  isIngredientAmountIssue,
 } from "../../application/convert-recipe";
 import type { RecipeSectionRole } from "../../application/types";
 import type { RecipeLocale } from "../../domain/recipe";
@@ -50,6 +52,30 @@ export interface ConvertPreviewProps {
   // Lets the app shell's global Close button apply the same discard
   // confirmation as this form's own Cancel button.
   onDirtyChange?(isDirty: boolean): void;
+}
+
+const ISSUE_MESSAGE_KEYS: Readonly<Record<string, keyof UiMessages>> = {
+  "missing-base-yield": "issueMissingBaseYield",
+  "no-ingredients-section": "issueNoIngredientsSection",
+  "no-steps-section": "issueNoStepsSection",
+  "duplicate-section-role": "issueDuplicateSectionRole",
+  "unrecognized-section": "issueUnrecognizedSection",
+  "unclassified-content": "issueUnclassifiedContent",
+  "invalid-metadata-value": "issueInvalidMetadataValue",
+  "ingredient-amount-unparsed": "issueIngredientAmountUnparsed",
+  "ingredient-amount-ambiguous": "issueIngredientAmountAmbiguous",
+};
+
+function issueText(issue: ConversionIssue, messages: UiMessages): string {
+  const key = ISSUE_MESSAGE_KEYS[issue.code];
+  if (!key) return issue.message;
+  const detail =
+    issue.code === "duplicate-section-role"
+      ? messages[issue.detail as RecipeSectionRole]
+      : issue.detail;
+  // A function replacement: the line itself may contain "$&" or "$'",
+  // which a string replacement would expand.
+  return String(messages[key]).replace("{detail}", () => detail ?? "");
 }
 
 export function ConvertPreview({
@@ -110,7 +136,7 @@ export function ConvertPreview({
     ...(cookingUnits.flOz ? [cookingUnits.flOz] : []),
   ];
   const pendingIngredientIssues = resolvedDraft.issues.filter(
-    (issue) => issue.code === "ingredient-amount-unparsed",
+    isIngredientAmountIssue,
   );
   const missingYield = resolvedDraft.issues.some(
     (issue) => issue.code === "missing-base-yield",
@@ -417,7 +443,7 @@ export function ConvertPreview({
         <ul className="draft-recipe-warning-list">
           {resolvedDraft.issues.map((issue) => (
             <li key={`${issue.code}-${issue.blockId ?? issue.message}`}>
-              {issue.message}
+              {issueText(issue, messages)}
             </li>
           ))}
         </ul>

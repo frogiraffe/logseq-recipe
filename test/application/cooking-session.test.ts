@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  cookingSessionKey,
   formatRemaining,
+  listCookingSessions,
   parseCookingSession,
+  pruneStaleCookingSessions,
   reconcileCookingSession,
+  saveCookingSession,
   timerOptions,
 } from "../../src/application/cooking-session";
 import type { DurationAnnotation } from "../../src/domain/annotations";
@@ -44,6 +48,10 @@ describe("timerOptions", () => {
     expect(ms(duration({ value: { kind: "maximum", value: 20 } }))).toEqual([
       [1_200_000, true],
     ]);
+  });
+
+  it("gives no timer for a time inside an instruction not to do something", () => {
+    expect(ms(duration({ negated: true }))).toEqual([]);
   });
 
   it("gives no timer without a number or a time unit", () => {
@@ -101,5 +109,45 @@ describe("cooking session state", () => {
     expect(formatRemaining(65_000)).toBe("01:05");
     expect(formatRemaining(3_725_000)).toBe("1:02:05");
     expect(formatRemaining(-5)).toBe("00:00");
+  });
+});
+
+describe("cooking session persistence", () => {
+  const session = {
+    checkedIngredientIds: ["i1"],
+    ingredientsOpen: true,
+    timers: [],
+  };
+
+  it("keeps a session in localStorage so it survives a restart", () => {
+    localStorage.clear();
+    saveCookingSession(cookingSessionKey("g", "r1"), session);
+    expect(localStorage.getItem(cookingSessionKey("g", "r1"))).toContain(
+      "savedAt",
+    );
+    expect(listCookingSessions("g").map((entry) => entry.recipeId)).toEqual([
+      "r1",
+    ]);
+  });
+
+  it("prunes only this graph's sessions untouched for over a week", () => {
+    localStorage.clear();
+    const week = 7 * 24 * 60 * 60 * 1_000;
+    const stale = JSON.stringify({
+      ...session,
+      savedAt: Date.now() - week - 1,
+    });
+    localStorage.setItem(cookingSessionKey("g", "old"), stale);
+    localStorage.setItem(cookingSessionKey("other", "old"), stale);
+    saveCookingSession(cookingSessionKey("g", "fresh"), session);
+
+    pruneStaleCookingSessions("g", Date.now());
+
+    expect(listCookingSessions("g").map((entry) => entry.recipeId)).toEqual([
+      "fresh",
+    ]);
+    expect(localStorage.getItem(cookingSessionKey("other", "old"))).not.toBe(
+      null,
+    );
   });
 });

@@ -67,25 +67,33 @@ export function splitIndentedOutline(rawText: string): OutlineNode | null {
   if (lines.length < 2) return null;
 
   const rootIndent = leadingWhitespaceLength(lines[0]);
-  const root: OutlineNode = { text: lines[0].trim(), children: [] };
+  const sawDeeperLine = lines
+    .slice(1)
+    .some((line) => leadingWhitespaceLength(line) > rootIndent);
+  if (!sawDeeperLine) return null;
 
-  type StackEntry = { node: OutlineNode; indent: number };
-  const stack: StackEntry[] = [{ node: root, indent: rootIndent }];
-  let sawDeeperLine = false;
+  return { text: lines[0].trim(), children: nestLines(lines.slice(1)) };
+}
 
-  for (let i = 1; i < lines.length; i += 1) {
-    const line = lines[i];
+/**
+ * Nests lines purely by relative indentation: each line becomes a child of
+ * the nearest preceding line indented less than it, and lines with no such
+ * line are returned at the top level. Shared by every outline rebuild, so an
+ * indented line always becomes the same nested block whichever way the
+ * paste reached Convert.
+ */
+export function nestLines(lines: readonly string[]): OutlineNode[] {
+  const top: OutlineNode[] = [];
+  const stack: Array<{ node: OutlineNode; indent: number }> = [];
+  for (const line of lines) {
+    if (line.trim() === "") continue;
     const indent = leadingWhitespaceLength(line);
-    if (indent > rootIndent) sawDeeperLine = true;
-
-    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
       stack.pop();
     }
-
     const node: OutlineNode = { text: line.trim(), children: [] };
-    stack[stack.length - 1].node.children.push(node);
+    (stack.length > 0 ? stack[stack.length - 1].node.children : top).push(node);
     stack.push({ node, indent });
   }
-
-  return sawDeeperLine ? root : null;
+  return top;
 }

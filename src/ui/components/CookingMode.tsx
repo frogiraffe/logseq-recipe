@@ -89,23 +89,38 @@ function temperatureLabel(
   if (annotation.ovenMode === "conventional") {
     parts.push(messages.conventionalOven);
   }
-  parts.push(
-    formatMeasurement(converted.value, converted.unit, messages.uiLocale),
-  );
+  // A converted oven temperature reads like a dial setting (350°F -> 175°C,
+  // not 176⅔°C); a temperature shown as written keeps its exact value.
+  const value =
+    converted.unit === annotation.unit
+      ? converted.value
+      : Math.round(converted.value / 5) * 5;
+  parts.push(formatMeasurement(value, converted.unit, messages.uiLocale));
   if (annotation.preheat) parts.push(messages.preheated);
 
   return parts.join(" · ");
 }
 
+// Checkboxes, radios and buttons don't take typed text: after ticking an
+// ingredient the arrow keys must still move between steps.
+const NON_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "range",
+  "color",
+  "file",
+]);
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLocaleLowerCase();
-  return (
-    tag === "input" ||
-    tag === "textarea" ||
-    tag === "select" ||
-    target.isContentEditable
-  );
+  if (target instanceof HTMLInputElement) {
+    return !NON_TEXT_INPUTS.has(target.type);
+  }
+  return tag === "textarea" || tag === "select" || target.isContentEditable;
 }
 
 // One button per distinct length: "5 minutes, then another 5 minutes"
@@ -437,7 +452,12 @@ export function CookingMode({
             ))}
           </div>
           <div className="draft-recipe-step-timers">
-            {stepTimerOptions(current.durations).map((option) => {
+            {stepTimerOptions([
+              ...current.durations,
+              ...(current.children ?? []).flatMap((child) =>
+                child.kind === "note" ? (child.durations ?? []) : [],
+              ),
+            ]).map((option) => {
               const length = `${option.approximate ? "~" : ""}${formatRemaining(option.durationMs)}`;
               return (
                 <button

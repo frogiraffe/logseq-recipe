@@ -32,7 +32,7 @@ import {
   stepParseContext,
 } from "../parsing/detect-locale";
 import { type ParsedIngredient, parseIngredient } from "../parsing/ingredient";
-import { parseStep } from "../parsing/step";
+import { parseStep, withNoteDurations } from "../parsing/step";
 import {
   flattenRecipeTree,
   propertyNumber,
@@ -43,6 +43,7 @@ import {
 } from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
 import {
+  isInRecipeLibrary,
   moveRecipeToLibrarySection,
   type RecipeLibraryHost,
 } from "./recipe-library";
@@ -674,7 +675,16 @@ export function createLogseqRecipeRepository(
     const steps = stepChildren.map((block) => {
       const children = block.children
         .filter((child) => !child.isPropertyValue && child.title.trim())
-        .map((child) => parseStepChild(child.uuid, child.title));
+        .map((child) =>
+          withNoteDurations(
+            parseStepChild(child.uuid, child.title),
+            stepParseContext(
+              child.title,
+              context,
+              meta.sourceMeasurementSystem,
+            ),
+          ),
+        );
       return {
         id: block.uuid,
         rawText: block.title,
@@ -1268,7 +1278,10 @@ export function createLogseqRecipeRepository(
         );
       }
       await host.editor.removeBlockProperty(id, PROPERTY_KEYS.recipeMarker);
-      if (!host.editor.isPageBlock(entity)) {
+      if (
+        !host.editor.isPageBlock(entity) &&
+        (await isInRecipeLibrary(host.editor, entity))
+      ) {
         await moveRecipeToLibrarySection(host.editor, id, "archived");
       }
     },
@@ -1277,7 +1290,10 @@ export function createLogseqRecipeRepository(
       cache.forgetTouching(id);
       const entity = await recipeEntity(id);
       if (!entity) throw new Error(`Recipe not found: ${id}`);
-      if (!host.editor.isPageBlock(entity)) {
+      if (
+        !host.editor.isPageBlock(entity) &&
+        (await isInRecipeLibrary(host.editor, entity))
+      ) {
         await moveRecipeToLibrarySection(host.editor, id, "recipes");
       }
       await host.editor.upsertBlockProperty(

@@ -15,6 +15,39 @@ describe("native recipe covers", () => {
     expect(result).toEqual([]);
   });
 
+  it("never resolves a cover path outside the graph's assets", async () => {
+    const makeUrl = vi.fn(async (path: string) => `asset://${path}`);
+    const host = {
+      assets: { makeUrl },
+      editor: { getBlock: async () => null },
+    };
+    for (const value of [
+      "https://example.com/cookie.jpg",
+      "assets/../../secret.jpg",
+      "assets/notes.md",
+    ]) {
+      expect(await resolveCoverUrl(host, { kind: "asset-path", value })).toBe(
+        null,
+      );
+    }
+    expect(makeUrl).not.toHaveBeenCalled();
+  });
+
+  it("stores a listed absolute cover path as a graph-relative one", async () => {
+    const writes: unknown[] = [];
+    await setRecipeCover(
+      {
+        upsertBlockProperty: async (_id, _key, value) => {
+          writes.push(value);
+        },
+      },
+      "r1",
+      { kind: "asset-path", value: "C:\\graph\\assets\\cookie.jpg" },
+      { coverReference: "asset-path" },
+    );
+    expect(writes).toEqual(["assets/cookie.jpg"]);
+  });
+
   it("resolves an asset-path cover through the public Assets API", async () => {
     const makeUrl = vi.fn(async (path: string) => `asset://${path}`);
     const result = await resolveCoverUrl(

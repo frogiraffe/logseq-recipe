@@ -142,4 +142,14 @@ export interface UiMessages {
   clearFilters: string;
   outlineNeedsSplitMessage: string;
   splitOutlineAction: string;
+  // Convert Preview issues; "{detail}" is the line or section concerned.
+  issueMissingBaseYield: string;
+  issueNoIngredientsSection: string;
+  issueNoStepsSection: string;
+  issueDuplicateSectionRole: string;
+  issueUnrecognizedSection: string;
+  issueUnclassifiedContent: string;
+  issueInvalidMetadataValue: string;
+  issueIngredientAmountUnparsed: string;
+  issueIngredientAmountAmbiguous: string;
 }

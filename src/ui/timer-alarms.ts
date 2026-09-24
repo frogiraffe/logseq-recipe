@@ -2,6 +2,7 @@ import {
   type CookingTimer,
   isTimerPaused,
   listCookingSessions,
+  pruneStaleCookingSessions,
   subscribeCookingSessions,
 } from "../application/cooking-session";
 
@@ -15,7 +16,7 @@ function alertedKey(graphKey: string): string {
 
 function readAlerted(graphKey: string): Set<string> {
   try {
-    const raw = globalThis.sessionStorage?.getItem(alertedKey(graphKey));
+    const raw = globalThis.localStorage?.getItem(alertedKey(graphKey));
     const ids: unknown = raw ? JSON.parse(raw) : [];
     return new Set(
       Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [],
@@ -27,12 +28,12 @@ function readAlerted(graphKey: string): Set<string> {
 
 function writeAlerted(graphKey: string, ids: Set<string>): void {
   try {
-    globalThis.sessionStorage?.setItem(
+    globalThis.localStorage?.setItem(
       alertedKey(graphKey),
       JSON.stringify([...ids]),
     );
   } catch {
-    // Worst case a timer rings again after a reload.
+    // Worst case a timer rings again after a restart.
   }
 }
 
@@ -40,7 +41,7 @@ function writeAlerted(graphKey: string, ids: Set<string>): void {
  * Rings every timer of one graph when it ends, whatever the plugin is
  * showing - including nothing, after the UI was closed. The screens only
  * render state; this is the single place an alarm fires, and each timer id
- * fires once (the record survives reloads within the Logseq session).
+ * fires once (the record survives reloads and Logseq restarts).
  * Returns a stop function.
  */
 export function watchTimerAlarms(
@@ -52,8 +53,10 @@ export function watchTimerAlarms(
   const schedule = () => {
     const alerted = readAlerted(graphKey);
     const live = new Map<string, CookingTimer>();
+    const existing = new Set<string>();
     for (const { session } of listCookingSessions(graphKey)) {
       for (const timer of session.timers) {
+        existing.add(timer.id);
         // Paused timers have no end time to wait for; resuming saves the
         // session again, which reschedules them with their new end.
         if (!alerted.has(timer.id) && !isTimerPaused(timer)) {
@@ -61,6 +64,9 @@ export function watchTimerAlarms(
         }
       }
     }
+    // The rang-already record only needs timers that still exist.
+    const kept = new Set([...alerted].filter((id) => existing.has(id)));
+    if (kept.size !== alerted.size) writeAlerted(graphKey, kept);
     // Cancelled or finished-cooking timers disappear from storage.
     for (const [id, entry] of pending) {
       if (!live.has(id)) {
@@ -92,6 +98,7 @@ export function watchTimerAlarms(
     }
   };
 
+  pruneStaleCookingSessions(graphKey, Date.now());
   schedule();
   const unsubscribe = subscribeCookingSessions(schedule);
   return () => {

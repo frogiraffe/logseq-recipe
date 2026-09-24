@@ -1,5 +1,9 @@
 import type { CoverRef } from "../domain/recipe";
-import { STEP_MEDIA_EXTENSIONS, safeAssetPath } from "../domain/step-media";
+import {
+  coverImagePath,
+  STEP_MEDIA_EXTENSIONS,
+  safeAssetPath,
+} from "../domain/step-media";
 import type { CoverReferenceCapability } from "./capabilities";
 import { PROPERTY_KEYS } from "./property-keys";
 
@@ -80,7 +84,10 @@ export async function resolveCoverUrl(
 
   try {
     if (cover.kind === "asset-path") {
-      return await host.assets.makeUrl(cover.value);
+      // Same graph-local check as step media: a stored or hand-typed path
+      // never reaches makeUrl unless it is an image inside assets/.
+      const path = coverImagePath(cover.value);
+      return path ? await host.assets.makeUrl(path) : null;
     }
 
     const node = await host.editor.getBlock(cover.value);
@@ -120,7 +127,14 @@ export async function setRecipeCover(
     );
   }
 
-  await host.upsertBlockProperty(recipeId, PROPERTY_KEYS.coverRef, cover.value);
+  const value =
+    cover.kind === "asset-path" ? coverImagePath(cover.value) : cover.value;
+  if (!value) {
+    throw new RangeError(
+      `A cover must be an image inside this graph's assets folder: ${cover.value}`,
+    );
+  }
+  await host.upsertBlockProperty(recipeId, PROPERTY_KEYS.coverRef, value);
 }
 
 export async function clearRecipeCover(

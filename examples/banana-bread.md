@@ -19,8 +19,8 @@ It deliberately exercises the parser's main behaviors:
 - an exact amount (`120 g butter`), a fraction (`1/2 tsp salt`), and a count
   unit (`2 eggs`);
 - a parenthetical preparation note (`(mashed)`, `(melted)`);
-- a qualitative amount the parser will **not** invent a number for
-  (`a pinch of ground cinnamon`) — it stays as ingredient text instead;
+- a vague amount the parser will **not** invent a number for
+  (`a little ground cinnamon`) — it stays as ingredient text instead;
 - a step duration range with a stop condition (`55-60 minutes, or until a
   toothpick comes out clean`);
 - a numeric temperature with an explicit preheat step (`175°C`);
@@ -44,12 +44,12 @@ Classic Banana Bread
     1 tsp baking soda
     1/2 tsp salt
     240 g all-purpose flour
-    a pinch of ground cinnamon
+    a little ground cinnamon
 
   Steps
     Preheat the oven to 175°C.
     In a large bowl, mash the bananas until mostly smooth.
-    Stir in the melted butter, then the sugar, egg, and vanilla.
+    Stir in the melted butter, then the sugar, eggs, and vanilla.
     Sprinkle the baking soda and salt over the mixture and stir in.
     Fold in the flour just until no dry streaks remain.
     Pour the batter into a greased loaf pan and bake for 55-60 minutes, or until a toothpick comes out clean.

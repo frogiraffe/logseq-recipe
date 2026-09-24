@@ -8,16 +8,14 @@ import {
   displayUnitForSystem,
   unitFamily,
 } from "../units/convert";
-import {
-  formatLocalizedNumber,
-  type UiLocale,
-  unitLabel,
-} from "../units/format";
+import { formatNumberForUnit, type UiLocale, unitLabel } from "../units/format";
 import type { IngredientConversionProvider } from "../units/ingredient-registry";
 
 const MASS_UNITS: readonly CanonicalUnit[] = ["mg", "g", "kg", "oz_mass", "lb"];
 const VOLUME_UNITS: readonly CanonicalUnit[] = [
   "ml",
+  "cl",
+  "dl",
   "l",
   "tsp_metric",
   "tbsp_metric",
@@ -56,8 +54,9 @@ function mapNumericQuantity(
 export function formatQuantity(
   quantity: Quantity,
   locale: UiLocale = "en",
+  unit?: CanonicalUnit,
 ): string {
-  const number = (value: number) => formatLocalizedNumber(value, locale);
+  const number = (value: number) => formatNumberForUnit(value, unit, locale);
   switch (quantity.kind) {
     case "exact":
       return number(quantity.value);
@@ -117,31 +116,43 @@ function representativeMagnitude(quantity: Quantity): number {
   }
 }
 
-// Bumping 1500 g to 1.5 kg (or 1000 ml to 1 L) is a same-family, same-system
-// step up in scale, not a measurement-system change - it only applies to
-// the plain metric base units (g, ml), and only when nothing has already
-// picked a specific display unit for this ingredient (see
-// formatIngredientForTargetUnit, the explicit-override path, which never
-// calls this).
-function adaptiveMetricUnit(unit: CanonicalUnit): CanonicalUnit | null {
-  if (unit === "g") return "kg";
-  if (unit === "ml") return "l";
-  return null;
-}
+// Same-family, same-system steps in scale: 1500 g reads as 1.5 kg, 24 oz
+// as 1.5 lb, 12 fl oz as 1.5 cups, and 0.375 kg back down as 375 g. Only
+// the automatic display path uses this; an explicitly picked display unit
+// (formatIngredientForTargetUnit) is never re-scaled.
+const STEP_UP: Partial<Record<CanonicalUnit, [CanonicalUnit, number]>> = {
+  g: ["kg", 1000],
+  ml: ["l", 1000],
+  oz_mass: ["lb", 16],
+  fl_oz_us: ["cup_us", 8],
+  fl_oz_imperial: ["cup_imperial", 10],
+};
+
+const STEP_DOWN: Partial<Record<CanonicalUnit, CanonicalUnit>> = {
+  kg: "g",
+  l: "ml",
+  lb: "oz_mass",
+};
 
 function applyAdaptiveDisplay(
   quantity: Quantity,
   unit: CanonicalUnit,
 ): { quantity: Quantity; unit: CanonicalUnit } {
-  const bigger = adaptiveMetricUnit(unit);
-  if (!bigger || representativeMagnitude(quantity) < 1000) {
-    return { quantity, unit };
-  }
+  const magnitude = representativeMagnitude(quantity);
+  const up = STEP_UP[unit];
+  const down = STEP_DOWN[unit];
+  const target =
+    up && magnitude >= up[1]
+      ? up[0]
+      : down && magnitude > 0 && magnitude < 1
+        ? down
+        : null;
+  if (!target) return { quantity, unit };
   return {
     quantity: mapNumericQuantity(quantity, (value) =>
-      convertUnit(value, unit, bigger),
+      convertUnit(value, unit, target),
     ),
-    unit: bigger,
+    unit: target,
   };
 }
 
@@ -185,7 +196,7 @@ function formatIngredientParts(
   const note = ingredient.note ? ` (${ingredient.note})` : "";
   return {
     quantity:
-      `${formatQuantity(quantity, locale)}${visibleUnitText(unit, quantity, locale)}`.trim(),
+      `${formatQuantity(quantity, locale, unit)}${visibleUnitText(unit, quantity, locale)}`.trim(),
     name: `${ingredient.ingredientText.trim()}${note}`.trim(),
   };
 }
@@ -203,6 +214,22 @@ export function ingredientDisplayParts(
 
   const display = displayQuantityAndUnit(scaled.amount, scaled.unit, system);
   return formatIngredientParts(scaled, display.quantity, display.unit, locale);
+}
+
+/**
+ * The unit an ingredient is shown in when the cook hasn't picked one: its
+ * written unit converted for the measurement system and stepped for size
+ * (the same result ingredientDisplayParts renders).
+ */
+export function defaultDisplayUnit(
+  ingredient: Ingredient,
+  baseYield: number,
+  targetYield: number,
+  system: MeasurementSystem,
+): CanonicalUnit | undefined {
+  const scaled = scaleIngredient(ingredient, baseYield, targetYield);
+  if (!scaled.amount) return undefined;
+  return displayQuantityAndUnit(scaled.amount, scaled.unit, system).unit;
 }
 
 export function formatIngredientForDisplay(
@@ -223,17 +250,21 @@ export function ingredientDisplayUnitOptions(
 ): CanonicalUnit[] {
   if (!ingredient.unit) return [];
   const family = unitFamily(ingredient.unit);
-  if (family === "mass") {
-    return provider.find(ingredient.ingredientText)
-      ? [...MASS_UNITS, ...VOLUME_UNITS]
-      : [...MASS_UNITS];
-  }
-  if (family === "volume") {
-    return provider.find(ingredient.ingredientText)
-      ? [...VOLUME_UNITS, ...MASS_UNITS]
-      : [...VOLUME_UNITS];
-  }
-  return [ingredient.unit];
+  const convertible = provider.find(ingredient.ingredientText) !== null;
+  const options =
+    family === "mass"
+      ? convertible
+        ? [...MASS_UNITS, ...VOLUME_UNITS]
+        : [...MASS_UNITS]
+      : family === "volume"
+        ? convertible
+          ? [...VOLUME_UNITS, ...MASS_UNITS]
+          : [...VOLUME_UNITS]
+        : [];
+  // The line's own unit (su bardağı, tatlı kaşığı, ...) is always offered.
+  return options.includes(ingredient.unit)
+    ? options
+    : [ingredient.unit, ...options];
 }
 
 const UNIT_SYSTEM_SUFFIXES: Record<

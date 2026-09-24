@@ -105,3 +105,24 @@ export async function moveRecipeToLibrarySection(
   const sections = await ensureRecipeLibrary(host);
   await host.moveBlock(recipeId, sections[role], { children: true });
 }
+
+function entityId(value: unknown): unknown {
+  return value && typeof value === "object"
+    ? (value as { id?: unknown }).id
+    : value;
+}
+
+/**
+ * Whether a recipe block sits on the Recipe Library page. Recipes converted
+ * where they were written (a journal, a project page) are archived and
+ * restored in place - moving them into the library would pull them out of
+ * the page the user put them on, with no way back.
+ */
+export async function isInRecipeLibrary(
+  host: RecipeLibraryHost,
+  block: unknown,
+): Promise<boolean> {
+  const pageId = entityId((block as { page?: unknown } | null)?.page);
+  if (pageId === undefined || pageId === null) return false;
+  return entityId(await host.getPage(RECIPE_LIBRARY_PAGE)) === pageId;
+}

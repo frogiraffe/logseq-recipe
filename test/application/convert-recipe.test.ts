@@ -8,6 +8,7 @@ import {
   correctConversionIngredient,
   correctConversionYield,
   isConversionCommittable,
+  regroupConversionSource,
 } from "../../src/application/convert-recipe";
 import { defaultParseContext } from "../../src/parsing/context";
 
@@ -108,6 +109,7 @@ describe("analyzeRecipeConversion", () => {
     expect(result.issues).toContainEqual({
       code: "unrecognized-section",
       message: 'Could not determine the role of section "What you need".',
+      detail: "What you need",
       blockId: "stuff",
     });
     expect(isConversionCommittable(result)).toBe(false);
@@ -153,6 +155,7 @@ describe("analyzeRecipeConversion", () => {
       code: "unclassified-content",
       message:
         'Line "Adapted from a family recipe." was not recognized as a section, metadata field, ingredient, step, or note, and will be ignored.',
+      detail: "Adapted from a family recipe.",
       blockId: "stray",
     });
     // Purely informational - it must not block an otherwise-valid conversion.
@@ -268,6 +271,46 @@ describe("correctConversionIngredient", () => {
       expect.objectContaining({ code: "ingredient-amount-unparsed" }),
     );
   });
+
+  it("requires a choice before converting a line with two amounts", () => {
+    const draft = analyzeRecipeConversion(
+      node("root", "Recipe", [
+        node("y", "Yield: 2"),
+        node("i", "Ingredients", [node("i1", "1 kg flour + 200 g sugar")]),
+        node("s", "Steps", [node("s1", "Mix.")]),
+      ]),
+      defaultParseContext("en"),
+    );
+    expect(draft.issues).toContainEqual(
+      expect.objectContaining({
+        code: "ingredient-amount-ambiguous",
+        blockId: "i1",
+      }),
+    );
+    expect(isConversionCommittable(draft)).toBe(false);
+    expect(
+      isConversionCommittable(acceptConversionIngredientAsRaw(draft, "i1")),
+    ).toBe(true);
+  });
+
+  it("offers a line with no amount for review without blocking", () => {
+    const draft = analyzeRecipeConversion(
+      node("root", "Recipe", [
+        node("y", "Yield: 2"),
+        node("i", "Ingredients", [
+          node("i1", "Salt and pepper to taste"),
+          node("i2", "Tuz, karabiber"),
+        ]),
+        node("s", "Steps", [node("s1", "Mix.")]),
+      ]),
+      defaultParseContext("en"),
+    );
+    expect(draft.issues.map((issue) => issue.code)).toEqual([
+      "ingredient-amount-unparsed",
+      "ingredient-amount-unparsed",
+    ]);
+    expect(isConversionCommittable(draft)).toBe(true);
+  });
 });
 
 describe("correctConversionYield", () => {
@@ -310,5 +353,130 @@ describe("correctConversionYield", () => {
     expect(draft.issues).toContainEqual(
       expect.objectContaining({ code: "missing-base-yield" }),
     );
+  });
+});
+
+describe("regroupConversionSource", () => {
+  // The real paste shape: metadata on the title block, headings sharing a
+  // block with their items, steps/notes landing as siblings of their
+  // heading, and one step with a genuine nested child.
+  const pasted = node(
+    "root",
+    "Chunky Chocolate Chip Cookies\nYield: 4 cookies\nPrep: 15 min\nCook: 11 min",
+    [
+      node("ing", "Ingredients\n  60 g butter\n  100 g flour"),
+      node("steps", "Steps\n  Melt the butter.\n    Do not brown it."),
+      node("s2", "Add the sugar."),
+      node("s3", "Bake for 10 min.\n  Edges should color.", [
+        node("s3a", "Rest on the tray."),
+      ]),
+      node("notes", "Notes\n  Centers look underdone."),
+      node("n2", "Half milk, half dark chocolate."),
+    ],
+  );
+
+  it("rebuilds a convertible outline from a mis-split paste", () => {
+    const context = defaultParseContext("en");
+    expect(analyzeRecipeConversion(pasted, context).steps).toHaveLength(0);
+
+    const outline = regroupConversionSource(pasted, context);
+    expect(outline?.text).toBe("Chunky Chocolate Chip Cookies");
+    expect(outline?.children.map((n) => n.text)).toEqual([
+      "Yield: 4 cookies",
+      "Prep: 15 min",
+      "Cook: 11 min",
+      "Ingredients",
+      "Steps",
+      "Notes",
+    ]);
+    const [, , , ingredients, steps, notes] = outline?.children ?? [];
+    expect(ingredients.children.map((n) => n.text)).toEqual([
+      "60 g butter",
+      "100 g flour",
+    ]);
+    // Indented continuation lines become nested blocks, exactly as the
+    // single-block split nests them; the step's own text stays one line.
+    expect(steps.children.map((n) => n.text)).toEqual([
+      "Melt the butter.",
+      "Add the sugar.",
+      "Bake for 10 min.",
+    ]);
+    expect(steps.children[0].children.map((n) => n.text)).toEqual([
+      "Do not brown it.",
+    ]);
+    expect(steps.children[2].children.map((n) => n.text)).toEqual([
+      "Edges should color.",
+      "Rest on the tray.",
+    ]);
+    expect(notes.children).toHaveLength(2);
+  });
+
+  it("moves metadata out of a multi-line title block of a nested recipe", () => {
+    const outline = regroupConversionSource(
+      node("root", "Cookies\nYield: 4", [
+        node("ing", "Ingredients", [node("i1", "60 g butter")]),
+        node("st", "Steps", [node("s1", "Bake.")]),
+      ]),
+      defaultParseContext("en"),
+    );
+    expect(outline?.text).toBe("Cookies");
+    expect(outline?.children.map((n) => n.text)).toEqual([
+      "Yield: 4",
+      "Ingredients",
+      "Steps",
+    ]);
+  });
+
+  it("keeps a step's unindented extra lines in its own text", () => {
+    const outline = regroupConversionSource(
+      node("root", "Soup\nYield: 2", [
+        node("i", "Ingredients\n1 l water"),
+        node("s", "Steps\nBoil the water.\nThen salt it."),
+        node("s2", "Simmer for 10 min.\nStir now and then."),
+      ]),
+      defaultParseContext("en"),
+    );
+    const steps = outline?.children.find((n) => n.text === "Steps");
+    expect(steps?.children.map((n) => n.text)).toEqual([
+      "Boil the water.",
+      "Then salt it.",
+      "Simmer for 10 min.\nStir now and then.",
+    ]);
+  });
+
+  it("returns null when regrouping still finds no steps", () => {
+    const context = defaultParseContext("en");
+    expect(
+      regroupConversionSource(
+        node("root", "Shopping list", [node("a", "milk"), node("b", "eggs")]),
+        context,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("English labels under another recipe language", () => {
+  it("recognizes English headings and metadata in a Turkish recipe", () => {
+    const draft = analyzeRecipeConversion(
+      node("root", "Kurabiye", [
+        node("y", "Yield: 4 cookies"),
+        node("p", "Prep: 15 min"),
+        node("ing", "Ingredients", [node("i1", "60 g tereyağı")]),
+        node("st", "Steps", [node("s1", "Tereyağını erit.")]),
+        node("n", "Notes", [node("n1", "Yarı sütlü.")]),
+      ]),
+      defaultParseContext("tr"),
+    );
+    expect(draft.metadata).toMatchObject({ baseYield: 4, prepMinutes: 15 });
+    expect(draft.sections.map((s) => s.role)).toEqual([
+      "ingredients",
+      "steps",
+      "notes",
+    ]);
+    expect(draft.ingredients[0].parsed.amount).toEqual({
+      kind: "exact",
+      value: 60,
+    });
+    expect(isConversionCommittable(draft)).toBe(true);
   });
 });

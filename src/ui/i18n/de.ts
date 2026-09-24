@@ -149,4 +149,19 @@ export const deMessages: UiMessages = {
   outlineNeedsSplitMessage:
     "Das sieht aus wie eine ganze Rezeptgliederung, die in einen einzigen Block eingefügt wurde statt in einzelne Logseq-Blöcke – Umwandeln kann hier noch keine Abschnitte lesen. In echte, verschachtelte Blöcke gemäß der angezeigten Einrückung aufteilen und fortfahren?",
   splitOutlineAction: "In Blöcke aufteilen und fortfahren",
+  issueMissingBaseYield:
+    "Vor der Umwandlung ist eine positive Portionen- oder Mengenangabe nötig.",
+  issueNoIngredientsSection: "Kein Zutaten-Abschnitt gefunden.",
+  issueNoStepsSection: "Kein Zubereitungs-Abschnitt gefunden.",
+  issueDuplicateSectionRole: "Mehrere Abschnitte wurden als {detail} erkannt.",
+  issueUnrecognizedSection:
+    "Die Rolle des Abschnitts „{detail}“ ist unklar. Bitte oben zuordnen.",
+  issueUnclassifiedContent:
+    "„{detail}“ ist weder Abschnitt, Metadatenzeile, Zutat, Schritt noch Notiz und wird ausgelassen.",
+  issueInvalidMetadataValue:
+    "Der Wert in „{detail}“ konnte nicht gelesen werden.",
+  issueIngredientAmountUnparsed:
+    "In der Zutat „{detail}“ wurde keine Menge gefunden.",
+  issueIngredientAmountAmbiguous:
+    "Die Menge in „{detail}“ ist unklar (zwei Mengen oder eine unlesbare Zahl). Geben Sie sie ein oder behalten Sie die Zeile wie geschrieben.",
 };

@@ -9,6 +9,8 @@ export type UnitLexeme =
   | "oz_mass"
   | "lb"
   | "ml"
+  | "cl"
+  | "dl"
   | "l"
   | "tsp"
   | "tbsp"
@@ -49,9 +51,31 @@ export interface HeatAliasValue {
 export interface RecipeLocalePack {
   code: RecipeLocale;
   decimalSeparator: "." | ",";
+  /** A plain space groups thousands ("1 500 g" in French). */
+  spaceThousandsSeparator: boolean;
+  /**
+   * Case endings follow an apostrophe on units and numbers ("200 ml'lik",
+   * "3'er dakika"): the part before the apostrophe is what's read.
+   */
+  apostropheSuffixes: boolean;
   defaultSourceMeasurementSystem: MeasurementSystem;
   unitAliases: Readonly<Record<string, UnitLexeme>>;
+  /** Spoon qualifiers kept as notes, never converted into extra volume. */
+  unitQualifiers: readonly string[];
+  /**
+   * Words linking a unit to its ingredient ("1 cup of flour", "1 tasse de
+   * farine"), dropped from the ingredient name. An entry ending in "'" is
+   * an elided form attached to the next word ("d'huile").
+   */
+  unitConnectors: readonly string[];
   quantityWords: Readonly<Record<string, number>>;
+  /**
+   * Words that turn an article into a vague amount ("a little", "un peu",
+   * "ein paar"): such a line has no count to scale.
+   */
+  vagueQuantityWords: readonly string[];
+  /** A word adding ½ to the amount before it ("bir buçuk" = 1½). */
+  halfSuffixes: readonly string[];
   temporalModifiers: Readonly<Record<string, TemporalModifier>>;
   heatAliases: Readonly<Record<string, HeatAliasValue>>;
   sequenceConnectors: Readonly<Record<string, SequenceConnector>>;
@@ -60,6 +84,20 @@ export interface RecipeLocalePack {
   ovenModeAliases: Readonly<Record<string, OvenMode>>;
   preheatAliases: readonly string[];
   rangeWords: readonly string[];
+  /** A word opening "<n> and <m>" as a range ("between 10 and 15 min"). */
+  rangeOpeners: readonly string[];
+  /**
+   * Words that make a clause an instruction NOT to do something ("don't
+   * bake past 15 min"): a duration inside it gets no timer. An entry ending
+   * in "'" is an elided form attached to the next word ("n'est").
+   */
+  negationWords: readonly string[];
+  /**
+   * Endings that make a clause's last word a negative imperative, for
+   * languages that negate a verb by suffix (Turkish "pişirme" = "don't
+   * bake"). Empty where negation is a separate word.
+   */
+  negativeImperativeSuffixes: readonly string[];
   metadataAliases: Readonly<Record<string, RecipeMetadataField>>;
   sectionAliases: {
     ingredients: readonly string[];

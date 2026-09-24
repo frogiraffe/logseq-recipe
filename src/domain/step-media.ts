@@ -1,7 +1,15 @@
+import type { DurationAnnotation } from "./annotations";
+
 export type StepMediaKind = "image" | "audio";
 
 export type StepChild =
-  | { id: string; kind: "note"; text: string }
+  | {
+      id: string;
+      kind: "note";
+      text: string;
+      // Times named in the note ("rest 10-15 min"), offered as timers too.
+      durations?: DurationAnnotation[];
+    }
   | {
       id: string;
       kind: StepMediaKind;
@@ -78,11 +86,34 @@ export function hasUnsafeMediaMarkup(text: string): boolean {
   );
 }
 
+/**
+ * A graph asset in any form Logseq lists it (absolute, backslashes,
+ * `../assets/...`) as a safe `assets/...` path, or null.
+ */
+export function graphAssetPath(listedPath: string): string | null {
+  const normalized = listedPath.replace(/\\/gu, "/");
+  // A web or file link ("https://site/assets/x.png") is never a graph asset,
+  // whatever its path looks like; a drive letter ("C:/") is a local path.
+  if (/^[a-z][a-z\d+.-]+:/iu.test(normalized)) return null;
+  // The last whole "assets" folder segment, so a subfolder merely ending in
+  // "assets" ("assets/my-assets/x.png") isn't mistaken for the root.
+  let index = -1;
+  for (const match of normalized.matchAll(/(?:^|\/)assets\//gu)) {
+    index = match.index + (match[0].startsWith("/") ? 1 : 0);
+  }
+  if (index < 0) return null;
+  return safeAssetPath(normalized.slice(index));
+}
+
+/** A safe graph image path for a recipe cover, or null. */
+export function coverImagePath(listedPath: string): string | null {
+  const path = graphAssetPath(listedPath);
+  return path && mediaKind(path) === "image" ? path : null;
+}
+
 /** Markup for attaching an existing graph asset (any listed path form). */
 export function assetMarkup(listedPath: string): string | null {
-  const index = listedPath.replace(/\\/gu, "/").lastIndexOf("assets/");
-  if (index < 0) return null;
-  const path = safeAssetPath(listedPath.replace(/\\/gu, "/").slice(index));
+  const path = graphAssetPath(listedPath);
   if (!path) return null;
   const name =
     path

@@ -51,9 +51,19 @@ export function stepParseContext(
   primary: ParseContext,
   sourceOverride?: MeasurementSystem,
 ): ParseContext {
+  // How much of the line is understood, not how many pieces: "1 h 30 à 1 h
+  // 45" is one range in French, which must beat two separate times read
+  // without the "à". Only letters and digits count, so an abbreviation's
+  // dot ("15 Min.") doesn't outweigh the recipe's own language.
   return bestContext(primary, sourceOverride, (context) => {
     const step = parseStep(text, context);
-    return step.durations.length + step.temperatures.length + step.heat.length;
+    return [...step.durations, ...step.temperatures, ...step.heat].reduce(
+      (covered, span) =>
+        covered +
+        (text.slice(span.startOffset, span.endOffset).match(/[\p{L}\p{N}]/gu)
+          ?.length ?? 0),
+      0,
+    );
   });
 }
 

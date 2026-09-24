@@ -7,6 +7,7 @@ import type {
   RecipeMeta,
   VolumeConversionUnit,
 } from "../../domain/recipe";
+import { coverImagePath } from "../../domain/step-media";
 import type { MeasurementSystem } from "../../domain/unit";
 import { COOKING_UNITS_BY_SYSTEM } from "../../units/definitions";
 import { normalizeIngredientText } from "../../units/ingredient-registry";
@@ -75,13 +76,7 @@ export function RecipeSettingsPanel({
   const [cover, setCover] = useState("__keep__");
   const [coverPath, setCoverPath] = useState("");
   const path = coverPath.trim();
-  const validCoverPath =
-    path.startsWith("assets/") &&
-    /\.(png|jpe?g|webp)$/i.test(path) &&
-    !/[\\%?#\p{Cc}]/u.test(path) &&
-    path
-      .split("/")
-      .every((part) => part !== "" && part !== "." && part !== "..");
+  const validCoverPath = coverImagePath(path) !== null;
   const [overrides, setOverrides] = useState<IngredientConversionOverride[]>(
     recipe.ingredientConversionOverrides,
   );

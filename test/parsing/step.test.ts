@@ -18,12 +18,40 @@ describe("duration annotations", () => {
 
   it("rejects a reversed range as a structured quantity instead of reordering it", () => {
     const parsed = parseStep("12-10 dakika pişir", defaultParseContext("tr"));
-    // "12-10" is invalid as a range; only the trailing "10 dakika" survives
-    // as a plain exact duration, never a range with min > max.
+    // "12-10" is invalid as a range: never a range with min > max (nor, see
+    // below, its "10 dakika" tail on its own).
     expect(
       parsed.durations.every((duration) => duration.value.kind !== "range"),
     ).toBe(true);
   });
+
+  it("does not offer the tail of a reversed duration range as a timer", () => {
+    expect(
+      parseStep("12-10 dakika pişir", defaultParseContext("tr")).durations,
+    ).toEqual([]);
+  });
+
+  it("does not offer the tail of a malformed decimal as a timer", () => {
+    expect(
+      parseStep("Bake 10.5.2 min.", defaultParseContext("en")).durations,
+    ).toEqual([]);
+    expect(
+      parseStep("Bake 1/0.5 min.", defaultParseContext("en")).durations,
+    ).toEqual([]);
+  });
+
+  it.each([
+    ["en", "Simmer for half an hour.", 0.5, "hour"],
+    ["de", "Eine halbe Stunde ruhen lassen.", 0.5, "hour"],
+    ["fr", "Laisser reposer une demi-heure.", 0.5, "hour"],
+  ] as const)(
+    "reads an article with a fraction word: %s %s",
+    (locale, text, value, unit) => {
+      const [duration] = parseStep(text, defaultParseContext(locale)).durations;
+      expect(duration.value).toEqual({ kind: "exact", value });
+      expect(duration.unit).toBe(unit);
+    },
+  );
 
   it("preserves an inexact overnight duration without inventing hours", () => {
     const parsed = parseStep("Rest overnight.", defaultParseContext("en"));
@@ -65,6 +93,20 @@ describe("duration annotations", () => {
 });
 
 describe("temperature annotations", () => {
+  it("does not silently turn a temperature range into its upper bound", () => {
+    expect(
+      parseStep("180-200°C'de pişir", defaultParseContext("tr")).temperatures,
+    ).toEqual([]);
+  });
+
+  it("does not carry preheat intent across sentences", () => {
+    const temperatures = parseStep(
+      "Preheat to 180°C. Bake at 160°C for 10 min.",
+      defaultParseContext("en"),
+    ).temperatures;
+    expect(temperatures[0].preheat).toBe(true);
+    expect(temperatures[1].preheat).toBeUndefined();
+  });
   it("parses Celsius, Fahrenheit and fan mode without changing raw spans", () => {
     const c = parseStep("180°C'de pişir", defaultParseContext("tr"));
     expect(c.temperatures[0]).toMatchObject({ value: 180, unit: "celsius" });

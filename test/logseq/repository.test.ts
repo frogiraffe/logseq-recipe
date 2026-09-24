@@ -57,7 +57,11 @@ function recipeMeta(
 }
 
 function fakeHost() {
-  const tree = structuredClone(ROOT_TEMPLATE);
+  // Block recipes live on the Recipe Library page (id 80) unless a test
+  // moves them elsewhere.
+  const tree: typeof ROOT_TEMPLATE & { page?: unknown } =
+    structuredClone(ROOT_TEMPLATE);
+  tree.page = { id: 80 };
   const values = new Map<string, unknown>([
     ["recipe-1:recipe_marker", true],
     ["recipe-1:base_yield", 8],
@@ -108,7 +112,7 @@ function fakeHost() {
       getBlock: async (id: string) => (id === "recipe-1" ? tree : null),
       getPage: async (id: string) =>
         id === "Recipe Library"
-          ? { uuid: "library-page", name: id }
+          ? { id: 80, uuid: "library-page", name: id }
           : (otherPagesByTitle.get(id) ?? pageEntity),
       getPageBlocksTree: async (id: string) =>
         id === "Recipe Library"
@@ -1309,6 +1313,19 @@ describe("Logseq recipe repository", () => {
           { id: "recipe-1", key: "recipe_archived_at" },
         ]),
       );
+    });
+
+    it("archives and restores a recipe converted outside the library in place", async () => {
+      const host = fakeHost();
+      host.tree.page = { id: 5 };
+      const repository = repositoryFor(host);
+
+      await repository.archiveRecipe("recipe-1");
+      await repository.restoreRecipe("recipe-1");
+
+      expect(host.libraryMoves).toEqual([]);
+      expect(host.values.get("recipe-1:recipe_marker")).toBe(true);
+      expect(host.values.has("recipe-1:recipe_archived")).toBe(false);
     });
 
     it("permanently deletes only archived recipes", async () => {

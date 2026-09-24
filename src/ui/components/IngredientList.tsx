@@ -4,6 +4,7 @@ import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
 import { createIngredientConversionProvider } from "../../units/ingredient-registry";
 import type { UiMessages } from "../i18n";
 import {
+  defaultDisplayUnit,
   ingredientDisplayParts,
   ingredientDisplayUnitOptions,
   ingredientTargetUnitParts,
@@ -53,7 +54,19 @@ export function IngredientList({
         }
       >
         {recipe.ingredients.map((ingredient) => {
-          const options = ingredientDisplayUnitOptions(ingredient, provider);
+          // The "use default" choice is labelled with the unit it shows
+          // ("g", not "Use default"), and that unit isn't listed again:
+          // picking it simply returns to the default.
+          const autoUnit = defaultDisplayUnit(
+            ingredient,
+            recipe.baseYield,
+            targetYield,
+            measurementSystem,
+          );
+          const options = ingredientDisplayUnitOptions(
+            ingredient,
+            provider,
+          ).filter((unit) => unit !== autoUnit);
           const override = unitOverrides[ingredient.id];
           const overrideParts = override
             ? ingredientTargetUnitParts(
@@ -104,7 +117,7 @@ export function IngredientList({
               ) : (
                 <span className="draft-recipe-ingredient-line">{text}</span>
               )}
-              {options.length > 1 && (
+              {options.length > 0 && (
                 <select
                   className="draft-recipe-unit-picker"
                   aria-label={`${ingredient.ingredientText} ${messages.measurementSystem}`}
@@ -117,7 +130,11 @@ export function IngredientList({
                     );
                   }}
                 >
-                  <option value="">{messages.inheritDefault}</option>
+                  <option value="">
+                    {autoUnit
+                      ? ingredientUnitOptionLabel(autoUnit, messages.uiLocale)
+                      : messages.inheritDefault}
+                  </option>
                   {options.map((unit) => (
                     <option key={unit} value={unit}>
                       {ingredientUnitOptionLabel(unit, messages.uiLocale)}

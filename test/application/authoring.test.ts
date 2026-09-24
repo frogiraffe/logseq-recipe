@@ -107,6 +107,40 @@ describe("recipe authoring", () => {
     expect(fake.writes.some((write) => write.key === "unit")).toBe(false);
   });
 
+  it("stamps a line written in another language with that line's language", async () => {
+    const fake = fakeHost();
+    await markExistingRecipeInLogseq(
+      fake.host,
+      {
+        rootId: "existing-root",
+        locale: "en",
+        sourceMeasurementSystem: "metric",
+        baseYield: 4,
+        sectionRoles: [
+          { blockId: "ingredients", role: "ingredients" },
+          { blockId: "steps", role: "steps" },
+        ],
+        ingredientMetadata: [
+          {
+            blockId: "ingredient-1",
+            parsed: {
+              rawText: "2 su bardağı un",
+              amount: { kind: "exact", value: 2 },
+              unit: "su_bardagi",
+              ingredientText: "un",
+              confidence: "exact",
+            },
+          },
+        ],
+      },
+      { jsonProperty: false },
+    );
+
+    expect(
+      decodeIngredientMeta(fake.properties.get("ingredient-1:ingredient_meta")),
+    ).toMatchObject({ locale: "tr", sourceMeasurementSystem: "metric" });
+  });
+
   it("writes the recipe marker only after every other structural write, so a partial failure stays undiscoverable", async () => {
     const fake = fakeHost();
 

@@ -48,19 +48,21 @@ async function insertChildren(
  * that outline. The root block keeps its own uuid and gets just the
  * outline's title line; `staleChildIds` (the existing flat children,
  * whose text is already folded into `outline` - see flattenUnsplitSource)
- * are removed first, since the fresh tree fully supersedes them; every
- * other outline line then becomes a real nested child block.
+ * are removed once the fresh tree, which fully supersedes them, is in
+ * place; every other outline line becomes a real nested child block.
  */
 export async function applyOutlineSplit(
   rootUuid: string,
   outline: OutlineNode,
   staleChildIds: string[] = [],
 ): Promise<void> {
-  await logseq.Editor.updateBlock(rootUuid, outline.text);
+  // Build the new tree before removing anything: if an insert fails midway
+  // the user is left with some duplicated lines, never a lost recipe.
+  await insertChildren(rootUuid, outline.children);
   for (const id of staleChildIds) {
     await logseq.Editor.removeBlock(id);
   }
-  await insertChildren(rootUuid, outline.children);
+  await logseq.Editor.updateBlock(rootUuid, outline.text);
   // insertBlock leaves the last block it creates in active editing mode,
   // the same as if a person had just typed it and not yet clicked away.
   // Every other block in this codebase that Convert operates on was

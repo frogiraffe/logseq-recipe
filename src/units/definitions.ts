@@ -17,6 +17,8 @@ export const LINEAR_UNIT_DEFINITIONS: Partial<
   lb: { family: "mass", toBase: 453.59237 },
 
   ml: { family: "volume", toBase: 1 },
+  cl: { family: "volume", toBase: 10 },
+  dl: { family: "volume", toBase: 100 },
   l: { family: "volume", toBase: 1000 },
   tsp_metric: { family: "volume", toBase: 5 },
   tbsp_metric: { family: "volume", toBase: 15 },

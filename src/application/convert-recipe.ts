@@ -2,15 +2,26 @@ import type { RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
 import type { ParseContext } from "../parsing/context";
 import {
+  ingredientParseContext,
+  stepParseContext,
+} from "../parsing/detect-locale";
+import {
   type ParseConfidence,
   type ParsedIngredient,
   parseIngredient,
 } from "../parsing/ingredient";
-import { getLocalePack } from "../parsing/locales";
-import { normalizeLookup } from "../parsing/normalize";
+import { getLocalePack, RECIPE_LOCALES } from "../parsing/locales";
+import { foldLabel } from "../parsing/normalize";
 import { parseStep, type RecipeStepAnnotations } from "../parsing/step";
 import { parseRecipeMetadataLine } from "./recipe-metadata";
 import type { RecipeRepository } from "./recipe-repository";
+import {
+  flattenUnsplitSource,
+  looksUnsplit,
+  nestLines,
+  type OutlineNode,
+  splitIndentedOutline,
+} from "./split-outline";
 import type { ExistingRecipeStructure, RecipeSectionRole } from "./types";
 
 export interface ConversionSourceNode {
@@ -21,7 +32,10 @@ export interface ConversionSourceNode {
 
 export interface ConversionIssue {
   code: string;
+  /** English fallback; the UI renders its own translation from code + detail. */
   message: string;
+  /** The line, section title, or role the issue is about. */
+  detail?: string;
   blockId?: string;
 }
 
@@ -72,6 +86,7 @@ export interface ConversionDraft {
 
 const BLOCKING_CONVERSION_ISSUE_CODES = new Set([
   "missing-base-yield",
+  "ingredient-amount-ambiguous",
   "no-ingredients-section",
   "no-steps-section",
   "duplicate-section-role",
@@ -84,29 +99,30 @@ const STRUCTURAL_ISSUE_CODES = new Set([
   "duplicate-section-role",
 ]);
 
-function normalizedAliasSet(
-  values: readonly string[],
+function sectionRoleIn(
+  title: string,
   locale: RecipeLocale,
-): Set<string> {
-  return new Set(values.map((value) => normalizeLookup(value, locale)));
+): RecipeSectionRole | null {
+  const { sectionAliases } = getLocalePack(locale);
+  const folded = foldLabel(title);
+  for (const role of ["ingredients", "steps", "notes"] as const) {
+    if (sectionAliases[role].some((alias) => foldLabel(alias) === folded))
+      return role;
+  }
+  return null;
 }
 
+// Headings in any supported language are accepted whatever the recipe
+// language: a Turkish recipe is often pasted with "Ingredients"/"Steps"
+// (copied from a recipe site, say). The recipe's own language wins a tie.
 function sectionRole(
   title: string,
   context: ParseContext,
 ): RecipeSectionRole | null {
-  const pack = getLocalePack(context.locale);
-  const normalized = normalizeLookup(title, context.locale);
-  const ingredients = normalizedAliasSet(
-    pack.sectionAliases.ingredients,
-    context.locale,
-  );
-  const steps = normalizedAliasSet(pack.sectionAliases.steps, context.locale);
-  const notes = normalizedAliasSet(pack.sectionAliases.notes, context.locale);
-
-  if (ingredients.has(normalized)) return "ingredients";
-  if (steps.has(normalized)) return "steps";
-  if (notes.has(normalized)) return "notes";
+  for (const locale of [context.locale, ...RECIPE_LOCALES]) {
+    const role = sectionRoleIn(title, locale);
+    if (role) return role;
+  }
   return null;
 }
 
@@ -135,6 +151,13 @@ function applyMetadata(
   }
 }
 
+export function isIngredientAmountIssue(issue: ConversionIssue): boolean {
+  return (
+    issue.code === "ingredient-amount-unparsed" ||
+    issue.code === "ingredient-amount-ambiguous"
+  );
+}
+
 function parseIngredientNodes(
   nodes: readonly ConversionSourceNode[],
   context: ParseContext,
@@ -143,15 +166,34 @@ function parseIngredientNodes(
   const issues: ConversionIssue[] = [];
 
   for (const ingredient of nodes) {
-    const parsed = parseIngredient(ingredient.title, context);
+    const parsed = parseIngredient(
+      ingredient.title,
+      ingredientParseContext(
+        ingredient.title,
+        context,
+        context.sourceMeasurementSystem,
+      ),
+    );
     ingredients.push({ blockId: ingredient.id, parsed });
-    if (!parsed.amount) {
-      issues.push({
-        code: "ingredient-amount-unparsed",
-        message: `No numeric amount was parsed from ingredient "${ingredient.title}".`,
-        blockId: ingredient.id,
-      });
-    }
+    if (parsed.amount) continue;
+    // "Salt to taste" simply has no amount; a line with a number the parser
+    // couldn't use ("1 kg flour + 200 g sugar", "1,2,3 g") must be resolved
+    // before converting, or its amount would silently never scale.
+    issues.push(
+      parsed.ambiguous
+        ? {
+            code: "ingredient-amount-ambiguous",
+            message: `The amount in ingredient "${ingredient.title}" is ambiguous.`,
+            detail: ingredient.title,
+            blockId: ingredient.id,
+          }
+        : {
+            code: "ingredient-amount-unparsed",
+            message: `No numeric amount was parsed from ingredient "${ingredient.title}".`,
+            detail: ingredient.title,
+            blockId: ingredient.id,
+          },
+    );
   }
 
   return { ingredients, issues };
@@ -164,7 +206,10 @@ function parseStepNodes(
   return nodes.map((step) => ({
     blockId: step.id,
     rawText: step.title,
-    annotations: parseStep(step.title, context),
+    annotations: parseStep(
+      step.title,
+      stepParseContext(step.title, context, context.sourceMeasurementSystem),
+    ),
   }));
 }
 
@@ -176,6 +221,7 @@ function structuralIssues(
   const issues: ConversionIssue[] = unknownSections.map((section) => ({
     code: "unrecognized-section",
     message: `Could not determine the role of section "${section.title}".`,
+    detail: section.title,
     blockId: section.blockId,
   }));
 
@@ -186,6 +232,7 @@ function structuralIssues(
         issues.push({
           code: "duplicate-section-role",
           message: `Multiple sections were recognized as ${role}.`,
+          detail: role,
           blockId: duplicate.blockId,
         });
       }
@@ -236,6 +283,7 @@ export function analyzeRecipeConversion(
         nonStructuralIssues.push({
           code: "invalid-metadata-value",
           message: `Could not safely normalize metadata line "${child.title}".`,
+          detail: child.title,
           blockId: child.id,
         });
       }
@@ -257,6 +305,7 @@ export function analyzeRecipeConversion(
         nonStructuralIssues.push({
           code: "unclassified-content",
           message: `Line "${child.title}" was not recognized as a section, metadata field, ingredient, step, or note, and will be ignored.`,
+          detail: child.title,
           blockId: child.id,
         });
       }
@@ -304,6 +353,116 @@ export function analyzeRecipeConversion(
       ...structuralIssues(root.id, sections, unknownSections),
     ],
   };
+}
+
+function indentOf(line: string): number {
+  return line.match(/^[ \t]*/)?.[0].length ?? 0;
+}
+
+function sourceToOutline(
+  block: ConversionSourceNode,
+  context: ParseContext,
+  isRoot: boolean,
+): OutlineNode {
+  const [first = "", ...rest] = block.title
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+  // The root (title + metadata lines) and a section heading ("Ingredients\n
+  // 60 g butter...") own all their extra lines as items. Any other block
+  // keeps unindented extra lines as part of its own text (a wrapped step),
+  // while indented ones become nested blocks - the same nesting the
+  // single-block split gives them (see nestLines).
+  const ownsAllLines = isRoot || sectionRole(first, context) !== null;
+  const splitAt = ownsAllLines
+    ? 0
+    : rest.findIndex((line) => indentOf(line) > 0);
+  const textLines = splitAt < 0 ? rest : rest.slice(0, splitAt);
+  const childLines = splitAt < 0 ? [] : rest.slice(splitAt);
+  return {
+    text:
+      childLines.length === 0
+        ? block.title
+        : [first, ...textLines].map((line) => line.trim()).join("\n"),
+    children: [
+      ...nestLines(childLines),
+      ...block.children.map((child) => sourceToOutline(child, context, false)),
+    ],
+  };
+}
+
+export function outlineToSource(
+  node: OutlineNode,
+  id = "0",
+): ConversionSourceNode {
+  return {
+    id,
+    title: node.text,
+    children: node.children.map((child, i) =>
+      outlineToSource(child, `${id}.${i}`),
+    ),
+  };
+}
+
+/**
+ * Rebuilds a paste Logseq split into blocks along the wrong lines: headings
+ * sharing a block with their items, metadata on the title block, and items
+ * landing as siblings of their heading instead of its children. Items after
+ * a recognized section heading are moved under it. Returns null unless the
+ * rebuilt outline actually yields ingredients and steps - no guessing when
+ * the regroup doesn't produce a convertible recipe.
+ */
+export function regroupConversionSource(
+  root: ConversionSourceNode,
+  context: ParseContext,
+): OutlineNode | null {
+  const outline = sourceToOutline(root, context, true);
+  const children: OutlineNode[] = [];
+  let section: OutlineNode | null = null;
+  for (const node of outline.children) {
+    if (sectionRole(node.text, context)) {
+      section = node;
+      children.push(node);
+    } else if (section && !parseRecipeMetadataLine(node.text, context)) {
+      section.children.push(node);
+    } else {
+      children.push(node);
+    }
+  }
+  const regrouped = { text: outline.text, children };
+  const draft = analyzeRecipeConversion(outlineToSource(regrouped), context);
+  return draft.ingredients.length > 0 && draft.steps.length > 0
+    ? regrouped
+    : null;
+}
+
+export type ConversionPlan =
+  | { kind: "split"; outline: OutlineNode }
+  | { kind: "convert"; draft: ConversionDraft };
+
+/**
+ * Whether a conversion source can be converted as it stands or must first
+ * be rebuilt as real nested blocks: a paste Logseq left in one block or
+ * flat chunks, one split along the wrong lines, or a title block carrying
+ * metadata lines ("Cookies\nYield: 4").
+ */
+export function planRecipeConversion(
+  source: ConversionSourceNode,
+  context: ParseContext,
+): ConversionPlan {
+  if (looksUnsplit(source.children)) {
+    const outline = splitIndentedOutline(flattenUnsplitSource(source));
+    if (outline) return { kind: "split", outline };
+  }
+  const draft = analyzeRecipeConversion(source, context);
+  if (
+    draft.ingredients.length === 0 ||
+    draft.steps.length === 0 ||
+    source.title.includes("\n")
+  ) {
+    const outline = regroupConversionSource(source, context);
+    if (outline) return { kind: "split", outline };
+  }
+  return { kind: "convert", draft };
 }
 
 export function classifyConversionSection(
@@ -395,10 +554,7 @@ function withoutIngredientIssue(
   blockId: string,
 ): ConversionIssue[] {
   return issues.filter(
-    (issue) =>
-      !(
-        issue.code === "ingredient-amount-unparsed" && issue.blockId === blockId
-      ),
+    (issue) => !(isIngredientAmountIssue(issue) && issue.blockId === blockId),
   );
 }
 

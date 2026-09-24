@@ -150,4 +150,19 @@ export const frMessages: UiMessages = {
   outlineNeedsSplitMessage:
     "Il semble qu'une recette entière ait été collée dans un seul bloc au lieu de blocs Logseq séparés : Convertir ne peut encore y lire aucune section. La découper en vrais blocs imbriqués selon l'indentation affichée, puis continuer ?",
   splitOutlineAction: "Découper en blocs et continuer",
+  issueMissingBaseYield:
+    "Un nombre de portions positif est requis avant de convertir cette recette.",
+  issueNoIngredientsSection: "Aucune section d'ingrédients trouvée.",
+  issueNoStepsSection: "Aucune section d'étapes trouvée.",
+  issueDuplicateSectionRole:
+    "Plusieurs sections ont été reconnues comme {detail}.",
+  issueUnrecognizedSection:
+    "Impossible de déterminer le rôle de la section « {detail} ». Classez-la ci-dessus.",
+  issueUnclassifiedContent:
+    "« {detail} » n'est ni une section, ni une métadonnée, ni un ingrédient, une étape ou une note, et sera ignoré.",
+  issueInvalidMetadataValue: "Impossible de lire la valeur de « {detail} ».",
+  issueIngredientAmountUnparsed:
+    "Aucune quantité trouvée pour l'ingrédient « {detail} ».",
+  issueIngredientAmountAmbiguous:
+    "La quantité de « {detail} » n'est pas claire (deux quantités ou un nombre illisible). Saisissez-la ou gardez la ligne telle quelle.",
 };

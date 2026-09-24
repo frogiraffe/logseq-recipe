@@ -5,7 +5,10 @@
 import { createRoot } from "react-dom/client";
 import {
   type ConversionDraft,
+  type ConversionSourceNode,
   commitRecipeConversion,
+  outlineToSource,
+  planRecipeConversion,
 } from "../src/application/convert-recipe";
 import { commitRecipeEdit } from "../src/application/edit-recipe";
 import type { RecipeRepository } from "../src/application/recipe-repository";
@@ -25,14 +28,18 @@ import type {
 import { parseStepChild, safeAssetPath } from "../src/domain/step-media";
 import { defaultParseContext } from "../src/parsing/context";
 import { parseIngredient } from "../src/parsing/ingredient";
-import { parseStep } from "../src/parsing/step";
+import { parseStep, withNoteDurations } from "../src/parsing/step";
 import { DraftRecipeApp } from "../src/ui/app";
 import "../src/ui/styles.css";
 import "../src/ui/feature-styles.css";
 import "../src/ui/theme-fallback.css";
 import { getUiMessages } from "../src/ui/i18n";
-import type { DraftRecipeUiController } from "../src/ui/state";
+import type {
+  DraftRecipeInitialView,
+  DraftRecipeUiController,
+} from "../src/ui/state";
 import { playTimerCue, watchTimerAlarms } from "../src/ui/timer-alarms";
+import { COOKIE_PASTE } from "./cookie-paste";
 
 const params = new URLSearchParams(location.search);
 const locale = (params.get("locale") ?? "en") as RecipeLocale;
@@ -333,7 +340,10 @@ const repository: RecipeRepository = {
   },
   // Convert-from-existing-blocks needs a real Logseq graph; the demo
   // seeds recipes directly instead. Record the convert flow in Logseq itself.
-  markExistingRecipe: async (_structure: ExistingRecipeStructure) => undefined,
+  markExistingRecipe: async (structure: ExistingRecipeStructure) => {
+    store.set(structure.rootId, recipeFromConversion(structure));
+    pendingSource = null;
+  },
   listRecipeSummaries: async (): Promise<RecipeSummary[]> =>
     [...store.values()]
       .filter((recipe) => !archivedAt.has(recipe.id))
@@ -408,7 +418,10 @@ const repository: RecipeRepository = {
     } else if (found.role === "notes") {
       recipe.notes[index] = { id: itemId, text };
     } else {
-      found.list[index] = parseStepChild(itemId, text);
+      found.list[index] = withNoteDurations(
+        parseStepChild(itemId, text),
+        parseContext,
+      );
     }
     notify(recipe.id);
   },
@@ -450,6 +463,102 @@ const repository: RecipeRepository = {
   },
 };
 
+// ?convert=cookies opens Convert on a real-world paste (see
+// cookie-paste.ts). Conversion goes through the same planRecipeConversion
+// the plugin runtime uses; only the block rewrite and the final write are
+// in memory.
+const CONVERT_SOURCES: Record<string, ConversionSourceNode> = {
+  cookies: COOKIE_PASTE,
+};
+
+let pendingSource: ConversionSourceNode | null =
+  CONVERT_SOURCES[params.get("convert") ?? ""] ?? null;
+
+function conversionView(source: ConversionSourceNode): DraftRecipeInitialView {
+  const plan = planRecipeConversion(source, parseContext);
+  return plan.kind === "split"
+    ? {
+        kind: "convert-needs-split",
+        uuid: source.id,
+        outline: plan.outline,
+        staleChildIds: source.children.map((child) => child.id),
+      }
+    : { kind: "convert", source, draft: plan.draft };
+}
+
+// The recipe a committed conversion leaves behind, read back from the
+// (split) source blocks the way the plugin's loader reads Logseq blocks.
+function recipeFromConversion(structure: ExistingRecipeStructure): Recipe {
+  const source = pendingSource;
+  if (!source) throw new Error("Nothing to convert.");
+  const byId = new Map<string, ConversionSourceNode>();
+  const walk = (block: ConversionSourceNode) => {
+    byId.set(block.id, block);
+    block.children.forEach(walk);
+  };
+  walk(source);
+  const section = (role: RecipeSectionRole) =>
+    byId.get(
+      structure.sectionRoles.find((entry) => entry.role === role)?.blockId ??
+        "",
+    )?.children ?? [];
+  const parsedById = new Map(
+    (structure.ingredientMetadata ?? []).map((entry) => [
+      entry.blockId,
+      entry.parsed,
+    ]),
+  );
+  return {
+    id: structure.rootId,
+    title: source.title,
+    baseYield: structure.baseYield ?? 1,
+    ...(structure.yieldUnit ? { yieldUnit: structure.yieldUnit } : {}),
+    ...(structure.prepMinutes ? { prepMinutes: structure.prepMinutes } : {}),
+    ...(structure.chillMinutes ? { chillMinutes: structure.chillMinutes } : {}),
+    ...(structure.cookMinutes ? { cookMinutes: structure.cookMinutes } : {}),
+    categories: [],
+    tags: [],
+    ingredients: section("ingredients").map((block) => {
+      const parsed =
+        parsedById.get(block.id) ?? parseIngredient(block.title, parseContext);
+      return {
+        id: block.id,
+        rawText: block.title,
+        ...(parsed.amount ? { amount: parsed.amount } : {}),
+        ...(parsed.unit ? { unit: parsed.unit } : {}),
+        ingredientText: parsed.ingredientText,
+        ...(parsed.note ? { note: parsed.note } : {}),
+        scaleMode: "linear" as IngredientScaleMode,
+      };
+    }),
+    steps: section("steps").map((block) => ({
+      id: block.id,
+      rawText: block.title,
+      ...parseStep(block.title, parseContext),
+      ...(block.children.length > 0
+        ? {
+            children: block.children.map((child) =>
+              withNoteDurations(
+                parseStepChild(child.id, child.title),
+                parseContext,
+              ),
+            ),
+          }
+        : {}),
+    })),
+    notes: section("notes").map((block) => ({
+      id: block.id,
+      text: block.title,
+    })),
+    schemaVersion: 1,
+    parserLocale: structure.locale ?? locale,
+    ...(structure.sourceMeasurementSystem
+      ? { sourceMeasurementSystem: structure.sourceMeasurementSystem }
+      : {}),
+    ingredientConversionOverrides: [],
+  };
+}
+
 const demoAssets = ["assets/brown-butter.webp", "assets/whisk-tip.ogg"];
 
 const controller: DraftRecipeUiController = {
@@ -460,8 +569,9 @@ const controller: DraftRecipeUiController = {
   duplicateRecipe: (id) => repository.duplicateRecipe(id),
   commitConversion: (draft: ConversionDraft) =>
     commitRecipeConversion(repository, draft),
-  splitOutlineAndConvert: async () => {
-    throw new Error("Outline splitting needs a real Logseq graph.");
+  splitOutlineAndConvert: async (uuid, outline) => {
+    pendingSource = { ...outlineToSource(outline, uuid), id: uuid };
+    return conversionView(pendingSource);
   },
   resolveCover: async (recipe) =>
     recipe.cover ? `./${recipe.cover.value}` : null,
@@ -496,7 +606,9 @@ createRoot(document.getElementById("app") as HTMLElement).render(
     controller={controller}
     messages={getUiMessages(uiLanguage)}
     config={{
-      initialView: { kind: "recipes" },
+      initialView: pendingSource
+        ? conversionView(pendingSource)
+        : { kind: "recipes" },
       globalMeasurementSystem: sourceMeasurementSystem,
       defaultParserLocale: locale,
       defaultSourceMeasurementSystem: sourceMeasurementSystem,

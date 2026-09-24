@@ -138,4 +138,32 @@ describe("applyOutlineSplit", () => {
       }),
     ).rejects.toThrow("Logseq did not return the newly created block.");
   });
+
+  it("keeps the original blocks when inserting the new tree fails", async () => {
+    const removed: string[] = [];
+    const updates: string[] = [];
+    globalThis.logseq = {
+      Editor: {
+        updateBlock: async (_id: string, content: string) => {
+          updates.push(content);
+        },
+        removeBlock: async (id: string) => {
+          removed.push(id);
+        },
+        insertBlock: async () => {
+          throw new Error("insert failed");
+        },
+      },
+    } as unknown as typeof globalThis.logseq;
+
+    await expect(
+      applyOutlineSplit(
+        "root-uuid",
+        { text: "Title", children: [{ text: "Child", children: [] }] },
+        ["chunk-1"],
+      ),
+    ).rejects.toThrow("insert failed");
+    expect(removed).toEqual([]);
+    expect(updates).toEqual([]);
+  });
 });

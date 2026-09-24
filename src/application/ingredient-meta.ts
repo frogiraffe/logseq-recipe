@@ -3,38 +3,22 @@ import type { RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
 import type { ParseContext } from "../parsing/context";
 import type { ParseConfidence, ParsedIngredient } from "../parsing/ingredient";
+import {
+  COUNT_UNITS,
+  LINEAR_UNIT_DEFINITIONS,
+  TEMPERATURE_UNITS,
+} from "../units/definitions";
 
-const CANONICAL_UNITS = new Set<CanonicalUnit>([
-  "mg",
-  "g",
-  "kg",
-  "oz_mass",
-  "lb",
-  "ml",
-  "l",
-  "tsp_metric",
-  "tbsp_metric",
-  "cup_metric",
-  "tsp_us",
-  "tbsp_us",
-  "cup_us",
-  "fl_oz_us",
-  "tsp_imperial",
-  "tbsp_imperial",
-  "cup_imperial",
-  "fl_oz_imperial",
-  "piece",
-  "egg",
-  "clove",
-  "slice",
-  "pinch",
-  "second",
-  "minute",
-  "hour",
-  "day",
-  "celsius",
-  "fahrenheit",
-]);
+// Derived from the unit definitions, never listed by hand: a hand-kept list
+// silently rejected every stored su bardağı / çay bardağı / tatlı kaşığı
+// line, discarding its Convert Preview correction on the next load.
+function isCanonicalUnit(value: string): value is CanonicalUnit {
+  return (
+    value in LINEAR_UNIT_DEFINITIONS ||
+    COUNT_UNITS.has(value as CanonicalUnit) ||
+    TEMPERATURE_UNITS.has(value as CanonicalUnit)
+  );
+}
 
 const CONFIDENCES = new Set<ParseConfidence>(["exact", "partial", "unparsed"]);
 const LOCALES = new Set<RecipeLocale>(["en", "tr", "fr", "de", "es"]);
@@ -106,9 +90,8 @@ function decodeParsedIngredient(value: unknown): ParsedIngredient | null {
   const unit =
     value.unit === undefined
       ? undefined
-      : typeof value.unit === "string" &&
-          CANONICAL_UNITS.has(value.unit as CanonicalUnit)
-        ? (value.unit as CanonicalUnit)
+      : typeof value.unit === "string" && isCanonicalUnit(value.unit)
+        ? value.unit
         : null;
   if (unit === null) return null;
 

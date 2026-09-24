@@ -149,4 +149,18 @@ export const esMessages: UiMessages = {
   outlineNeedsSplitMessage:
     "Parece que se pegó el esquema completo de una receta en un solo bloque en lugar de en bloques de Logseq separados: Convertir aún no puede leer secciones aquí. ¿Dividirlo en bloques anidados reales según la sangría mostrada y continuar?",
   splitOutlineAction: "Dividir en bloques y continuar",
+  issueMissingBaseYield:
+    "Se necesita un número de porciones positivo antes de convertir esta receta.",
+  issueNoIngredientsSection: "No se encontró una sección de ingredientes.",
+  issueNoStepsSection: "No se encontró una sección de pasos.",
+  issueDuplicateSectionRole: "Varias secciones se reconocieron como {detail}.",
+  issueUnrecognizedSection:
+    "No se pudo determinar el papel de la sección «{detail}». Clasifícala arriba.",
+  issueUnclassifiedContent:
+    "«{detail}» no es una sección, metadato, ingrediente, paso ni nota, y se omitirá.",
+  issueInvalidMetadataValue: "No se pudo leer el valor de «{detail}».",
+  issueIngredientAmountUnparsed:
+    "No se encontró una cantidad en el ingrediente «{detail}».",
+  issueIngredientAmountAmbiguous:
+    "La cantidad de «{detail}» no está clara (dos cantidades o un número ilegible). Escríbela o deja la línea como está escrita.",
 };

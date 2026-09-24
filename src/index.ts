@@ -13,6 +13,7 @@ import { clearRecipeReadCaches } from "./logseq/logseq-recipe-repository";
 import {
   createConversionInitialView,
   openDraftRecipeUi,
+  startTimerAlarms,
   stopTimerAlarms,
   syncMountedTheme,
   unmountDraftRecipeUi,
@@ -84,6 +85,7 @@ async function openConvertRecipe(uuid?: string): Promise<void> {
 
 async function main(): Promise<void> {
   registerSettings();
+  void startTimerAlarms();
 
   ownCommand(
     "draft-recipe-recipes",
@@ -118,6 +120,7 @@ async function main(): Promise<void> {
     logseq.App.onCurrentGraphChanged(() => {
       runtimeCapabilitiesPromise = null;
       stopTimerAlarms();
+      void startTimerAlarms();
       clearRecipeReadCaches();
       unmountDraftRecipeUi();
       logseq.hideMainUI();

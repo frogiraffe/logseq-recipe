@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clearCookingSession,
   cookingSessionKey,
   saveCookingSession,
 } from "../../src/application/cooking-session";
@@ -34,7 +35,7 @@ describe("watchTimerAlarms", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("rings each timer of its own graph once, even with no view mounted", () => {
@@ -52,6 +53,21 @@ describe("watchTimerAlarms", () => {
     saveTimer("graph-a", "r1", 5);
     vi.advanceTimersByTime(60_000);
     expect(rung).toEqual(["r1-t"]);
+    stop();
+  });
+
+  it("forgets the rang-already record once the timer itself is gone", () => {
+    const stop = watchTimerAlarms("graph-a", () => undefined);
+    saveTimer("graph-a", "r1", 1);
+    vi.advanceTimersByTime(60_000);
+    expect(localStorage.getItem("logseq-recipe:alerted:graph-a")).toContain(
+      "r1-t",
+    );
+
+    clearCookingSession(cookingSessionKey("graph-a", "r1"));
+    expect(localStorage.getItem("logseq-recipe:alerted:graph-a")).not.toContain(
+      "r1-t",
+    );
     stop();
   });
 
@@ -115,7 +131,7 @@ describe("watchTimerAlarms", () => {
 
 describe("TimerDock", () => {
   afterEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("shows this graph's running timers and opens their recipe", () => {

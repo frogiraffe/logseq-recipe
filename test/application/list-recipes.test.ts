@@ -44,6 +44,14 @@ describe("filterRecipeSummaries", () => {
     ).toEqual(["cookie"]);
   });
 
+  it("matches without accents or Turkish letters", () => {
+    const ids = (query: string) =>
+      filterRecipeSummaries(recipes, { query }).map((r) => r.id);
+    expect(ids("patlican")).toEqual(["eggplant-pasta", "eggplant-bake"]);
+    expect(ids("esmer seker")).toEqual(["cookie"]);
+    expect(ids("FIRINDA")).toEqual(["eggplant-bake"]);
+  });
+
   it("searches every field and requires every query term", () => {
     const searchable: RecipeSummary[] = [
       {

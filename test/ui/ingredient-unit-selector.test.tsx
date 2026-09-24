@@ -120,4 +120,21 @@ describe("ingredient display-unit selector", () => {
     // entirely rather than merely deduplicated.
     expect(screen.getByText(ingredientLine("4 pieces domates"))).toBeTruthy();
   });
+
+  it("labels the default choice with the unit it shows, listed once", () => {
+    render(<Harness recipe={recipe} targetYield={1} />);
+    const select = screen.getByLabelText(
+      `butter ${enMessages.measurementSystem}`,
+    ) as HTMLSelectElement;
+    const labels = [...select.options].map((option) => option.textContent);
+
+    expect(labels[0]).toBe("g");
+    expect(labels.filter((label) => label === "g")).toHaveLength(1);
+    expect(labels).not.toContain(enMessages.inheritDefault);
+
+    fireEvent.change(select, { target: { value: "kg" } });
+    expect(select.value).toBe("kg");
+    fireEvent.change(select, { target: { value: "" } });
+    expect(select.value).toBe("");
+  });
 });

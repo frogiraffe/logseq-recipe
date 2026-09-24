@@ -1,4 +1,4 @@
-import { foldCaseLocaleIndependent } from "../parsing/normalize";
+import { foldLabel } from "../parsing/normalize";
 import type { RecipeSummary } from "./types";
 
 export interface MinuteRange {
@@ -21,8 +21,10 @@ export interface FacetSuggestion {
   count: number;
 }
 
+// Accent-free and case-free, so "sut" finds "süt" and "creme" finds
+// "Crème" in every language.
 function normalizeSearchText(value: string): string {
-  return foldCaseLocaleIndependent(value).replace(/\s+/gu, " ").trim();
+  return foldLabel(value);
 }
 
 function matchesSelectedValues(values: string[], selected?: string[]): boolean {

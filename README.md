@@ -53,7 +53,7 @@ A recipe remains a plain outline:
 Chocolate Chip Cookies
   Yield: 12 cookies
   Prep: 15 min
-  Cook: 10-12 min
+  Cook: 12 min
   Ingredients
     120 g butter
     150 g brown sugar
@@ -69,10 +69,17 @@ Chocolate Chip Cookies
     The centers may still look soft when removed from the oven.
 ```
 
+`Yield`, `Prep`, `Chill`, and `Cook` take a single number; a range such as
+"10-12 minutes" belongs in a step, where it offers a timer for either end.
 Blocks nested under a step are that step's notes; a block that is just an
 image or audio file from the graph's `assets` folder is shown as a photo or
 player. See [the banana bread example](examples/banana-bread.md) for a complete
 outline you can paste into Logseq.
+
+An ingredient line keeps its own words. A line with two amounts ("1 cup plus
+2 tbsp flour") or a number that can't be read asks you to settle it in the
+Convert preview; a line with no amount ("salt to taste", "a little olive oil")
+is kept as written and doesn't scale.
 
 ## Browse and edit
 
@@ -98,21 +105,24 @@ plugin leaves your recipe content intact.
 
 - **Start cooking** walks through one step at a time; tap the step track to
   jump. The ingredient panel lets you tick items off and change servings.
-- **Timers**: a step's duration offers a timer button (ranges offer both
-  ends; "about 20 minutes" offers `~20:00`), and **+ Timer** starts one of any
-  length. Timers can run side by side and be paused. They keep running when
-  you leave Cooking Mode or close the plugin, and ring with a sound and a
-  Logseq notice; a small dock shows them on every other screen.
-- **Exit for now** keeps your step, ticked ingredients, and timers for the
-  rest of the Logseq session; **Finish cooking** clears them.
+- **Timers**: a duration in a step or in one of its notes offers a timer
+  button (ranges offer both ends; "about 20 minutes" offers `~20:00`), except
+  inside an instruction not to do something ("don't bake past 15 minutes").
+  **+ Timer** starts one of any length. Timers can run side by side and be
+  paused. They keep running when you leave Cooking Mode, close the plugin, or
+  restart Logseq, and ring with a sound and a Logseq notice; a small dock
+  shows them on every other screen.
+- **Exit for now** keeps your step, ticked ingredients, and timers, even
+  across a Logseq restart (a cook left untouched for a week is dropped);
+  **Finish cooking** clears them.
 - The screen stays awake while Cooking Mode is open.
 
 ## Covers and media
 
 Covers and step media reference files already in the graph's `assets`
-folder; the plugin never uploads, moves, or deletes files. External links,
-absolute paths, and paths outside `assets` are refused, and missing files show
-a placeholder.
+folder; the plugin never uploads, moves, or deletes files. A cover path is
+stored relative to that folder (`assets/pie.jpg`), web links and anything
+outside `assets` are refused, and missing files show a placeholder.
 
 ## Languages
 
@@ -120,6 +130,10 @@ Choose the interface language in the plugin settings. Recipe text is read in
 the recipe's language, and each line falls back to whichever supported
 language understands it — a Turkish step is still understood when Logseq runs
 in English.
+
+Section headings and labels ("Ingredients", "Malzemeler", "Yield:",
+"Porsiyon:") are recognized in any of the five languages, whatever the
+recipe's language, and without accents ("Yapilis", "Etapes").
 
 ## Limits
 

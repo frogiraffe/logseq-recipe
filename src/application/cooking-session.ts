@@ -66,11 +66,12 @@ export interface TimerOption {
 /**
  * Timers a duration can start: its value, or both bounds of a range (the
  * cook picks). A timer is a reminder, so "about 20 minutes" and "until
- * golden, 20 minutes" still get one; only durations with no number or no
- * time unit stay plain labels.
+ * golden, 20 minutes" still get one; durations with no number or no time
+ * unit, or inside an instruction not to do something ("don't bake past
+ * 15 min"), stay plain labels.
  */
 export function timerOptions(duration: DurationAnnotation): TimerOption[] {
-  if (!duration.unit) return [];
+  if (!duration.unit || duration.negated) return [];
   const unitMs = UNIT_MS[duration.unit];
   const option = (value: number, approximate: boolean) =>
     value > 0 ? [{ durationMs: value * unitMs, approximate }] : [];
@@ -98,7 +99,7 @@ export function cookingSessionKey(graphKey: string, recipeId: string): string {
 }
 
 // Save/clear notify in-page listeners (the alarm service, the timer dock);
-// sessionStorage raises no "storage" event within the same document.
+// Web Storage raises no "storage" event within the same document.
 const listeners = new Set<() => void>();
 
 export function subscribeCookingSessions(listener: () => void): () => void {
@@ -185,11 +186,48 @@ export function parseCookingSession(raw: string | null): CookingSession | null {
   }
 }
 
-// sessionStorage can be missing or throw (sandboxed/private contexts); the
-// session is a convenience, so every failure degrades to "no saved session".
+// localStorage, so an unfinished cook (step, checked ingredients, timers)
+// survives a Logseq restart. It can be missing or throw (sandboxed/private
+// contexts); the session is a convenience, so every failure degrades to "no
+// saved session".
 function storage(): Storage | null {
   try {
-    return globalThis.sessionStorage ?? null;
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// A session nobody touched for this long is a cook that was abandoned, not
+// paused: drop it rather than keep it (and its timers) in storage forever.
+const STALE_SESSION_MS = 7 * 24 * 60 * 60 * 1_000;
+
+/** Removes one graph's sessions last saved more than a week ago. */
+export function pruneStaleCookingSessions(graphKey: string, now: number): void {
+  const store = storage();
+  if (!store) return;
+  const prefix = `${SESSION_PREFIX}${graphKey}:`;
+  try {
+    const stale: string[] = [];
+    for (let index = 0; index < store.length; index += 1) {
+      const key = store.key(index);
+      if (!key?.startsWith(prefix)) continue;
+      const savedAt = savedAtOf(store.getItem(key));
+      if (savedAt === null || now - savedAt > STALE_SESSION_MS) {
+        stale.push(key);
+      }
+    }
+    for (const key of stale) store.removeItem(key);
+    if (stale.length > 0) notifyCookingSessions();
+  } catch {
+    // Pruning is housekeeping; a failure only leaves old entries behind.
+  }
+}
+
+function savedAtOf(raw: string | null): number | null {
+  try {
+    const value = raw ? (JSON.parse(raw) as { savedAt?: unknown }) : null;
+    return typeof value?.savedAt === "number" ? value.savedAt : null;
   } catch {
     return null;
   }
@@ -205,7 +243,10 @@ export function loadCookingSession(key: string): CookingSession | null {
 
 export function saveCookingSession(key: string, session: CookingSession): void {
   try {
-    storage()?.setItem(key, JSON.stringify(session));
+    storage()?.setItem(
+      key,
+      JSON.stringify({ ...session, savedAt: Date.now() }),
+    );
   } catch {
     // Quota or access failure: cooking continues, only resume is lost.
   }

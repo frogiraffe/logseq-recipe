@@ -18,16 +18,22 @@ function hasValidBoundary(text: string, start: number, end: number): boolean {
   return !isWordCharacter(before) && !isWordCharacter(after);
 }
 
+// Lowercase without changing the length: outside Turkish, "İ" lowercases to
+// two code units ("i̇"), which would shift every offset after it.
+function lowerKeepingOffsets(value: string, locale: string): string {
+  return value.replace(/İ/gu, "i").toLocaleLowerCase(locale);
+}
+
 export function findPhraseSpans<T>(
   text: string,
   aliases: Readonly<Record<string, T>>,
   locale: string,
 ): PhraseSpan<T>[] {
-  const lower = text.toLocaleLowerCase(locale);
+  const lower = lowerKeepingOffsets(text, locale);
   const spans: PhraseSpan<T>[] = [];
 
   for (const [alias, value] of Object.entries(aliases)) {
-    const normalizedAlias = alias.toLocaleLowerCase(locale);
+    const normalizedAlias = lowerKeepingOffsets(alias, locale);
     let from = 0;
 
     while (from <= lower.length - normalizedAlias.length) {

@@ -26,8 +26,8 @@ export interface EditableItem {
 
 function fill(template: string, text: string, position = 0): string {
   return template
-    .replace("{item}", text)
-    .replace("{position}", String(position));
+    .replace("{item}", () => text)
+    .replace("{position}", () => String(position));
 }
 
 // One sortable row: only the handle starts a drag, so typing and clicking
@@ -201,8 +201,11 @@ export function SortableList({
                 id={item.id}
                 handleLabel={`${messages.dragToReorder}: ${item.text}`}
               >
-                <input
+                {/* A textarea, not an input: an input silently strips the
+                    line breaks of a multi-line step or note on first edit. */}
+                <textarea
                   aria-label={`${title} ${index + 1}`}
+                  rows={item.text.split("\n").length}
                   value={item.text}
                   onChange={(event) =>
                     onChange(

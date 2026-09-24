@@ -1,13 +1,58 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  cookingSessionKey,
+  saveCookingSession,
+} from "../../src/application/cooking-session";
 import {
   isAlreadyDraftRecipe,
   loadConversionRoot,
+  startTimerAlarms,
+  stopTimerAlarms,
 } from "../../src/logseq/runtime-ui";
 
 const originalLogseq = globalThis.logseq;
 
 afterEach(() => {
   globalThis.logseq = originalLogseq;
+});
+
+describe("startTimerAlarms", () => {
+  afterEach(() => {
+    stopTimerAlarms();
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it("rings a timer kept across a restart without the plugin UI ever opening", async () => {
+    vi.useFakeTimers();
+    const start = Date.now();
+    saveCookingSession(cookingSessionKey("/graphs/kitchen", "r1"), {
+      checkedIngredientIds: [],
+      ingredientsOpen: false,
+      timers: [
+        {
+          id: "r1-t",
+          stepId: "s1",
+          label: "Step 1 · 05:00",
+          durationMs: 5 * 60_000,
+          endsAt: start + 5 * 60_000,
+          recipeTitle: "Bread",
+        },
+      ],
+    });
+    const showMsg = vi.fn().mockResolvedValue(undefined);
+    globalThis.logseq = {
+      settings: { uiLanguage: "en" },
+      App: { getCurrentGraph: async () => ({ path: "/graphs/kitchen" }) },
+      UI: { showMsg },
+    } as unknown as typeof globalThis.logseq;
+
+    await startTimerAlarms();
+    vi.advanceTimersByTime(5 * 60_000);
+
+    expect(showMsg).toHaveBeenCalledTimes(1);
+    expect(showMsg.mock.calls[0][0]).toContain("Bread");
+  });
 });
 
 describe("loadConversionRoot", () => {

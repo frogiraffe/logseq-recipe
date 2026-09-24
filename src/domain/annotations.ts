@@ -14,6 +14,9 @@ export interface DurationAnnotation extends SourceSpan {
   qualifier?: "per-side" | "interval";
   relation?: "and" | "or" | "then";
   conditionText?: string;
+  // Inside an instruction not to do something ("don't bake past 15 min"):
+  // shown as written, but never offered as a timer.
+  negated?: true;
 }
 
 export interface TemperatureAnnotation extends SourceSpan {

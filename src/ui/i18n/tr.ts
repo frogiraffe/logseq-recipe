@@ -149,4 +149,17 @@ export const trMessages: UiMessages = {
   outlineNeedsSplitMessage:
     "Bu, ayrı Logseq blokları yerine tek bir bloğa yapıştırılmış bir tarif taslağına benziyor - Dönüştür'ün bölüm olarak okuyabileceği bir şey henüz yok. Gösterilen girintiye uygun, gerçek ve iç içe bloklara ayırıp devam edilsin mi?",
   splitOutlineAction: "Bloklara ayır ve devam et",
+  issueMissingBaseYield:
+    "Tarifin dönüştürülebilmesi için pozitif bir porsiyon/adet sayısı gerekli.",
+  issueNoIngredientsSection: "Malzemeler bölümü bulunamadı.",
+  issueNoStepsSection: "Yapılış bölümü bulunamadı.",
+  issueDuplicateSectionRole: "Birden fazla bölüm {detail} olarak tanındı.",
+  issueUnrecognizedSection:
+    '"{detail}" bölümünün ne olduğu anlaşılamadı. Yukarıdan sınıflandırın.',
+  issueUnclassifiedContent:
+    '"{detail}" bir bölüm, metadata satırı, malzeme, adım ya da not olarak tanınmadı ve dahil edilmeyecek.',
+  issueInvalidMetadataValue: '"{detail}" satırındaki değer okunamadı.',
+  issueIngredientAmountUnparsed: '"{detail}" malzemesinde miktar bulunamadı.',
+  issueIngredientAmountAmbiguous:
+    '"{detail}" satırındaki miktar belirsiz (iki miktar ya da okunamayan bir sayı). Miktarı girin ya da satırı yazıldığı gibi bırakın.',
 };

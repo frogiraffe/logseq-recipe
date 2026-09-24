@@ -1,10 +1,5 @@
 import { createRoot, type Root } from "react-dom/client";
-import { analyzeRecipeConversion } from "../application/convert-recipe";
-import {
-  flattenUnsplitSource,
-  looksUnsplit,
-  splitIndentedOutline,
-} from "../application/split-outline";
+import { planRecipeConversion } from "../application/convert-recipe";
 import { defaultParseContext } from "../parsing/context";
 import { DraftRecipeApp } from "../ui/app";
 import { getUiMessages, type UiMessages } from "../ui/i18n";
@@ -19,6 +14,7 @@ import {
 } from "../ui/timer-alarms";
 import type { RuntimeCapabilities } from "./capabilities";
 import { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
+import { readSettings } from "./settings";
 import { createRuntimeUiContext } from "./ui-controller";
 
 export { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
@@ -65,6 +61,26 @@ function ensureTimerAlarms(graphKey: string, messages: UiMessages): void {
 export function stopTimerAlarms(): void {
   alarms?.stop();
   alarms = null;
+}
+
+// Missing or failing graph info only disables Cooking Mode resume.
+async function currentGraphKey(): Promise<string | undefined> {
+  const graph = await Promise.resolve()
+    .then(() => logseq.App.getCurrentGraph())
+    .catch(() => null);
+  return graph ? graph.path || graph.url || graph.name : undefined;
+}
+
+/**
+ * Arms the current graph's timer alarms without opening any UI, at plugin
+ * load and after a graph switch: a cook kept across a Logseq restart must
+ * ring on time even if the plugin is never opened again.
+ */
+export async function startTimerAlarms(): Promise<void> {
+  const graphKey = await currentGraphKey();
+  if (graphKey) {
+    ensureTimerAlarms(graphKey, getUiMessages(readSettings().uiLanguage));
+  }
 }
 
 function appElement(): HTMLElement {
@@ -146,22 +162,18 @@ export async function createConversionInitialView(
     return { kind: "already-recipe", recipeId: source.id, title: source.title };
   }
 
-  if (looksUnsplit(source.children)) {
-    const outline = splitIndentedOutline(flattenUnsplitSource(source));
-    if (outline) {
-      return {
-        kind: "convert-needs-split",
-        uuid: source.id,
-        outline,
-        staleChildIds: source.children.map((child) => child.id),
-      };
-    }
-  }
-
   const parseContext = defaultParseContext(context.defaultParserLocale);
   parseContext.sourceMeasurementSystem = context.defaultSourceMeasurementSystem;
-  const draft = analyzeRecipeConversion(source, parseContext);
-  return { kind: "convert", source, draft };
+  const plan = planRecipeConversion(source, parseContext);
+  if (plan.kind === "split") {
+    return {
+      kind: "convert-needs-split",
+      uuid: source.id,
+      outline: plan.outline,
+      staleChildIds: source.children.map((child) => child.id),
+    };
+  }
+  return { kind: "convert", source, draft: plan.draft };
 }
 
 export async function openDraftRecipeUi(
@@ -172,16 +184,12 @@ export async function openDraftRecipeUi(
   const runtime = await createRuntimeUiContext(capabilities);
   if (request !== uiRequest) return;
   const messages = getUiMessages(runtime.settings.uiLanguage);
-  const [configs, themeCssProperties, graph] = await Promise.all([
+  const [configs, themeCssProperties, graphKey] = await Promise.all([
     logseq.App.getUserConfigs(),
     resolveHostThemeCssProperties(),
-    // Missing or failing graph info only disables Cooking Mode resume.
-    Promise.resolve()
-      .then(() => logseq.App.getCurrentGraph())
-      .catch(() => null),
+    currentGraphKey(),
   ]);
   if (request !== uiRequest) return;
-  const graphKey = graph ? graph.path || graph.url || graph.name : undefined;
   if (graphKey) ensureTimerAlarms(graphKey, messages);
   const appRoot = resetRoot();
 

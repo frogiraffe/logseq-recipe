@@ -30,6 +30,7 @@
 
 .draft-recipe-app button,
 .draft-recipe-app input,
+.draft-recipe-app textarea,
 .draft-recipe-app select {
   color: inherit;
   background: var(--ls-secondary-background-color);
@@ -247,6 +248,7 @@
 
 .draft-recipe-app button,
 .draft-recipe-app input,
+.draft-recipe-app textarea,
 .draft-recipe-app select {
   transition:
     border-color 0.12s ease,
@@ -270,6 +272,7 @@
 }
 
 .draft-recipe-app input:focus-visible,
+.draft-recipe-app textarea:focus-visible,
 .draft-recipe-app select:focus-visible,
 .draft-recipe-app button:focus-visible {
   outline: 2px solid var(--ls-link-text-color);
@@ -279,6 +282,7 @@
 @media (prefers-reduced-motion: reduce) {
   .draft-recipe-app button,
   .draft-recipe-app input,
+  .draft-recipe-app textarea,
   .draft-recipe-app select {
     transition: none;
   }
@@ -370,6 +374,22 @@
   color: var(--ls-secondary-text-color);
   font-size: 0.9rem;
   gap: 0;
+}
+
+/* Convert Preview puts labelled selects in the same row. */
+.draft-recipe-meta-row > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 16px;
+}
+
+/* Multi-line steps and notes keep their line breaks, as in Logseq. */
+.draft-recipe-steps > li,
+.draft-recipe-current-step > p,
+.draft-recipe-section li,
+.draft-recipe-cooking-notes li {
+  white-space: pre-line;
 }
 
 .draft-recipe-meta-row > span + span::before {
@@ -564,9 +584,20 @@
 }
 
 .draft-recipe-editor-item > input,
+.draft-recipe-editor-item > textarea,
 .draft-recipe-editor-add-row > input {
   flex: 1 1 200px;
   min-width: 0;
+}
+
+/* Same metrics as the sibling inputs (the browser's control font, not the
+   page font), growing with its lines instead of a resize handle. */
+.draft-recipe-editor-item > textarea {
+  /* biome-ignore lint/a11y/useGenericFontNames: the browser's own control font, the one the sibling inputs use. */
+  font: -webkit-small-control;
+  line-height: normal;
+  resize: none;
+  field-sizing: content;
 }
 
 .draft-recipe-editor-item > button,
@@ -977,6 +1008,7 @@
   /* Narrow windows: the text field takes its own full line, the handle
      and buttons wrap beneath it at touch size. */
   .draft-recipe-editor-item > input,
+  .draft-recipe-editor-item > textarea,
   .draft-recipe-editor-add-row > input {
     flex-basis: 100%;
     order: -1;

@@ -1,15 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <rect width="128" height="128" rx="28" fill="#ea580c" />
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fb923c" />
+      <stop offset="1" stop-color="#dc2626" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)" />
+  <!-- recipe outline rising out of the bowl like steam -->
   <g fill="#fff7ed">
-    <rect x="34" y="26" width="6" height="32" rx="3" />
-    <rect x="44" y="26" width="6" height="32" rx="3" />
-    <rect x="54" y="26" width="6" height="32" rx="3" />
-    <rect x="64" y="26" width="6" height="32" rx="3" />
-    <path d="M34 54h36l-9 12H43Z" />
-    <rect x="47" y="62" width="10" height="38" rx="5" />
+    <circle cx="36" cy="28" r="5" />
+    <circle cx="50" cy="42" r="5" />
+    <circle cx="36" cy="56" r="5" />
   </g>
-  <path
-    d="M92 30c-8.837 0-16 8.507-16 19 0 8.717 4.977 16.06 11.8 18.36L84 98a4 4 0 0 0 8 0l-3.8-30.64C95.023 65.06 100 57.717 100 49c0-10.493-7.163-19-16-19Z"
-    fill="#fff7ed"
-  />
+  <g stroke="#fff7ed" stroke-width="6" stroke-linecap="round" opacity="0.85">
+    <path d="M48 28h44" />
+    <path d="M62 42h26" />
+    <path d="M48 56h36" />
+  </g>
+  <!-- bowl -->
+  <path d="M22 70h84a42 38 0 0 1-84 0z" fill="#fff7ed" />
+  <rect x="48" y="102" width="32" height="10" rx="5" fill="#fff7ed" />
 </svg>

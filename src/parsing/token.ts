@@ -1,5 +1,6 @@
 export type TokenKind =
   | "number"
+  | "invalid_number"
   | "fraction"
   | "quantity_word"
   | "unit"

@@ -149,4 +149,19 @@ export const enMessages: UiMessages = {
   outlineNeedsSplitMessage:
     "This looks like a whole recipe outline pasted into a single block, instead of separate Logseq blocks - there's nothing here yet for Convert to read as sections. Split it into real, nested blocks matching the indentation shown, then continue?",
   splitOutlineAction: "Split into blocks and continue",
+  issueMissingBaseYield:
+    "A positive serving/yield count is required before this recipe can be converted.",
+  issueNoIngredientsSection: "No ingredients section was found.",
+  issueNoStepsSection: "No steps section was found.",
+  issueDuplicateSectionRole:
+    "More than one section was recognized as {detail}.",
+  issueUnrecognizedSection:
+    'Could not tell what the section "{detail}" is. Classify it above.',
+  issueUnclassifiedContent:
+    '"{detail}" is not a section, metadata line, ingredient, step, or note, and will be left out.',
+  issueInvalidMetadataValue: 'Could not read the value in "{detail}".',
+  issueIngredientAmountUnparsed:
+    'No amount was found in the ingredient "{detail}".',
+  issueIngredientAmountAmbiguous:
+    'The amount in "{detail}" is unclear (two amounts or an unreadable number). Enter it or keep the line as written.',
 };

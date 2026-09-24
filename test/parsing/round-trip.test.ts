@@ -29,7 +29,7 @@ describe("ingredient formatter/parser round-trip", () => {
 
     const { rendered, reparsed } = roundTrip(ingredient, "us", "en");
 
-    expect(rendered).toBe("1½ cup flour");
+    expect(rendered).toBe("1½ cups flour");
     expect(reparsed).toMatchObject({
       amount: { kind: "exact", value: 1.5 },
       unit: "cup_us",

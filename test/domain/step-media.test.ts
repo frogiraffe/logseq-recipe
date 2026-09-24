@@ -1,10 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   assetMarkup,
+  coverImagePath,
   hasUnsafeMediaMarkup,
   parseStepChild,
   safeAssetPath,
 } from "../../src/domain/step-media";
+
+describe("coverImagePath", () => {
+  it.each([
+    ["assets/pie.png", "assets/pie.png"],
+    ["../assets/pie.webp", "assets/pie.webp"],
+    ["/home/me/graph/assets/pie.jpg", "assets/pie.jpg"],
+    ["C:\\Users\\me\\graph\\assets\\pie.jpg", "assets/pie.jpg"],
+    ["https://example.com/assets/pie.png", null],
+    ["file:///home/me/graph/assets/pie.png", null],
+    ["assets/pie.gif", null],
+  ])("%s -> %s", (path, expected) => {
+    expect(coverImagePath(path)).toBe(expected);
+  });
+});
 
 describe("safeAssetPath", () => {
   it("accepts graph-relative assets only", () => {
@@ -61,5 +76,10 @@ describe("parseStepChild", () => {
       "![pie](../assets/pie.webp)",
     );
     expect(assetMarkup("pages/pie.webp")).toBeNull();
+    // A subfolder whose name ends in "assets" is not the assets root.
+    expect(assetMarkup("/home/me/graph/assets/old-assets/pie.webp")).toBe(
+      "![pie](../assets/old-assets/pie.webp)",
+    );
+    expect(assetMarkup("/home/me/my-assets/pie.webp")).toBeNull();
   });
 });

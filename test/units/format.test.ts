@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatMeasurement, unitLabel } from "../../src/units/format";
+import {
+  formatMeasurement,
+  formatNumberForUnit,
+  unitLabel,
+} from "../../src/units/format";
 
 describe("unitLabel", () => {
   it("defaults to English", () => {
@@ -18,7 +22,14 @@ describe("unitLabel", () => {
     expect(unitLabel("clove", "en", 2)).toBe("cloves");
     expect(unitLabel("slice", "en", 3)).toBe("slices");
     expect(unitLabel("pinch", "en", 2)).toBe("pinches");
-    expect(unitLabel("piece", "en", 0.5)).toBe("pieces");
+    expect(unitLabel("piece", "en", 1.5)).toBe("pieces");
+  });
+
+  it("keeps a fraction of one unit singular in every language", () => {
+    expect(unitLabel("piece", "en", 0.5)).toBe("piece");
+    expect(unitLabel("cup_us", "en", 0.75)).toBe("cup");
+    expect(unitLabel("cup_metric", "de", 0.5)).toBe("Tasse");
+    expect(unitLabel("cup_metric", "es", 0.5)).toBe("taza");
   });
 
   it("never pluralizes a non-count unit", () => {
@@ -68,5 +79,24 @@ describe("French, German, and Spanish formatting", () => {
     expect(formatMeasurement(1.3, "kg", "de")).toBe("1,3 kg");
     expect(formatMeasurement(1.3, "kg", "fr")).toBe("1,3 kg");
     expect(formatMeasurement(1.3, "kg", "tr")).toBe("1,3 kg");
+  });
+});
+
+describe("formatNumberForUnit", () => {
+  it("shows metric amounts as decimals without losing whole grams", () => {
+    expect(formatNumberForUnit(1234, "g")).toBe("1234");
+    expect(formatNumberForUnit(187.5, "ml")).toBe("188");
+    expect(formatNumberForUnit(62.5, "ml")).toBe("62.5");
+    expect(formatNumberForUnit(6.25, "g")).toBe("6.25");
+    expect(formatNumberForUnit(1.125, "kg", "tr")).toBe("1,13");
+  });
+
+  it("never rounds a small metric amount to zero", () => {
+    expect(formatNumberForUnit(0.004, "g")).toBe("0.004");
+    expect(formatNumberForUnit(0.0417, "kg")).toBe("0.042");
+  });
+
+  it("keeps kitchen fractions for other units", () => {
+    expect(formatNumberForUnit(0.5, "cup_us")).toBe("½");
   });
 });

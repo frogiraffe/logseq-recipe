@@ -13,6 +13,8 @@ const UNIT_LABELS: Readonly<
     oz_mass: "oz",
     lb: "lb",
     ml: "ml",
+    cl: "cl",
+    dl: "dl",
     l: "L",
     tsp_metric: "tsp",
     tbsp_metric: "tbsp",
@@ -47,6 +49,8 @@ const UNIT_LABELS: Readonly<
     oz_mass: "ons",
     lb: "lb",
     ml: "ml",
+    cl: "cl",
+    dl: "dl",
     l: "L",
     tsp_metric: "çay kaşığı",
     tbsp_metric: "yemek kaşığı",
@@ -81,6 +85,8 @@ const UNIT_LABELS: Readonly<
     oz_mass: "oz",
     lb: "lb",
     ml: "ml",
+    cl: "cl",
+    dl: "dl",
     l: "L",
     tsp_metric: "c. à c.",
     tbsp_metric: "c. à s.",
@@ -115,6 +121,8 @@ const UNIT_LABELS: Readonly<
     oz_mass: "oz",
     lb: "lb",
     ml: "ml",
+    cl: "cl",
+    dl: "dl",
     l: "l",
     tsp_metric: "TL",
     tbsp_metric: "EL",
@@ -149,6 +157,8 @@ const UNIT_LABELS: Readonly<
     oz_mass: "oz",
     lb: "lb",
     ml: "ml",
+    cl: "cl",
+    dl: "dl",
     l: "L",
     tsp_metric: "cdta.",
     tbsp_metric: "cda.",
@@ -187,6 +197,9 @@ const COUNT_UNIT_PLURALS: Partial<
 > = {
   en: {
     piece: "pieces",
+    cup_metric: "cups",
+    cup_us: "cups",
+    cup_imperial: "cups",
     egg: "eggs",
     clove: "cloves",
     slice: "slices",
@@ -229,9 +242,11 @@ const COUNT_UNIT_PLURALS: Partial<
 
 const pluralRules = new Map<UiLocale, Intl.PluralRules>();
 
-// CLDR rules, not "!== 1": French treats 0 and 1.5 as singular.
+// CLDR rules, not "!== 1": French treats 0 and 1.5 as singular. A fraction
+// of one unit reads singular everywhere ("½ cup", "½ Tasse", "½ taza"),
+// though CLDR files 0.5 under "other".
 function isPluralCount(count: number, locale: UiLocale): boolean {
-  if (!Number.isFinite(count)) return false;
+  if (!Number.isFinite(count) || (count > 0 && count < 1)) return false;
   let rules = pluralRules.get(locale);
   if (!rules) {
     rules = new Intl.PluralRules(locale);
@@ -248,6 +263,44 @@ export function formatLocalizedNumber(
   locale: UiLocale = "en",
 ): string {
   const text = formatRecipeNumber(value);
+  return DECIMAL_COMMA_LOCALES.has(locale) ? text.replace(".", ",") : text;
+}
+
+const DECIMAL_UNITS = new Set<CanonicalUnit>([
+  "mg",
+  "g",
+  "kg",
+  "ml",
+  "cl",
+  "dl",
+  "l",
+]);
+
+/**
+ * Metric mass/volume reads as a plain decimal ("62.5 ml", "188 g"), never a
+ * kitchen fraction ("62½ ml"): whole numbers from 100 up, one decimal from
+ * 10, two below that, and two significant digits under 1 so a pinch-sized
+ * amount never rounds to 0. Other units keep formatLocalizedNumber's
+ * fractions.
+ */
+export function formatNumberForUnit(
+  value: number,
+  unit: CanonicalUnit | undefined,
+  locale: UiLocale = "en",
+): string {
+  if (!unit || !DECIMAL_UNITS.has(unit) || !Number.isFinite(value)) {
+    return formatLocalizedNumber(value, locale);
+  }
+  const size = Math.abs(value);
+  const rounded =
+    size >= 100
+      ? value.toFixed(0)
+      : size >= 10
+        ? value.toFixed(1)
+        : size >= 1
+          ? value.toFixed(2)
+          : value.toPrecision(2);
+  const text = String(Number(rounded));
   return DECIMAL_COMMA_LOCALES.has(locale) ? text.replace(".", ",") : text;
 }
 

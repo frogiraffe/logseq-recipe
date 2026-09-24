@@ -16,6 +16,7 @@ import {
 } from "../domain/recipe";
 import { FutureRecipeSchemaError } from "../migrations/runner";
 import { defaultParseContext } from "../parsing/context";
+import { ingredientParseContext } from "../parsing/detect-locale";
 import { propertyNumber, unwrapBlockPropertyValue } from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
 import { ensureRecipeLibrary, type RecipeLibraryHost } from "./recipe-library";
@@ -203,10 +204,20 @@ async function writeIngredientMetadata(
   }
 
   for (const ingredient of structure.ingredientMetadata) {
+    // Stamped with the same per-line language the recipe loader will pick
+    // for this line, or the loader discards it - and with it any correction
+    // made in Convert Preview - as parsed under a different context.
     await host.upsertBlockProperty(
       ingredient.blockId,
       PROPERTY_KEYS.ingredientMeta,
-      encodeIngredientMeta(ingredient.parsed, context),
+      encodeIngredientMeta(
+        ingredient.parsed,
+        ingredientParseContext(
+          ingredient.parsed.rawText,
+          context,
+          structure.sourceMeasurementSystem,
+        ),
+      ),
     );
   }
 }

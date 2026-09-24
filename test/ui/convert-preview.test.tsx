@@ -48,6 +48,7 @@ const draft: ConversionDraft = {
     {
       code: "ingredient-amount-unparsed",
       message: "One ingredient has no numeric amount.",
+      detail: "salt to taste",
       blockId: "i1",
     },
   ],
@@ -72,7 +73,9 @@ describe("ConvertPreview", () => {
       screen.getByText(enMessages.steps).nextElementSibling?.textContent,
     ).toBe("1");
     expect(
-      screen.getByText("One ingredient has no numeric amount."),
+      screen.getByText(
+        'No amount was found in the ingredient "salt to taste".',
+      ),
     ).toBeTruthy();
   });
 
@@ -87,6 +90,8 @@ describe("ConvertPreview", () => {
         onCancel={() => undefined}
       />,
     );
+    // "salt to taste" has no amount to resolve: it's offered for review but
+    // doesn't hold the conversion back.
     fireEvent.click(screen.getByRole("button", { name: enMessages.confirm }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onConfirm).toHaveBeenCalledWith(draft);
@@ -227,7 +232,9 @@ describe("ConvertPreview", () => {
     fireEvent.click(useStructured);
 
     expect(
-      screen.queryByText("One ingredient has no numeric amount."),
+      screen.queryByText(
+        'No amount was found in the ingredient "salt to taste".',
+      ),
     ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: enMessages.confirm }));
@@ -257,7 +264,9 @@ describe("ConvertPreview", () => {
     );
 
     expect(
-      screen.queryByText("One ingredient has no numeric amount."),
+      screen.queryByText(
+        'No amount was found in the ingredient "salt to taste".',
+      ),
     ).toBeNull();
     expect(
       screen.queryByRole("button", { name: enMessages.keepAsWritten }),

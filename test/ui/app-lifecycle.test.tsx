@@ -122,6 +122,31 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     ).toBe("dark");
   });
 
+  it("opens the editor right after creating a recipe", async () => {
+    const harness = controllerHarness();
+    render(
+      <DraftRecipeApp
+        controller={harness.controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "create" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "metric",
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "Lifecycle Recipe" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(
+      await screen.findByPlaceholderText(enMessages.addIngredient),
+    ).toBeTruthy();
+  });
+
   it("applies resolved host theme tokens to the app shell", () => {
     const harness = controllerHarness();
     const config = {

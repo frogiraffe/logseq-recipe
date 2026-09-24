@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Recipe } from "../../src/domain/recipe";
+import { parseStepChild } from "../../src/domain/step-media";
+import { defaultParseContext } from "../../src/parsing/context";
+import { parseStep, withNoteDurations } from "../../src/parsing/step";
 import { CookingMode } from "../../src/ui/components/CookingMode";
 import { enMessages } from "../../src/ui/i18n";
 import { ingredientLine } from "./ingredient-line";
@@ -101,6 +104,39 @@ function cookingMode(
 }
 
 describe("CookingMode", () => {
+  it("offers timers for times in step notes, but not for a don't", () => {
+    const context = defaultParseContext("en");
+    const text = "Bake for 10 minutes.";
+    const noted: Recipe = {
+      ...recipe,
+      steps: [
+        {
+          id: "bake",
+          rawText: text,
+          ...parseStep(text, context),
+          children: [
+            withNoteDurations(
+              parseStepChild("n1", "Rest on the tray for 5 minutes."),
+              context,
+            ),
+            withNoteDurations(
+              parseStepChild("n2", "Don't bake past 15 minutes."),
+              context,
+            ),
+          ],
+        },
+      ],
+    };
+    render(cookingMode(noted));
+
+    const timers = [
+      ...document.querySelectorAll(".draft-recipe-step-timers button"),
+    ].map((button) => button.textContent?.replace(/\s+/g, " ").trim());
+    expect(timers).toContain("⏱ 10:00");
+    expect(timers).toContain("⏱ 05:00");
+    expect(timers.some((label) => label?.includes("15:00"))).toBe(false);
+  });
+
   it("navigates step boundaries and keeps qualitative heat non-numeric", () => {
     render(cookingMode(recipe));
 
@@ -199,6 +235,22 @@ describe("CookingMode", () => {
 
     fireEvent.click(checkbox);
     expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("keeps arrow-key navigation after ticking an ingredient", () => {
+    render(cookingMode(recipe, () => undefined));
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.ingredients }),
+    );
+    const checkbox = screen.getByRole("checkbox", { name: /flour/i });
+    fireEvent.click(checkbox);
+
+    fireEvent.keyDown(checkbox, { key: "ArrowRight" });
+    expect(
+      screen.getByText(
+        "Bake in a preheated fan oven at 180°C for 10-12 minutes.",
+      ),
+    ).toBeTruthy();
   });
 
   it("renders the resolved cover when cooking mode receives one", () => {
@@ -320,7 +372,7 @@ describe("CookingMode", () => {
 
 describe("CookingMode sessions and timers", () => {
   afterEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     vi.useRealTimers();
   });
 
@@ -422,13 +474,13 @@ describe("CookingMode sessions and timers", () => {
     const onExit = vi.fn();
     render(cookingMode(recipe, onExit, key));
     fireEvent.click(screen.getByRole("button", { name: enMessages.next }));
-    expect(sessionStorage.getItem(key)).not.toBeNull();
+    expect(localStorage.getItem(key)).not.toBeNull();
 
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.finishCooking }),
     );
     expect(onExit).toHaveBeenCalled();
-    expect(sessionStorage.getItem(key)).toBeNull();
+    expect(localStorage.getItem(key)).toBeNull();
   });
 
   it("never reads another graph's session", () => {
@@ -448,7 +500,7 @@ describe("CookingMode sessions and timers", () => {
 
 describe("CookingMode custom timer", () => {
   afterEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("starts a timer of any length for the current step", () => {

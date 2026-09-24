@@ -31,7 +31,7 @@ describe("adaptive same-family display units", () => {
   it("bumps 1500 g up to 1.5 kg", () => {
     expect(
       formatIngredientForDisplay(gramIngredient(1500), 1, 1, "metric"),
-    ).toBe("1½ kg flour");
+    ).toBe("1.5 kg flour");
   });
 
   it("bumps exactly 1000 ml up to 1 L", () => {
@@ -46,16 +46,27 @@ describe("adaptive same-family display units", () => {
     ).toBe("500 g flour");
   });
 
-  it("does not touch non-metric mass/volume families (oz/lb, US/imperial cups)", () => {
-    const ounces: Ingredient = {
+  it("steps US units up and metric/pound units down", () => {
+    const line = (amount: number, unit: Ingredient["unit"]): Ingredient => ({
       id: "i1",
-      rawText: "40 oz flour",
-      amount: { kind: "exact", value: 40 },
-      unit: "oz_mass",
+      rawText: "",
+      amount: { kind: "exact", value: amount },
+      unit,
       ingredientText: "flour",
       scaleMode: "linear",
-    };
-    expect(formatIngredientForDisplay(ounces, 1, 1, "us")).toBe("40 oz flour");
+    });
+    expect(formatIngredientForDisplay(line(40, "oz_mass"), 1, 1, "us")).toBe(
+      "2½ lb flour",
+    );
+    expect(formatIngredientForDisplay(line(12, "fl_oz_us"), 1, 1, "us")).toBe(
+      "1½ cups flour",
+    );
+    expect(
+      formatIngredientForDisplay(line(1.5, "kg"), 4, 1, "metric", "tr"),
+    ).toBe("375 g flour");
+    expect(formatIngredientForDisplay(line(250, "ml"), 4, 1, "metric")).toBe(
+      "62.5 ml flour",
+    );
   });
 
   it("never applies once the user has explicitly picked a display unit", () => {

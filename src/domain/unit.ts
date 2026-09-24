@@ -7,6 +7,8 @@ export type CanonicalUnit =
   | "oz_mass"
   | "lb"
   | "ml"
+  | "cl"
+  | "dl"
   | "l"
   | "tsp_metric"
   | "tbsp_metric"

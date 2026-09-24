@@ -439,7 +439,9 @@ export function DraftRecipeApp({
             const created = await controller.createRecipe(input);
             setRecipe(created);
             setTargetYield(created.baseYield);
-            setView({ kind: "recipe-loaded" });
+            // A new recipe is always empty: go straight to adding its
+            // ingredients and steps (Cancel there lands on the recipe card).
+            setView({ kind: "edit" });
           });
         }}
       />,

@@ -57,6 +57,31 @@ describe("RecipeEditor", () => {
     });
   });
 
+  it("keeps the line breaks of a multi-line step", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    const multiLine = "Melt the butter.\nDo not brown it.";
+    render(
+      <RecipeEditor
+        recipe={{
+          ...recipe,
+          steps: [{ ...recipe.steps[0], rawText: multiLine }],
+        }}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+
+    const field = screen.getByDisplayValue(multiLine, { normalizer: (v) => v });
+    expect((field as HTMLTextAreaElement).value).toBe(multiLine);
+    fireEvent.change(field, { target: { value: `${multiLine}\nThen cool.` } });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave.mock.calls[0][0].steps.updated).toEqual([
+      { id: "step-1", text: `${multiLine}\nThen cool.` },
+    ]);
+  });
+
   it("reports a title and yield change", () => {
     const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
     render(

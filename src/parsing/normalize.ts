@@ -34,6 +34,21 @@ export function foldCaseLocaleIndependent(value: string): string {
   return value.normalize("NFKC").replace(/[İIı]/gu, "i").toLocaleLowerCase();
 }
 
+/**
+ * Label matching for section headings and metadata labels: case, accents,
+ * Turkish dotless i and extra spaces don't matter, so "Yapilis",
+ * "etapes" and "Preparacion" still match "yapılış", "étapes" and
+ * "preparación".
+ */
+export function foldLabel(value: string): string {
+  return foldCaseLocaleIndependent(value)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ß/gu, "ss")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
 export function normalizeDash(value: string): "-" {
   void value;
   return "-";
