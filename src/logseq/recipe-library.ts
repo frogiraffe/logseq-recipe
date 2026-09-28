@@ -1,4 +1,5 @@
 import {
+  createdBlockUuid,
   propertyString,
   type RecipeBlockSnapshot,
   toRecipeBlockSnapshot,
@@ -42,18 +43,6 @@ function isRecycledPage(value: unknown): boolean {
   );
 }
 
-function blockId(value: unknown): string {
-  if (!value || typeof value !== "object") {
-    throw new Error("Logseq did not return a library section block.");
-  }
-  const block = value as Record<string, unknown>;
-  if (typeof block.uuid === "string") return block.uuid;
-  if (typeof block.id === "number" || typeof block.id === "string") {
-    return String(block.id);
-  }
-  throw new Error("Logseq library section has no stable id/uuid.");
-}
-
 export async function ensureRecipeLibrary(
   host: RecipeLibraryHost,
 ): Promise<Record<RecipeLibrarySectionRole, string>> {
@@ -90,7 +79,7 @@ export async function ensureRecipeLibrary(
       RECIPE_LIBRARY_PAGE,
       SECTION_TITLES[role],
     );
-    const id = blockId(block);
+    const id = createdBlockUuid(block);
     await host.upsertBlockProperty(id, PROPERTY_KEYS.librarySectionRole, role);
     sections[role] = id;
   }

@@ -4,6 +4,7 @@ import {
   IncompleteSaveError,
   orderDiff,
   sectionDiff,
+  withoutMissingLines,
 } from "../../src/application/edit-recipe";
 import type { RecipeRepository } from "../../src/application/recipe-repository";
 
@@ -83,6 +84,17 @@ function fakeRepository() {
     reorderSectionItems: async (orderedIds) => {
       calls.push(`reorder:${orderedIds.join(",")}`);
     },
+    arrangeIngredients: async (id, layout) => {
+      calls.push(
+        `arrange:${id}:${layout
+          .map((entry) =>
+            entry.items ? `${entry.id}[${entry.items.join(",")}]` : entry.id,
+          )
+          .join(",")}`,
+      );
+    },
+    canMoveToRecipeLibrary: async () => false,
+    moveToRecipeLibrary: async () => undefined,
     archiveRecipe: async () => undefined,
     restoreRecipe: async () => undefined,
     deleteArchivedRecipe: async () => undefined,
@@ -124,15 +136,19 @@ describe("commitRecipeEdit", () => {
   };
 
   it.each([
-    ["a blank title", { title: "  " }],
-    ["a non-positive yield", { baseYield: 0 }],
-    ["a negative time", { cookMinutes: -1 }],
-    ["a duplicate order entry", { stepOrder: ["s1", "s1"] }],
-  ])("writes nothing for %s", async (_label, fields) => {
+    ["a blank title", { title: "  " }, { code: "title-required" }],
+    ["a non-positive yield", { baseYield: 0 }, { code: "base-yield-invalid" }],
+    ["a negative time", { cookMinutes: -1 }, { code: "time-invalid" }],
+    [
+      "a duplicate order entry",
+      { stepOrder: ["s1", "s1"] },
+      { name: "RangeError" },
+    ],
+  ])("writes nothing for %s", async (_label, fields, error) => {
     const { repository, calls } = fakeRepository();
     await expect(
       commitRecipeEdit(repository, "r1", { ...emptySections, ...fields }),
-    ).rejects.toBeInstanceOf(RangeError);
+    ).rejects.toMatchObject(error);
     expect(calls).toEqual([]);
   });
 
@@ -400,5 +416,112 @@ describe("orderDiff", () => {
         [{ id: "a" }, { id: "new:1" }, { id: "b" }],
       ),
     ).toEqual(["a", "new:1", "b"]);
+  });
+});
+
+describe("commitRecipeEdit ingredient groups", () => {
+  it("creates a new group and its ingredient, arranges them, and removes an old group's lines before its heading", async () => {
+    const { repository, calls } = fakeRepository();
+
+    await commitRecipeEdit(repository, "r1", {
+      ingredients: {
+        added: [
+          { tempId: "new:1", text: "For the filling:" },
+          { tempId: "new:2", text: "250 g cheese" },
+        ],
+        updated: [],
+        removed: ["g-old", "i-old"],
+      },
+      steps: { added: [], updated: [], removed: [] },
+      notes: { added: [], updated: [], removed: [] },
+      ingredientLayout: [
+        { id: "salt" },
+        { id: "g-dough", items: ["flour", "egg"] },
+        { id: "new:1", items: ["new:2"] },
+      ],
+    });
+
+    expect(calls).toEqual([
+      "add:ingredients:For the filling:",
+      "add:ingredients:250 g cheese",
+      "arrange:r1:salt,g-dough[flour,egg],new-For the filling:[new-250 g cheese]",
+      "remove:i-old",
+      "remove:g-old",
+    ]);
+  });
+
+  it("refuses an empty group or a removed line in the layout before writing", async () => {
+    const { repository, calls } = fakeRepository();
+    const base = {
+      steps: { added: [], updated: [], removed: [] },
+      notes: { added: [], updated: [], removed: [] },
+    };
+
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...base,
+        ingredients: { added: [], updated: [], removed: [] },
+        ingredientLayout: [{ id: "g", items: [] }],
+      }),
+    ).rejects.toThrow("needs at least one ingredient");
+    await expect(
+      commitRecipeEdit(repository, "r1", {
+        ...base,
+        ingredients: { added: [], updated: [], removed: ["flour"] },
+        ingredientLayout: [{ id: "g", items: ["flour"] }],
+      }),
+    ).rejects.toThrow("Removed item still present");
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("withoutMissingLines", () => {
+  it("drops updates, moves, and removals of lines deleted elsewhere, keeping new lines", () => {
+    const exists = (id: string) => id !== "gone";
+    const patch = withoutMissingLines(
+      {
+        ingredients: {
+          added: [{ tempId: "new:1", text: "salt" }],
+          updated: [
+            { id: "gone", text: "2 eggs" },
+            { id: "kept", text: "flour" },
+          ],
+          removed: ["gone"],
+        },
+        steps: { added: [], updated: [], removed: [] },
+        notes: { added: [], updated: [], removed: [] },
+        ingredientOrder: ["kept", "gone", "new:1"],
+        ingredientScaleModeChanges: [{ id: "gone", scaleMode: "fixed" }],
+        stepChildren: [
+          { stepId: "gone", diff: { added: [], updated: [], removed: [] } },
+        ],
+      },
+      exists,
+    );
+
+    expect(patch.ingredients).toEqual({
+      added: [{ tempId: "new:1", text: "salt" }],
+      updated: [{ id: "kept", text: "flour" }],
+      removed: [],
+    });
+    expect(patch.ingredientOrder).toEqual(["kept", "new:1"]);
+    expect(patch.ingredientScaleModeChanges).toEqual([]);
+    expect(patch.stepChildren).toEqual([]);
+  });
+
+  it("leaves a group with no remaining ingredient out of the layout", () => {
+    const patch = withoutMissingLines(
+      {
+        ingredients: { added: [], updated: [], removed: [] },
+        steps: { added: [], updated: [], removed: [] },
+        notes: { added: [], updated: [], removed: [] },
+        ingredientLayout: [
+          { id: "g1", items: ["gone"] },
+          { id: "g2", items: ["kept"] },
+        ],
+      },
+      (id) => id !== "gone",
+    );
+    expect(patch.ingredientLayout).toEqual([{ id: "g2", items: ["kept"] }]);
   });
 });

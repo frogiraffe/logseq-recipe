@@ -81,8 +81,16 @@ export const trLocale: RecipeLocalePack = {
     "sa.": "hour",
     "dk.": "minute",
     "sn.": "second",
+    kutu: "can",
+    paket: "package",
+    demet: "bunch",
+    bağ: "bunch",
+    kavanoz: "jar",
+    dal: "sprig",
+    baş: "head",
+    çubuk: "stick",
   },
-  unitQualifiers: ["silme", "tepeleme"],
+  unitQualifiers: ["silme", "tepeleme", "dolusu"],
   unitConnectors: [],
   quantityWords: {
     yarım: 0.5,
@@ -177,6 +185,7 @@ export const trLocale: RecipeLocalePack = {
     "meyiniz",
     "mayınız",
   ],
+  durationWords: { hour: "saat", minute: "dk" },
   metadataAliases: {
     porsiyon: "yield",
     porsiyonlar: "yield",
@@ -191,6 +200,8 @@ export const trLocale: RecipeLocalePack = {
     "pişirme süresi": "cook",
     kaynak: "source",
     kişi: "yield",
+    "kaç kişilik": "yield",
+    "kişi sayısı": "yield",
     kişilik: "yield",
     "porsiyon sayısı": "yield",
     "hazırlama süresi": "prep",
@@ -202,7 +213,13 @@ export const trLocale: RecipeLocalePack = {
     url: "source",
   },
   sectionAliases: {
-    ingredients: ["malzemeler", "içindekiler", "malzeme", "gerekli malzemeler"],
+    ingredients: [
+      "malzemeler",
+      "içindekiler",
+      "malzeme",
+      "gerekli malzemeler",
+      "malzeme listesi",
+    ],
     steps: [
       "yapılış",
       "hazırlanışı",
@@ -212,7 +229,17 @@ export const trLocale: RecipeLocalePack = {
       "hazırlanış",
       "adımlar",
       "talimatlar",
+      "nasıl yapılır",
     ],
     notes: ["notlar", "not", "ipuçları", "püf noktaları"],
+  },
+  sectionQualifiers: {
+    after: [],
+    before: ["için"],
+    suffixed: {
+      ingredients: ["malzemeleri", "malzemesi"],
+      steps: ["yapılışı", "hazırlanışı"],
+      notes: ["notları"],
+    },
   },
 };

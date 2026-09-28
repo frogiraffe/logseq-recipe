@@ -5,3 +5,14 @@
 if (typeof window !== "undefined" && typeof window.confirm !== "function") {
   window.confirm = () => true;
 }
+
+// A narrow window by default, as most tests assume (Cooking Mode opens its
+// ingredients beside the step only on a wide one); a test that needs a wide
+// window sets its own viewport.
+type HappyWindow = Window & {
+  happyDOM?: { setViewport(viewport: { width: number; height: number }): void };
+};
+beforeEach(() => {
+  if (typeof window === "undefined") return;
+  (window as HappyWindow).happyDOM?.setViewport({ width: 800, height: 900 });
+});

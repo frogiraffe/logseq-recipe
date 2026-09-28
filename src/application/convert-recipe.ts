@@ -1,6 +1,6 @@
 import type { RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
-import type { ParseContext } from "../parsing/context";
+import { defaultParseContext, type ParseContext } from "../parsing/context";
 import {
   ingredientParseContext,
   stepParseContext,
@@ -13,16 +13,27 @@ import {
 import { getLocalePack, RECIPE_LOCALES } from "../parsing/locales";
 import { foldLabel } from "../parsing/normalize";
 import { parseStep, type RecipeStepAnnotations } from "../parsing/step";
-import { parseRecipeMetadataLine } from "./recipe-metadata";
+import { ingredientLines, isIngredientGroupHeading } from "./ingredient-groups";
+import {
+  metadataField,
+  parseRecipeMetadataLine,
+  splitLabelValue,
+} from "./recipe-metadata";
 import type { RecipeRepository } from "./recipe-repository";
 import {
   flattenUnsplitSource,
+  indentOf,
   looksUnsplit,
   nestLines,
   type OutlineNode,
   splitIndentedOutline,
+  stripCodeFence,
 } from "./split-outline";
-import type { ExistingRecipeStructure, RecipeSectionRole } from "./types";
+import {
+  type ExistingRecipeStructure,
+  RECIPE_SECTION_ROLES,
+  type RecipeSectionRole,
+} from "./types";
 
 export interface ConversionSourceNode {
   id: string;
@@ -85,7 +96,6 @@ export interface ConversionDraft {
 }
 
 const BLOCKING_CONVERSION_ISSUE_CODES = new Set([
-  "missing-base-yield",
   "ingredient-amount-ambiguous",
   "no-ingredients-section",
   "no-steps-section",
@@ -99,31 +109,111 @@ const STRUCTURAL_ISSUE_CODES = new Set([
   "duplicate-section-role",
 ]);
 
+/**
+ * A heading line without its decoration: "## Malzemeler", "**Ingredients:**",
+ * "Nasıl yapılır?", and a trailing note such as "Malzemeler (8 adet için)"
+ * all come down to the section name (plus any qualifier).
+ */
+function headingCore(title: string): string {
+  let text = title.trim().replace(/^#{1,6}\s*/, "");
+  text = text.replace(/[:?]$/, "").trim();
+  const bold = text.match(/^(\*\*|__)(.+)\1$/);
+  if (bold) text = bold[2].replace(/[:?]$/, "").trim();
+  return text.replace(/\s*[([][^()[\]]*[)\]]$/, "").trim();
+}
+
+// A qualifier names a part of the dish ("the dough"), never a sentence:
+// longer lines, or ones with a period or colon inside, are instructions.
+const MAX_QUALIFIER_WORDS = 4;
+
+function isShortQualifier(words: string): boolean {
+  const count = words.split(" ").filter(Boolean).length;
+  return count > 0 && count <= MAX_QUALIFIER_WORDS;
+}
+
+interface SectionMatch {
+  role: RecipeSectionRole;
+  // Just the section's name ("Malzemeler"), not a qualified one ("Kek için
+  // malzemeler").
+  plain: boolean;
+  locale: RecipeLocale;
+}
+
+function sectionMatchIn(
+  title: string,
+  locale: RecipeLocale,
+): SectionMatch | null {
+  const { sectionAliases, sectionQualifiers } = getLocalePack(locale);
+  const core = foldLabel(headingCore(title));
+  const match = (role: RecipeSectionRole, plain = false) => ({
+    role,
+    plain,
+    locale,
+  });
+  for (const role of RECIPE_SECTION_ROLES) {
+    if (sectionAliases[role].some((alias) => foldLabel(alias) === core))
+      return match(role, true);
+  }
+  if (/[.:;!]/.test(core)) return null;
+  for (const role of RECIPE_SECTION_ROLES) {
+    for (const alias of sectionAliases[role].map(foldLabel)) {
+      // "Ingredients for the dough", "Préparation de la pâte"
+      for (const word of sectionQualifiers.after.map(foldLabel)) {
+        const lead = `${alias} ${word} `;
+        if (core.startsWith(lead) && isShortQualifier(core.slice(lead.length)))
+          return match(role);
+      }
+      // "Hamur için malzemeler"
+      for (const word of sectionQualifiers.before.map(foldLabel)) {
+        const tail = ` ${word} ${alias}`;
+        if (
+          core.endsWith(tail) &&
+          isShortQualifier(core.slice(0, -tail.length))
+        )
+          return match(role);
+      }
+    }
+  }
+  // "Kekin yapılışı", "Hamurun malzemeleri", or the form alone
+  for (const role of RECIPE_SECTION_ROLES) {
+    for (const form of sectionQualifiers.suffixed[role].map(foldLabel)) {
+      if (core === form) return match(role);
+      if (
+        core.endsWith(` ${form}`) &&
+        isShortQualifier(core.slice(0, -form.length - 1))
+      )
+        return match(role);
+    }
+  }
+  return null;
+}
+
 function sectionRoleIn(
   title: string,
   locale: RecipeLocale,
 ): RecipeSectionRole | null {
-  const { sectionAliases } = getLocalePack(locale);
-  const folded = foldLabel(title);
-  for (const role of ["ingredients", "steps", "notes"] as const) {
-    if (sectionAliases[role].some((alias) => foldLabel(alias) === folded))
-      return role;
-  }
-  return null;
+  return sectionMatchIn(title, locale)?.role ?? null;
 }
 
 // Headings in any supported language are accepted whatever the recipe
 // language: a Turkish recipe is often pasted with "Ingredients"/"Steps"
 // (copied from a recipe site, say). The recipe's own language wins a tie.
+function sectionMatch(
+  title: string,
+  preferred: RecipeLocale,
+): SectionMatch | null {
+  for (const locale of [preferred, ...RECIPE_LOCALES]) {
+    const match = sectionMatchIn(title, locale);
+    if (match) return match;
+  }
+  return null;
+}
+
 function sectionRole(
   title: string,
   context: ParseContext,
 ): RecipeSectionRole | null {
-  for (const locale of [context.locale, ...RECIPE_LOCALES]) {
-    const role = sectionRoleIn(title, locale);
-    if (role) return role;
-  }
-  return null;
+  return sectionMatch(title, context.locale)?.role ?? null;
 }
 
 function applyMetadata(
@@ -165,7 +255,7 @@ function parseIngredientNodes(
   const ingredients: ConversionIngredient[] = [];
   const issues: ConversionIssue[] = [];
 
-  for (const ingredient of nodes) {
+  for (const { line: ingredient } of ingredientLines(nodes, context)) {
     const parsed = parseIngredient(
       ingredient.title,
       ingredientParseContext(
@@ -225,7 +315,7 @@ function structuralIssues(
     blockId: section.blockId,
   }));
 
-  for (const role of ["ingredients", "steps", "notes"] as const) {
+  for (const role of RECIPE_SECTION_ROLES) {
     const matches = sections.filter((section) => section.role === role);
     if (matches.length > 1) {
       for (const duplicate of matches.slice(1)) {
@@ -325,15 +415,18 @@ export function analyzeRecipeConversion(
     }
   }
 
+  // No serving count: the recipe as written counts as one, and the preview
+  // asks for the real number without holding up the conversion.
   if (
     metadata.baseYield === undefined ||
     !Number.isFinite(metadata.baseYield) ||
     metadata.baseYield <= 0
   ) {
+    metadata.baseYield = 1;
     nonStructuralIssues.push({
       code: "missing-base-yield",
       message:
-        "A positive base yield/serving count is required before this subtree can be converted.",
+        "No serving count was found; the recipe counts as 1 serving until one is set.",
       blockId: root.id,
     });
   }
@@ -353,10 +446,6 @@ export function analyzeRecipeConversion(
       ...structuralIssues(root.id, sections, unknownSections),
     ],
   };
-}
-
-function indentOf(line: string): number {
-  return line.match(/^[ \t]*/)?.[0].length ?? 0;
 }
 
 function sourceToOutline(
@@ -403,6 +492,135 @@ export function outlineToSource(
   };
 }
 
+const asLine = (node: OutlineNode) => ({
+  title: node.text,
+  children: node.children.map((child) => ({ title: child.text })),
+});
+
+// "Hamur için:" with its ingredients listed after it at the same level: a
+// group label, not an ingredient - it ends with a colon and has no amount.
+function isIngredientLabel(line: OutlineNode, context: ParseContext): boolean {
+  return (
+    line.children.length === 0 &&
+    /:\s*$/.test(line.text) &&
+    !parseIngredient(line.text, ingredientParseContext(line.text, context))
+      .amount
+  );
+}
+
+// Nests the lines after each group label under it, up to the next label or
+// nested group.
+function nestIngredientLabels(
+  lines: readonly OutlineNode[],
+  context: ParseContext,
+): OutlineNode[] {
+  const result: OutlineNode[] = [];
+  let label: OutlineNode | null = null;
+  for (const line of lines) {
+    if (isIngredientLabel(line, context)) {
+      label = { text: line.text, children: [] };
+      result.push(label);
+    } else if (label && !isIngredientGroupHeading(asLine(line), context)) {
+      label.children.push(line);
+    } else {
+      label = null;
+      result.push(line);
+    }
+  }
+  return result;
+}
+
+function capitalize(text: string, locale: RecipeLocale): string {
+  return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
+}
+
+// A section's lines as one ingredient group's items: a group nested inside
+// it keeps its heading as a line, since groups go one level deep.
+function flattenGroups(
+  lines: readonly OutlineNode[],
+  context: ParseContext,
+): OutlineNode[] {
+  return lines.flatMap((line) =>
+    isIngredientGroupHeading(asLine(line), context)
+      ? [{ text: line.text, children: [] }, ...line.children]
+      : [line],
+  );
+}
+
+/**
+ * A recipe written as several parts ("Kek için malzemeler", "Krema için
+ * malzemeler") has one section per part; a recipe has one of each. The
+ * parts merge into the first: ingredient parts become groups, and a steps
+ * or notes part keeps its heading as a line, so no text is lost.
+ */
+function mergeRepeatedSections(
+  lines: readonly OutlineNode[],
+  context: ParseContext,
+): OutlineNode[] {
+  const result: OutlineNode[] = [];
+  const merged = new Map<
+    RecipeSectionRole,
+    { container: OutlineNode; first: OutlineNode; plain: boolean }
+  >();
+  const asPart = (role: RecipeSectionRole, section: OutlineNode) =>
+    role === "ingredients"
+      ? [
+          {
+            text: section.text,
+            children: flattenGroups(section.children, context),
+          },
+        ]
+      : [{ text: section.text, children: [] }, ...section.children];
+
+  for (const line of lines) {
+    const match = sectionMatch(line.text, context.locale);
+    if (!match) {
+      result.push(line);
+      continue;
+    }
+    const existing = merged.get(match.role);
+    if (!existing) {
+      const container = { text: line.text, children: [...line.children] };
+      merged.set(match.role, { container, first: line, plain: match.plain });
+      result.push(container);
+      continue;
+    }
+    const { container, first } = existing;
+    if (!existing.plain) {
+      // A qualified first part becomes a part too, under the section's
+      // plain name in its language.
+      const firstMatch = sectionMatch(first.text, context.locale);
+      const locale = firstMatch?.locale ?? context.locale;
+      container.text = capitalize(
+        getLocalePack(locale).sectionAliases[match.role][0],
+        locale,
+      );
+      container.children = asPart(match.role, first);
+      existing.plain = true;
+    }
+    container.children.push(...asPart(match.role, line));
+  }
+  return result;
+}
+
+/**
+ * The shape Convert expects, from any rebuilt outline: repeated sections
+ * merged, and "Label:" lines in Ingredients turned into groups.
+ */
+export function tidyRecipeOutline(
+  outline: OutlineNode,
+  context: ParseContext,
+): OutlineNode {
+  return {
+    text: outline.text,
+    children: mergeRepeatedSections(outline.children, context).map((line) =>
+      sectionRole(line.text, context) === "ingredients"
+        ? { ...line, children: nestIngredientLabels(line.children, context) }
+        : line,
+    ),
+  };
+}
+
 /**
  * Rebuilds a paste Logseq split into blocks along the wrong lines: headings
  * sharing a block with their items, metadata on the title block, and items
@@ -428,11 +646,36 @@ export function regroupConversionSource(
       children.push(node);
     }
   }
-  const regrouped = { text: outline.text, children };
+  const regrouped = tidyRecipeOutline(
+    { text: outline.text, children },
+    context,
+  );
   const draft = analyzeRecipeConversion(outlineToSource(regrouped), context);
   return draft.ingredients.length > 0 && draft.steps.length > 0
     ? regrouped
     : null;
+}
+
+// Whether the Ingredients section lists a "Label:" line with ingredients
+// after it at the same level - a group Convert rebuilds as nested blocks.
+function hasIngredientLabels(
+  source: ConversionSourceNode,
+  draft: ConversionDraft,
+  context: ParseContext,
+): boolean {
+  const sectionId = draft.sections.find(
+    (section) => section.role === "ingredients",
+  )?.blockId;
+  const section = source.children.find((child) => child.id === sectionId);
+  if (!section) return false;
+  const lines = section.children.map((child) => ({
+    text: child.title,
+    children: child.children.map((grandchild) => ({
+      text: grandchild.title,
+      children: [],
+    })),
+  }));
+  return nestIngredientLabels(lines, context).length < lines.length;
 }
 
 export type ConversionPlan =
@@ -451,18 +694,151 @@ export function planRecipeConversion(
 ): ConversionPlan {
   if (looksUnsplit(source.children)) {
     const outline = splitIndentedOutline(flattenUnsplitSource(source));
-    if (outline) return { kind: "split", outline };
+    if (outline) {
+      return { kind: "split", outline: tidyRecipeOutline(outline, context) };
+    }
   }
   const draft = analyzeRecipeConversion(source, context);
   if (
     draft.ingredients.length === 0 ||
     draft.steps.length === 0 ||
-    source.title.includes("\n")
+    source.title.includes("\n") ||
+    draft.issues.some((issue) => issue.code === "duplicate-section-role") ||
+    hasIngredientLabels(source, draft, context)
   ) {
     const outline = regroupConversionSource(source, context);
     if (outline) return { kind: "split", outline };
   }
   return { kind: "convert", draft };
+}
+
+/** Whether `text`'s first line is a section heading in any supported language. */
+export function isSectionHeadingInAnyLocale(text: string): boolean {
+  const heading = text.split("\n")[0];
+  return RECIPE_LOCALES.some((locale) => sectionRoleIn(heading, locale));
+}
+
+/**
+ * The recipe's language, from exact alias hits only: each top-level line
+ * that is a section heading ("Malzemeler") or a metadata label ("Porsiyon:
+ * 8") in a language scores a point for it. Lines are read in any language
+ * regardless; this picks what the recipe is stored as and its default
+ * measurement system. Null when nothing matches, or when a tie (en/fr share
+ * "Ingredients", "Notes", ...) doesn't include `preferred`.
+ */
+export function detectRecipeLocale(
+  root: ConversionSourceNode,
+  preferred: RecipeLocale,
+): RecipeLocale | null {
+  const scores = RECIPE_LOCALES.map(
+    (locale) =>
+      root.children.filter((child) => {
+        const line = child.title.split("\n")[0];
+        const label = splitLabelValue(line)?.label;
+        return (
+          sectionRoleIn(line, locale) !== null ||
+          (label !== undefined && metadataField(label, locale) !== null)
+        );
+      }).length,
+  );
+  const best = Math.max(...scores);
+  if (best === 0) return null;
+  const winners = RECIPE_LOCALES.filter((_, index) => scores[index] === best);
+  if (winners.length === 1) return winners[0];
+  return winners.includes(preferred) ? preferred : null;
+}
+
+/** Analyzes in the detected language (and its measurement system), else `fallbackLocale`'s. */
+export function analyzeWithDetectedLocale(
+  root: ConversionSourceNode,
+  fallbackLocale: RecipeLocale,
+): { draft: ConversionDraft; detectedLocale: RecipeLocale | null } {
+  const detectedLocale = detectRecipeLocale(root, fallbackLocale);
+  const draft = analyzeRecipeConversion(
+    root,
+    defaultParseContext(detectedLocale ?? fallbackLocale),
+  );
+  return { draft, detectedLocale };
+}
+
+const BULLET_MARKER = /^([ \t]*)[-*•+][ \t]+/;
+const NUMBERED_LINE = /^(\d+)[.)]\s+(.+)$/;
+
+/** "## Malzemeler", "**Malzemeler:**", "Malzemeler:" -> "Malzemeler". */
+function stripHeadingMarkup(line: string): string {
+  return line
+    .trim()
+    .replace(/^#+\s*/, "")
+    .replace(/:$/, "")
+    .replace(/^(\*\*|__)(.+)\1$/, "$2")
+    .replace(/:$/, "")
+    .trim();
+}
+
+/**
+ * Drops "1. ", "2. " prefixes only when the lines are numbered 1..n in
+ * order - so a step that merely starts with a number ("18. dakikadan
+ * itibaren ...") in an unnumbered list is left alone.
+ */
+function stripSequentialNumbering(nodes: OutlineNode[]): void {
+  const matches = nodes.map((node) => node.text.match(NUMBERED_LINE));
+  const sequential = matches.every(
+    (match, index) => match && Number(match[1]) === index + 1,
+  );
+  if (!sequential) return;
+  nodes.forEach((node, index) => {
+    node.text = matches[index]?.[2] ?? node.text;
+  });
+}
+
+/**
+ * Import from text: turns a whole pasted recipe into the outline Convert
+ * expects, independent of how Logseq would have split the paste. The first
+ * line is the title; a line that is exactly a section heading in any
+ * language starts a section and every following line belongs to it; lines
+ * before the first heading (Yield/Prep/Source...) stay under the title.
+ * Indentation only nests lines within those groups (a note under its step),
+ * so ragged indentation can't move a line into another section. Bullets
+ * ("- ", "* ") are dropped, their indentation kept. Null without any
+ * section heading - no structure is guessed.
+ */
+export function parseRecipeText(
+  rawText: string,
+  context: ParseContext = defaultParseContext("en"),
+): OutlineNode | null {
+  const lines = stripCodeFence(rawText)
+    .split("\n")
+    .map((line) => line.replace(BULLET_MARKER, "$1").trimEnd())
+    .filter((line) => line.trim() !== "");
+  if (lines.length < 2) return null;
+
+  const root: OutlineNode = {
+    text: stripHeadingMarkup(lines[0]),
+    children: [],
+  };
+  let group = root;
+  let body: string[] = [];
+  let sawHeading = false;
+  const flushBody = () => {
+    group.children.push(...nestLines(body));
+    if (group !== root) stripSequentialNumbering(group.children);
+    body = [];
+  };
+
+  for (const line of lines.slice(1)) {
+    const heading = stripHeadingMarkup(line);
+    if (!isSectionHeadingInAnyLocale(heading)) {
+      body.push(line);
+      continue;
+    }
+    flushBody();
+    group = { text: heading, children: [] };
+    root.children.push(group);
+    sawHeading = true;
+  }
+  flushBody();
+
+  return root.text && sawHeading ? tidyRecipeOutline(root, context) : null;
 }
 
 export function classifyConversionSection(
@@ -655,6 +1031,37 @@ export function conversionStructure(
       blockId: ingredient.blockId,
       parsed: ingredient.parsed,
     })),
+  };
+}
+
+/**
+ * The same structure for blocks written after the preview: every block id
+ * the preview used is swapped for the id of the block written in its place.
+ */
+export function withWrittenBlockIds(
+  structure: ExistingRecipeStructure,
+  ids: ReadonlyMap<string, string>,
+): ExistingRecipeStructure {
+  const idOf = (id: string) => {
+    const written = ids.get(id);
+    if (!written) throw new Error(`No block was written for ${id}.`);
+    return written;
+  };
+  return {
+    ...structure,
+    rootId: idOf(structure.rootId),
+    sectionRoles: structure.sectionRoles.map((entry) => ({
+      ...entry,
+      blockId: idOf(entry.blockId),
+    })),
+    ...(structure.ingredientMetadata
+      ? {
+          ingredientMetadata: structure.ingredientMetadata.map((entry) => ({
+            ...entry,
+            blockId: idOf(entry.blockId),
+          })),
+        }
+      : {}),
   };
 }
 

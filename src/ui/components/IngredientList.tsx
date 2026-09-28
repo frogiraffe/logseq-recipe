@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { Recipe } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
 import { createIngredientConversionProvider } from "../../units/ingredient-registry";
@@ -53,7 +53,7 @@ export function IngredientList({
             : "draft-recipe-ingredients"
         }
       >
-        {recipe.ingredients.map((ingredient) => {
+        {recipe.ingredients.map((ingredient, index) => {
           // The "use default" choice is labelled with the unit it shows
           // ("g", not "Use default"), and that unit isn't listed again:
           // picking it simply returns to the default.
@@ -91,61 +91,81 @@ export function IngredientList({
           const text = (
             <>
               <span className="draft-recipe-quantity">{parts.quantity}</span>{" "}
-              <span className="draft-recipe-ingredient-name">{parts.name}</span>
+              <span className="draft-recipe-ingredient-name">
+                {parts.name}
+                {ingredient.details && (
+                  <small className="draft-recipe-ingredient-details">
+                    {ingredient.details.join("\n")}
+                  </small>
+                )}
+              </span>
             </>
           );
 
+          // A group's heading opens its run of ingredients; it stays a row of
+          // this one grid so amounts align across groups.
+          const group = ingredient.group;
+          const startsGroup =
+            group !== undefined &&
+            recipe.ingredients[index - 1]?.group?.id !== group.id;
+
           return (
-            <li
-              key={ingredient.id}
-              className={
-                isChecked
-                  ? "draft-recipe-ingredient-row draft-recipe-ingredient-checked"
-                  : "draft-recipe-ingredient-row"
-              }
-            >
-              {checkable ? (
-                <label className="draft-recipe-ingredient-line">
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    aria-label={joinIngredientParts(parts)}
-                    onChange={() => onToggleChecked?.(ingredient.id)}
-                  />
-                  {text}
-                </label>
-              ) : (
-                <span className="draft-recipe-ingredient-line">{text}</span>
+            <Fragment key={ingredient.id}>
+              {startsGroup && (
+                <li className="draft-recipe-ingredient-group">
+                  <h3>{group.title.replace(/:\s*$/, "")}</h3>
+                </li>
               )}
-              {options.length > 0 && (
-                <select
-                  className="draft-recipe-unit-picker"
-                  aria-label={`${ingredient.ingredientText} ${messages.measurementSystem}`}
-                  value={override ?? ""}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    onUnitOverrideChange(
-                      ingredient.id,
-                      value ? (value as CanonicalUnit) : null,
-                    );
-                  }}
-                >
-                  <option value="">
-                    {autoUnit
-                      ? ingredientUnitOptionLabel(autoUnit, messages.uiLocale)
-                      : messages.inheritDefault}
-                  </option>
-                  {options.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {ingredientUnitOptionLabel(unit, messages.uiLocale)}
+              <li
+                className={
+                  isChecked
+                    ? "draft-recipe-ingredient-row draft-recipe-ingredient-checked"
+                    : "draft-recipe-ingredient-row"
+                }
+              >
+                {checkable ? (
+                  <label className="draft-recipe-ingredient-line">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      aria-label={joinIngredientParts(parts)}
+                      onChange={() => onToggleChecked?.(ingredient.id)}
+                    />
+                    {text}
+                  </label>
+                ) : (
+                  <span className="draft-recipe-ingredient-line">{text}</span>
+                )}
+                {options.length > 0 && (
+                  <select
+                    className="draft-recipe-unit-picker"
+                    aria-label={`${ingredient.ingredientText} ${messages.measurementSystem}`}
+                    value={override ?? ""}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      onUnitOverrideChange(
+                        ingredient.id,
+                        value ? (value as CanonicalUnit) : null,
+                      );
+                    }}
+                  >
+                    <option value="">
+                      {autoUnit
+                        ? ingredientUnitOptionLabel(autoUnit, messages.uiLocale)
+                        : messages.inheritDefault}
                     </option>
-                  ))}
-                </select>
-              )}
-              {override && overrideParts === null && (
-                <small>{messages.conversionUnavailable}</small>
-              )}
-            </li>
+                    {options.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {ingredientUnitOptionLabel(unit, messages.uiLocale)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {override && overrideParts === null && (
+                  <small>{messages.conversionUnavailable}</small>
+                )}
+              </li>
+            </Fragment>
           );
         })}
       </ul>

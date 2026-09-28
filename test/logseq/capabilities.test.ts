@@ -9,7 +9,6 @@ const capabilities: RuntimeCapabilities = {
   hiddenProperty: true,
   numberProperty: true,
   textProperty: true,
-  jsonProperty: false,
   dbChangeListener: true,
   stableMainUi: true,
   coverReference: "asset-path",
@@ -24,15 +23,6 @@ afterEach(() => {
 describe("requiredCapabilitiesSatisfied", () => {
   it("requires DB properties, a change listener, and a stable main UI", () => {
     expect(requiredCapabilitiesSatisfied(capabilities)).toBe(true);
-  });
-
-  it("treats JSON support as optional because metadata has a string fallback", () => {
-    expect(
-      requiredCapabilitiesSatisfied({
-        ...capabilities,
-        jsonProperty: false,
-      }),
-    ).toBe(true);
   });
 
   it("does not require a cover-reference strategy - cover support degrades independently", () => {

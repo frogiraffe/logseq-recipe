@@ -17,6 +17,7 @@ import type { Recipe } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
 import { convertForDisplay } from "../../units/convert";
 import { formatMeasurement, unitLabel } from "../../units/format";
+import { useConfirm } from "../confirm";
 import type { UiMessages } from "../i18n";
 import { formatQuantity } from "../ingredient-display";
 import { requestNotificationPermission } from "../timer-alarms";
@@ -137,19 +138,23 @@ function stepTimerOptions(
   });
 }
 
+// Wide enough for the ingredients to sit beside the step (see the
+// draft-recipe-cooking-split styles).
+function isWideWindow(): boolean {
+  return (
+    typeof matchMedia === "function" &&
+    matchMedia("(min-width: 1000px)").matches
+  );
+}
+
 // Keeps the screen awake while cooking (hands are busy); re-acquired when
 // the page becomes visible again, because the browser drops it on hide.
 function useScreenWakeLock(): void {
   useEffect(() => {
-    const wakeLock = (
-      navigator as Navigator & {
-        wakeLock?: {
-          request(type: "screen"): Promise<{ release(): Promise<void> }>;
-        };
-      }
-    ).wakeLock;
+    // Typed as always present, but missing in some webviews.
+    const wakeLock: WakeLock | undefined = navigator.wakeLock;
     if (!wakeLock) return undefined;
-    let sentinel: { release(): Promise<void> } | null = null;
+    let sentinel: WakeLockSentinel | null = null;
     let active = true;
     const acquire = () => {
       if (document.visibilityState !== "visible") return;
@@ -194,8 +199,9 @@ export function CookingMode({
       recipe.steps.findIndex((step) => step.id === restored?.stepId),
     ),
   );
+  // A new cook on a wide window starts with the ingredients beside the step.
   const [ingredientsOpen, setIngredientsOpen] = useState(
-    restored?.ingredientsOpen ?? false,
+    () => restored?.ingredientsOpen ?? isWideWindow(),
   );
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     () => new Set(restored?.checkedIngredientIds),
@@ -265,10 +271,26 @@ export function CookingMode({
   const removeTimer = (id: string) =>
     setTimers((list) => list.filter((timer) => timer.id !== id));
 
+  const onLastStep = activeStepIndex >= lastIndex || recipe.steps.length === 0;
+  const confirm = useConfirm();
   const finishCooking = () => {
-    finishedRef.current = true;
-    if (sessionKey) clearCookingSession(sessionKey);
-    onExit();
+    const finish = () => {
+      finishedRef.current = true;
+      if (sessionKey) clearCookingSession(sessionKey);
+      onExit();
+    };
+    // Finishing drops the saved step, ticks, and timers: ask first while a
+    // timer is still counting down.
+    if (!anyTimerCounting(timers, Date.now())) finish();
+    else {
+      confirm(
+        {
+          message: messages.finishCookingConfirm,
+          confirmLabel: messages.finishCooking,
+        },
+        finish,
+      );
+    }
   };
 
   const toggleIngredient = (id: string) =>
@@ -325,11 +347,29 @@ export function CookingMode({
   }, [lastIndex, onExit]);
 
   return (
-    <section className="draft-recipe-cooking-mode">
+    <section
+      className={
+        ingredientsOpen
+          ? "draft-recipe-cooking-mode draft-recipe-cooking-split"
+          : "draft-recipe-cooking-mode"
+      }
+    >
       <header className="draft-recipe-cooking-header">
-        <div>
-          <strong>{recipe.title}</strong>
-          <span>{`${Math.min(activeStepIndex + 1, recipe.steps.length)} / ${recipe.steps.length}`}</span>
+        <div className="draft-recipe-cooking-title">
+          {/* A thumbnail only: at full size the cover pushed the step, its
+              timers, and the step bar below the fold. */}
+          {coverUrl && (
+            <div
+              className="draft-recipe-cooking-cover"
+              data-testid="cooking-cover"
+            >
+              <CoverImage key={coverUrl} src={coverUrl} />
+            </div>
+          )}
+          <div>
+            <strong>{recipe.title}</strong>
+            <span>{`${Math.min(activeStepIndex + 1, recipe.steps.length)} / ${recipe.steps.length}`}</span>
+          </div>
         </div>
         <div className="draft-recipe-cooking-header-actions">
           {onTargetYieldChange && (
@@ -337,6 +377,7 @@ export function CookingMode({
               value={targetYield}
               messages={messages}
               yieldUnit={recipe.yieldUnit}
+              baseValue={recipe.baseYield}
               onChange={onTargetYieldChange}
             />
           )}
@@ -348,9 +389,16 @@ export function CookingMode({
           >
             {messages.ingredients}
           </button>
-          <button type="button" onClick={finishCooking}>
-            {messages.finishCooking}
-          </button>
+          {/* On the last step, Finish moves to the step bar instead. */}
+          {!onLastStep && (
+            <button
+              type="button"
+              className="draft-recipe-quiet-button"
+              onClick={finishCooking}
+            >
+              {messages.finishCooking}
+            </button>
+          )}
           <button type="button" onClick={onExit}>
             {messages.exitCookingForNow}
           </button>
@@ -386,12 +434,6 @@ export function CookingMode({
         </section>
       )}
 
-      {coverUrl && (
-        <div className="draft-recipe-cooking-cover" data-testid="cooking-cover">
-          <CoverImage key={coverUrl} src={coverUrl} />
-        </div>
-      )}
-
       {ingredientsOpen && (
         <aside
           className="draft-recipe-cooking-ingredients"
@@ -410,125 +452,129 @@ export function CookingMode({
         </aside>
       )}
 
-      {current ? (
-        <main
-          className="draft-recipe-current-step"
-          key={current.id}
-          data-direction={direction}
-        >
-          <span className="draft-recipe-step-number" aria-hidden="true">
-            {activeStepIndex + 1}
-          </span>
-          <p>{current.rawText}</p>
-          <StepChildren
-            items={current.children}
-            messages={messages}
-            resolveAssetUrl={resolveAssetUrl}
-          />
-          <div className="draft-recipe-annotation-row">
-            {current.durations.map((duration) => (
-              <span
-                className="draft-recipe-annotation"
-                key={`duration-${duration.startOffset}-${duration.endOffset}-${duration.rawText}`}
-              >
-                {durationLabel(duration, messages)}
-              </span>
-            ))}
-            {current.temperatures.map((temperature) => (
-              <span
-                className="draft-recipe-annotation"
-                key={`temperature-${temperature.startOffset}-${temperature.endOffset}-${temperature.rawText}`}
-              >
-                {temperatureLabel(temperature, measurementSystem, messages)}
-              </span>
-            ))}
-            {current.heat.map((heat) => (
-              <span
-                className="draft-recipe-annotation"
-                key={`heat-${heat.startOffset}-${heat.endOffset}-${heat.rawText}`}
-              >
-                {heat.rawText}
-              </span>
-            ))}
-          </div>
-          <div className="draft-recipe-step-timers">
-            {stepTimerOptions([
-              ...current.durations,
-              ...(current.children ?? []).flatMap((child) =>
-                child.kind === "note" ? (child.durations ?? []) : [],
-              ),
-            ]).map((option) => {
-              const length = `${option.approximate ? "~" : ""}${formatRemaining(option.durationMs)}`;
-              return (
+      <div className="draft-recipe-cooking-body">
+        {current ? (
+          <main
+            className="draft-recipe-current-step"
+            key={current.id}
+            data-direction={direction}
+          >
+            <span className="draft-recipe-step-number" aria-hidden="true">
+              {activeStepIndex + 1}
+            </span>
+            <p>{current.rawText}</p>
+            <div className="draft-recipe-annotation-row">
+              {current.durations.map((duration) => (
+                <span
+                  className="draft-recipe-annotation"
+                  key={`duration-${duration.startOffset}-${duration.endOffset}-${duration.rawText}`}
+                >
+                  {durationLabel(duration, messages)}
+                </span>
+              ))}
+              {current.temperatures.map((temperature) => (
+                <span
+                  className="draft-recipe-annotation"
+                  key={`temperature-${temperature.startOffset}-${temperature.endOffset}-${temperature.rawText}`}
+                >
+                  {temperatureLabel(temperature, measurementSystem, messages)}
+                </span>
+              ))}
+              {current.heat.map((heat) => (
+                <span
+                  className="draft-recipe-annotation"
+                  key={`heat-${heat.startOffset}-${heat.endOffset}-${heat.rawText}`}
+                >
+                  {heat.rawText}
+                </span>
+              ))}
+            </div>
+            <div className="draft-recipe-step-timers">
+              {stepTimerOptions([
+                ...current.durations,
+                ...(current.children ?? []).flatMap((child) =>
+                  child.kind === "note" ? (child.durations ?? []) : [],
+                ),
+              ]).map((option) => {
+                const length = `${option.approximate ? "~" : ""}${formatRemaining(option.durationMs)}`;
+                return (
+                  <button
+                    type="button"
+                    className="draft-recipe-timer-start"
+                    key={`${option.durationMs}:${option.approximate}`}
+                    aria-label={`${messages.startTimer} ${length}`}
+                    onClick={() =>
+                      startTimer(option.durationMs, option.approximate)
+                    }
+                  >
+                    <span aria-hidden="true">⏱</span> {length}
+                  </button>
+                );
+              })}
+              {customMinutes === null ? (
                 <button
                   type="button"
-                  className="draft-recipe-timer-start"
-                  key={`${option.durationMs}:${option.approximate}`}
-                  aria-label={`${messages.startTimer} ${length}`}
-                  onClick={() =>
-                    startTimer(option.durationMs, option.approximate)
-                  }
+                  className="draft-recipe-timer-custom"
+                  onClick={() => setCustomMinutes("")}
                 >
-                  <span aria-hidden="true">⏱</span> {length}
+                  + {messages.addTimer}
                 </button>
-              );
-            })}
-            {customMinutes === null ? (
-              <button
-                type="button"
-                className="draft-recipe-timer-custom"
-                onClick={() => setCustomMinutes("")}
-              >
-                + {messages.addTimer}
-              </button>
-            ) : (
-              <form
-                className="draft-recipe-timer-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  startCustomTimer();
-                }}
-              >
-                <input
-                  type="number"
-                  min="0.5"
-                  step="any"
-                  inputMode="decimal"
-                  aria-label={messages.timerMinutes}
-                  placeholder={messages.timerMinutes}
-                  value={customMinutes}
-                  onChange={(event) =>
-                    setCustomMinutes(event.currentTarget.value)
-                  }
-                  // biome-ignore lint/a11y/noAutofocus: the field appears in response to the cook's own click.
-                  autoFocus
-                />
-                <button type="submit" className="draft-recipe-timer-start">
-                  {messages.startTimer}
-                </button>
-                <button type="button" onClick={() => setCustomMinutes(null)}>
-                  {messages.cancel}
-                </button>
-              </form>
-            )}
-          </div>
-        </main>
-      ) : (
-        <main className="draft-recipe-current-step">
-          <p>{messages.cookingNoSteps}</p>
-        </main>
-      )}
+              ) : (
+                <form
+                  className="draft-recipe-timer-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    startCustomTimer();
+                  }}
+                >
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="any"
+                    inputMode="decimal"
+                    aria-label={messages.timerMinutes}
+                    placeholder={messages.timerMinutes}
+                    value={customMinutes}
+                    onChange={(event) =>
+                      setCustomMinutes(event.currentTarget.value)
+                    }
+                    // biome-ignore lint/a11y/noAutofocus: the field appears in response to the cook's own click.
+                    autoFocus
+                  />
+                  <button type="submit" className="draft-recipe-timer-start">
+                    {messages.startTimer}
+                  </button>
+                  <button type="button" onClick={() => setCustomMinutes(null)}>
+                    {messages.cancel}
+                  </button>
+                </form>
+              )}
+            </div>
+            {/* Notes and photos after the timers: a tall photo must not push
+              the step's timers under the step bar. */}
+            <StepChildren
+              items={current.children}
+              messages={messages}
+              resolveAssetUrl={resolveAssetUrl}
+            />
+          </main>
+        ) : (
+          <main className="draft-recipe-current-step">
+            <p>{messages.cookingNoSteps}</p>
+          </main>
+        )}
 
-      {recipe.notes.length > 0 && (
-        <aside className="draft-recipe-cooking-notes">
-          <h2>{messages.notes}</h2>
-          <ul>
-            {recipe.notes.map((note) => (
-              <li key={note.id}>{note.text}</li>
-            ))}
-          </ul>
-        </aside>
-      )}
+        {recipe.notes.length > 0 && (
+          <aside className="draft-recipe-cooking-notes">
+            <h2>{messages.notes}</h2>
+            <ul>
+              {recipe.notes.map((note) => (
+                <li key={note.id}>{note.text}</li>
+              ))}
+            </ul>
+          </aside>
+        )}
+      </div>
 
       <footer className="draft-recipe-cooking-nav">
         <button
@@ -560,13 +606,19 @@ export function CookingMode({
             </li>
           ))}
         </ol>
-        <button
-          type="button"
-          onClick={next}
-          disabled={activeStepIndex >= lastIndex || recipe.steps.length === 0}
-        >
-          {messages.next}
-        </button>
+        {onLastStep ? (
+          <button
+            type="button"
+            className="draft-recipe-primary-action"
+            onClick={finishCooking}
+          >
+            {messages.finishCooking}
+          </button>
+        ) : (
+          <button type="button" onClick={next}>
+            {messages.next}
+          </button>
+        )}
       </footer>
     </section>
   );

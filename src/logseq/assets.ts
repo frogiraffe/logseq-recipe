@@ -1,6 +1,7 @@
 import type { CoverRef } from "../domain/recipe";
 import {
   coverImagePath,
+  IMAGE_EXTENSIONS,
   STEP_MEDIA_EXTENSIONS,
   safeAssetPath,
 } from "../domain/step-media";
@@ -42,24 +43,23 @@ function publicAssetPath(value: unknown): string | null {
   return null;
 }
 
-export async function listImageAssets(host: AssetListHost): Promise<string[]> {
-  const files =
-    (await host.listFilesOfCurrentGraph(["png", "jpg", "jpeg", "webp"])) ?? [];
+async function listAssets(
+  host: AssetListHost,
+  extensions: string[],
+): Promise<string[]> {
+  const files = (await host.listFilesOfCurrentGraph(extensions)) ?? [];
   return files
     .map((file) => file.path)
     .filter((path) => typeof path === "string" && path.trim().length > 0)
     .sort((a, b) => a.localeCompare(b));
 }
 
-export async function listStepMediaAssets(
-  host: AssetListHost,
-): Promise<string[]> {
-  const files =
-    (await host.listFilesOfCurrentGraph(STEP_MEDIA_EXTENSIONS)) ?? [];
-  return files
-    .map((file) => file.path)
-    .filter((path) => typeof path === "string" && path.trim().length > 0)
-    .sort((a, b) => a.localeCompare(b));
+export function listImageAssets(host: AssetListHost): Promise<string[]> {
+  return listAssets(host, [...IMAGE_EXTENSIONS]);
+}
+
+export function listStepMediaAssets(host: AssetListHost): Promise<string[]> {
+  return listAssets(host, STEP_MEDIA_EXTENSIONS);
 }
 
 /** Only ever resolves a path that passes the graph-local asset check. */

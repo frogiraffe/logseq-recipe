@@ -4,14 +4,23 @@ import {
   type RecipeEditPatch,
   type StepChildrenPatch,
   sectionDiff,
+  withoutMissingLines,
 } from "../../application/edit-recipe";
-import type { IngredientScaleMode, Recipe } from "../../domain/recipe";
-import { assetMarkup } from "../../domain/step-media";
-import { confirmDiscardIfDirty, useDirtyReport } from "../dirty-guard";
+import type { IngredientLayoutEntry } from "../../application/types";
+import type {
+  Ingredient,
+  IngredientScaleMode,
+  Recipe,
+} from "../../domain/recipe";
+import { assetMarkup, parseStepChild } from "../../domain/step-media";
+import { useConfirmDiscard, useDirtyReport } from "../dirty-guard";
 import type { UiMessages } from "../i18n";
 import { type EditableItem, SortableList } from "./SortableList";
+import { StepMedia } from "./StepChildren";
 
 export interface RecipeEditorProps {
+  // Kept live: the editor edits the version it opened with, and only warns
+  // (and skips lines deleted since) when this changes underneath it.
   recipe: Recipe;
   messages: UiMessages;
   pending?: boolean;
@@ -23,6 +32,10 @@ export interface RecipeEditorProps {
   onDirtyChange?(isDirty: boolean): void;
   // Existing graph assets a step can attach; absent hides the picker.
   listStepMediaAssets?(): Promise<string[]>;
+  // Starts over from the recipe as it is now (after it changed in Logseq).
+  onReload?(): void;
+  // Shows a step's attached photo or audio as the file itself.
+  resolveAssetUrl?(path: string): Promise<string | null>;
 }
 
 function initialItems(
@@ -31,33 +44,140 @@ function initialItems(
   return source.map(({ id, text }) => ({ id, text }));
 }
 
+// Ingredients as the editor lists them: each group's heading row, then its
+// ingredients.
+function ingredientItems(ingredients: readonly Ingredient[]): EditableItem[] {
+  return ingredients.flatMap((ingredient, index) => {
+    const group = ingredient.group;
+    const opensGroup =
+      group !== undefined && ingredients[index - 1]?.group?.id !== group.id;
+    return [
+      ...(opensGroup
+        ? [{ id: group.id, text: group.title, heading: true }]
+        : []),
+      { id: ingredient.id, text: ingredient.rawText },
+    ];
+  });
+}
+
+// A heading owns the rows after it, up to the next heading.
+function ingredientLayout(
+  items: readonly EditableItem[],
+): IngredientLayoutEntry[] {
+  const layout: IngredientLayoutEntry[] = [];
+  let group: IngredientLayoutEntry | undefined;
+  for (const item of items) {
+    if (item.heading) {
+      group = { id: item.id, items: [] };
+      layout.push(group);
+    } else if (group) {
+      group.items?.push(item.id);
+    } else {
+      layout.push({ id: item.id });
+    }
+  }
+  return layout;
+}
+
+// A group of one line reads back as a group only with a colon ("Garnish:"
+// over "parsley"); without it that line would read as a note under an
+// ingredient named "Garnish". Larger groups need none.
+function withReadableHeadings(items: readonly EditableItem[]): EditableItem[] {
+  return items.map((item, index) => {
+    const text = item.text.trim();
+    const onlyItem =
+      items[index + 1] !== undefined &&
+      !items[index + 1].heading &&
+      (items[index + 2] === undefined || items[index + 2].heading);
+    return item.heading && onlyItem && !text.endsWith(":")
+      ? { ...item, text: `${text}:` }
+      : item;
+  });
+}
+
+// What the editor shows and saves, to tell a real change made elsewhere
+// from a reload that changed nothing.
+function editableContent(recipe: Recipe): string {
+  return JSON.stringify([
+    recipe.title,
+    recipe.baseYield,
+    recipe.yieldUnit,
+    recipe.prepMinutes,
+    recipe.chillMinutes,
+    recipe.cookMinutes,
+    recipe.sourceUrl,
+    recipe.ingredients.map((i) => [i.id, i.rawText, i.scaleMode, i.group]),
+    recipe.steps.map((s) => [
+      s.id,
+      s.rawText,
+      (s.children ?? []).map((child) => [child.id, child.text]),
+    ]),
+    recipe.notes,
+  ]);
+}
+
+function lineIds(recipe: Recipe): Set<string> {
+  return new Set([
+    ...recipe.ingredients.flatMap((i) => [
+      i.id,
+      ...(i.group ? [i.group.id] : []),
+    ]),
+    ...recipe.steps.flatMap((s) => [
+      s.id,
+      ...(s.children ?? []).map((child) => child.id),
+    ]),
+    ...recipe.notes.map((note) => note.id),
+  ]);
+}
+
+const TIME_FIELDS = [
+  ["prepMinutes", "prepTime"],
+  ["chillMinutes", "chillTime"],
+  ["cookMinutes", "cookTime"],
+] as const;
+type TimeField = (typeof TIME_FIELDS)[number][0];
+
+function minutesText(value: number | undefined): string {
+  return value !== undefined ? String(value) : "";
+}
+
+function hasEmptyGroup(items: readonly EditableItem[]): boolean {
+  return items.some(
+    (item, index) =>
+      item.heading && (index === items.length - 1 || items[index + 1].heading),
+  );
+}
+
 export function RecipeEditor({
-  recipe,
+  recipe: live,
   messages,
   pending = false,
   onSave,
   onCancel,
   onDirtyChange,
   listStepMediaAssets,
+  onReload,
+  resolveAssetUrl,
 }: RecipeEditorProps) {
+  const confirmDiscard = useConfirmDiscard(messages);
+  // Every change is measured against the version the editor opened with: a
+  // line added in Logseq meanwhile is not one this edit removed.
+  const [recipe] = useState(live);
+  const [openedContent] = useState(() => editableContent(live));
+  const changedElsewhere = editableContent(live) !== openedContent;
   const [title, setTitle] = useState(recipe.title);
   const [baseYieldText, setBaseYieldText] = useState(String(recipe.baseYield));
   const [yieldUnit, setYieldUnit] = useState(recipe.yieldUnit ?? "");
-  const [prepMinutesText, setPrepMinutesText] = useState(
-    recipe.prepMinutes !== undefined ? String(recipe.prepMinutes) : "",
-  );
-  const [chillMinutesText, setChillMinutesText] = useState(
-    recipe.chillMinutes !== undefined ? String(recipe.chillMinutes) : "",
-  );
-  const [cookMinutesText, setCookMinutesText] = useState(
-    recipe.cookMinutes !== undefined ? String(recipe.cookMinutes) : "",
+  const [minutesTexts, setMinutesTexts] = useState(
+    () =>
+      Object.fromEntries(
+        TIME_FIELDS.map(([field]) => [field, minutesText(recipe[field])]),
+      ) as Record<TimeField, string>,
   );
   const [sourceUrl, setSourceUrl] = useState(recipe.sourceUrl ?? "");
-  const [ingredients, setIngredients] = useState<EditableItem[]>(
-    initialItems(
-      recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
-    ),
-  );
+  const originalIngredients = ingredientItems(recipe.ingredients);
+  const [ingredients, setIngredients] =
+    useState<EditableItem[]>(originalIngredients);
   const [steps, setSteps] = useState<EditableItem[]>(
     initialItems(recipe.steps.map((s) => ({ id: s.id, text: s.rawText }))),
   );
@@ -112,17 +232,11 @@ export function RecipeEditor({
     title.trim() !== recipe.title ||
     baseYieldText.trim() !== String(recipe.baseYield) ||
     yieldUnit.trim() !== (recipe.yieldUnit ?? "") ||
-    prepMinutesText.trim() !==
-      (recipe.prepMinutes !== undefined ? String(recipe.prepMinutes) : "") ||
-    chillMinutesText.trim() !==
-      (recipe.chillMinutes !== undefined ? String(recipe.chillMinutes) : "") ||
-    cookMinutesText.trim() !==
-      (recipe.cookMinutes !== undefined ? String(recipe.cookMinutes) : "") ||
-    sourceUrl.trim() !== (recipe.sourceUrl ?? "") ||
-    itemsChanged(
-      ingredients,
-      recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
+    TIME_FIELDS.some(
+      ([field]) => minutesTexts[field].trim() !== minutesText(recipe[field]),
     ) ||
+    sourceUrl.trim() !== (recipe.sourceUrl ?? "") ||
+    itemsChanged(ingredients, originalIngredients) ||
     itemsChanged(
       steps,
       recipe.steps.map((s) => ({ id: s.id, text: s.rawText })),
@@ -158,10 +272,9 @@ export function RecipeEditor({
   const formValid =
     Boolean(title.trim()) &&
     baseYieldValid &&
-    minutesFieldValid(prepMinutesText) &&
-    minutesFieldValid(chillMinutesText) &&
-    minutesFieldValid(cookMinutesText) &&
+    TIME_FIELDS.every(([field]) => minutesFieldValid(minutesTexts[field])) &&
     noBlankItems(ingredients) &&
+    !hasEmptyGroup(ingredients) &&
     noBlankItems(steps) &&
     noBlankItems(notes) &&
     steps.every((step) => noBlankItems(childrenOf(step.id)));
@@ -169,12 +282,12 @@ export function RecipeEditor({
   function save() {
     if (!formValid) return;
 
-    const prepMinutes = minutesPatchValue(prepMinutesText, recipe.prepMinutes);
-    const chillMinutes = minutesPatchValue(
-      chillMinutesText,
-      recipe.chillMinutes,
-    );
-    const cookMinutes = minutesPatchValue(cookMinutesText, recipe.cookMinutes);
+    const timePatch = Object.fromEntries(
+      TIME_FIELDS.flatMap(([field]) => {
+        const value = minutesPatchValue(minutesTexts[field], recipe[field]);
+        return value !== undefined ? [[field, value]] : [];
+      }),
+    ) as Pick<RecipeEditPatch, TimeField>;
     const trimmedSourceUrl = sourceUrl.trim();
     const sourceUrlPatch: string | null | undefined =
       trimmedSourceUrl === (recipe.sourceUrl ?? "")
@@ -198,7 +311,23 @@ export function RecipeEditor({
       })
       .map(([id, scaleMode]) => ({ id, scaleMode }));
 
-    const ingredientOrder = orderDiff(recipe.ingredients, ingredients);
+    // With groups on either side, the whole arrangement is sent (new lines
+    // land at the end of the section until it is applied); otherwise the
+    // flat order, as before.
+    const grouped =
+      ingredients.some((item) => item.heading) ||
+      originalIngredients.some((item) => item.heading);
+    const layout = ingredientLayout(ingredients);
+    const ingredientLayoutPatch =
+      grouped &&
+      (JSON.stringify(layout) !==
+        JSON.stringify(ingredientLayout(originalIngredients)) ||
+        ingredients.some((item) => item.id.startsWith("new:")))
+        ? layout
+        : undefined;
+    const ingredientOrder = grouped
+      ? undefined
+      : orderDiff(recipe.ingredients, ingredients);
     const stepOrder = orderDiff(recipe.steps, steps);
     const noteOrder = orderDiff(recipe.notes, notes);
     const stepChildrenPatch: StepChildrenPatch[] = steps.flatMap((step) => {
@@ -218,13 +347,11 @@ export function RecipeEditor({
       ...(title.trim() !== recipe.title ? { title: title.trim() } : {}),
       ...(baseYield !== recipe.baseYield ? { baseYield } : {}),
       ...(yieldUnitPatch !== undefined ? { yieldUnit: yieldUnitPatch } : {}),
-      ...(prepMinutes !== undefined ? { prepMinutes } : {}),
-      ...(chillMinutes !== undefined ? { chillMinutes } : {}),
-      ...(cookMinutes !== undefined ? { cookMinutes } : {}),
+      ...timePatch,
       ...(sourceUrlPatch !== undefined ? { sourceUrl: sourceUrlPatch } : {}),
       ingredients: sectionDiff(
-        recipe.ingredients.map((i) => ({ id: i.id, text: i.rawText })),
-        ingredients,
+        originalIngredients,
+        withReadableHeadings(ingredients),
       ),
       steps: sectionDiff(
         recipe.steps.map((s) => ({ id: s.id, text: s.rawText })),
@@ -235,18 +362,35 @@ export function RecipeEditor({
         ? { ingredientScaleModeChanges: scaleModeChanges }
         : {}),
       ...(ingredientOrder ? { ingredientOrder } : {}),
+      ...(ingredientLayoutPatch
+        ? { ingredientLayout: ingredientLayoutPatch }
+        : {}),
       ...(stepOrder ? { stepOrder } : {}),
       ...(noteOrder ? { noteOrder } : {}),
       ...(stepChildrenPatch.length > 0
         ? { stepChildren: stepChildrenPatch }
         : {}),
     };
-    onSave(patch);
+    const liveIds = lineIds(live);
+    onSave(withoutMissingLines(patch, (id) => liveIds.has(id)));
   }
 
   return (
     <section className="draft-recipe-card draft-recipe-editor">
       <h1>{messages.editRecipe}</h1>
+      {changedElsewhere && (
+        <div className="draft-recipe-banner" role="status">
+          <p>{messages.recipeChangedElsewhere}</p>
+          {onReload && (
+            <button
+              type="button"
+              onClick={() => confirmDiscard(isDirty, onReload)}
+            >
+              {messages.loadCurrentVersion}
+            </button>
+          )}
+        </div>
+      )}
       <div className="draft-recipe-field-group">
         <label className="draft-recipe-field-wide">
           {messages.title}
@@ -275,36 +419,21 @@ export function RecipeEditor({
         </label>
       </div>
       <div className="draft-recipe-field-group">
-        <label>
-          {messages.prepTime}
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={prepMinutesText}
-            onChange={(event) => setPrepMinutesText(event.currentTarget.value)}
-          />
-        </label>
-        <label>
-          {messages.chillTime}
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={chillMinutesText}
-            onChange={(event) => setChillMinutesText(event.currentTarget.value)}
-          />
-        </label>
-        <label>
-          {messages.cookTime}
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={cookMinutesText}
-            onChange={(event) => setCookMinutesText(event.currentTarget.value)}
-          />
-        </label>
+        {TIME_FIELDS.map(([field, label]) => (
+          <label key={field}>
+            {`${messages[label]} (${messages.minutesUnit})`}
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={minutesTexts[field]}
+              onChange={(event) => {
+                const text = event.currentTarget.value;
+                setMinutesTexts((current) => ({ ...current, [field]: text }));
+              }}
+            />
+          </label>
+        ))}
       </div>
       <div className="draft-recipe-field-group">
         <label>
@@ -323,22 +452,35 @@ export function RecipeEditor({
         addLabel={messages.addIngredient}
         messages={messages}
         onChange={setIngredients}
-        renderItemExtra={(item) => (
-          <label className="draft-recipe-scale-toggle">
-            <input
-              type="checkbox"
-              checked={scaleModeById[item.id] === "fixed"}
-              onChange={(event) =>
-                setScaleModeById((current) => ({
-                  ...current,
-                  [item.id]: event.currentTarget.checked ? "fixed" : "linear",
-                }))
-              }
-            />
-            {messages.doesNotScale}
-          </label>
-        )}
+        addHeadingLabel={messages.addIngredientGroup}
+        headingLabel={messages.ingredientGroup}
+        renderItemExtra={(item) =>
+          !item.heading && (
+            <label
+              className="draft-recipe-scale-toggle"
+              title={messages.doesNotScale}
+            >
+              <input
+                type="checkbox"
+                aria-label={messages.doesNotScale}
+                checked={scaleModeById[item.id] === "fixed"}
+                onChange={(event) =>
+                  setScaleModeById((current) => ({
+                    ...current,
+                    [item.id]: event.currentTarget.checked ? "fixed" : "linear",
+                  }))
+                }
+              />
+              {messages.fixedAmountShort}
+            </label>
+          )
+        }
       />
+      {hasEmptyGroup(ingredients) && (
+        <p className="draft-recipe-validation-error" role="alert">
+          {messages.emptyIngredientGroup}
+        </p>
+      )}
       <SortableList
         title={messages.steps}
         items={steps}
@@ -369,6 +511,20 @@ export function RecipeEditor({
                     [step.id]: next,
                   }))
                 }
+                renderItemContent={(item) => {
+                  const child = parseStepChild(item.id, item.text);
+                  if (child.kind === "note") return null;
+                  return (
+                    <span className="draft-recipe-editor-media">
+                      <StepMedia
+                        child={child}
+                        messages={messages}
+                        resolveAssetUrl={resolveAssetUrl}
+                      />
+                      <span>{child.path.split("/").pop()}</span>
+                    </span>
+                  );
+                }}
                 renderAddExtra={(add) =>
                   mediaAssets.length > 0 && (
                     <select
@@ -410,16 +566,7 @@ export function RecipeEditor({
         </p>
       )}
       <div className="draft-recipe-actions draft-recipe-sticky-actions">
-        <button
-          type="button"
-          onClick={() =>
-            confirmDiscardIfDirty(
-              isDirty,
-              messages.discardChangesConfirm,
-              onCancel,
-            )
-          }
-        >
+        <button type="button" onClick={() => confirmDiscard(isDirty, onCancel)}>
           {messages.cancel}
         </button>
         <button

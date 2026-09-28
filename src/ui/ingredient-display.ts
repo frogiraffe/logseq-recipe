@@ -1,7 +1,9 @@
-import type { Quantity } from "../domain/quantity";
+import { mapQuantity, type Quantity } from "../domain/quantity";
 import type { Ingredient } from "../domain/recipe";
 import { scaleIngredient } from "../domain/scaling";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
+import { getLocalePack, RECIPE_LOCALES } from "../parsing/locales";
+import { escapeRegExp } from "../parsing/normalize";
 import {
   convertIngredientMassVolume,
   convertUnit,
@@ -29,27 +31,6 @@ const VOLUME_UNITS: readonly CanonicalUnit[] = [
   "cup_imperial",
   "fl_oz_imperial",
 ];
-
-function mapNumericQuantity(
-  quantity: Quantity,
-  convert: (value: number) => number,
-): Quantity {
-  switch (quantity.kind) {
-    case "exact":
-    case "minimum":
-    case "maximum":
-    case "approximate":
-      return { ...quantity, value: convert(quantity.value) };
-    case "range":
-      return {
-        kind: "range",
-        min: convert(quantity.min),
-        max: convert(quantity.max),
-      };
-    case "inexact":
-      return quantity;
-  }
-}
 
 export function formatQuantity(
   quantity: Quantity,
@@ -119,7 +100,7 @@ function representativeMagnitude(quantity: Quantity): number {
 // Same-family, same-system steps in scale: 1500 g reads as 1.5 kg, 24 oz
 // as 1.5 lb, 12 fl oz as 1.5 cups, and 0.375 kg back down as 375 g. Only
 // the automatic display path uses this; an explicitly picked display unit
-// (formatIngredientForTargetUnit) is never re-scaled.
+// (ingredientTargetUnitParts) is never re-scaled.
 const STEP_UP: Partial<Record<CanonicalUnit, [CanonicalUnit, number]>> = {
   g: ["kg", 1000],
   ml: ["l", 1000],
@@ -149,7 +130,7 @@ function applyAdaptiveDisplay(
         : null;
   if (!target) return { quantity, unit };
   return {
-    quantity: mapNumericQuantity(quantity, (value) =>
+    quantity: mapQuantity(quantity, (value) =>
       convertUnit(value, unit, target),
     ),
     unit: target,
@@ -168,9 +149,7 @@ function displayQuantityAndUnit(
   const converted =
     targetUnit === unit
       ? quantity
-      : mapNumericQuantity(quantity, (value) =>
-          convertUnit(value, unit, targetUnit),
-        );
+      : mapQuantity(quantity, (value) => convertUnit(value, unit, targetUnit));
   return applyAdaptiveDisplay(converted, targetUnit);
 }
 
@@ -187,6 +166,41 @@ export function joinIngredientParts({
   return `${quantity}${quantity && name ? " " : ""}${name}`.trim();
 }
 
+// Every language's linking words, as they can stand before a name: an
+// elided one attached ("d'huile", also with a typographic apostrophe), a
+// word followed by a space ("de farine", "of flour").
+const CONNECTOR_BEFORE_NAME = (() => {
+  const connectors = [
+    ...new Set(
+      RECIPE_LOCALES.flatMap((locale) => getLocalePack(locale).unitConnectors),
+    ),
+  ];
+  const elided = connectors
+    .filter((connector) => connector.endsWith("'"))
+    .map((connector) => `${escapeRegExp(connector.slice(0, -1))}['’]`);
+  const words = connectors
+    .filter((connector) => !connector.endsWith("'"))
+    .map(escapeRegExp);
+  return new RegExp(
+    `(?:^|\\s)(?:(${elided.join("|")})|(${words.join("|")})\\s+)$`,
+    "iu",
+  );
+})();
+
+/**
+ * The linking word the cook wrote between the unit and the ingredient ("1
+ * tasse de farine", "1 c. à s. d'huile", "1 cup of flour"), as written. The
+ * parser leaves it out of the name; after a unit, the name reads wrong
+ * without it ("2 tasses farine").
+ */
+function writtenConnector(ingredient: Ingredient): string {
+  const name = ingredient.ingredientText.trim().toLocaleLowerCase();
+  const at = name ? ingredient.rawText.toLocaleLowerCase().indexOf(name) : -1;
+  if (at <= 0) return "";
+  const match = ingredient.rawText.slice(0, at).match(CONNECTOR_BEFORE_NAME);
+  return match?.[1] ?? match?.[2] ?? "";
+}
+
 function formatIngredientParts(
   ingredient: Ingredient,
   quantity: Quantity,
@@ -194,10 +208,16 @@ function formatIngredientParts(
   locale: UiLocale,
 ): IngredientDisplayParts {
   const note = ingredient.note ? ` (${ingredient.note})` : "";
+  const connector = unit ? writtenConnector(ingredient) : "";
+  const joined = !connector
+    ? ""
+    : /['’]$/u.test(connector)
+      ? connector
+      : `${connector} `;
   return {
     quantity:
       `${formatQuantity(quantity, locale, unit)}${visibleUnitText(unit, quantity, locale)}`.trim(),
-    name: `${ingredient.ingredientText.trim()}${note}`.trim(),
+    name: `${joined}${ingredient.ingredientText.trim()}${note}`.trim(),
   };
 }
 
@@ -232,18 +252,6 @@ export function defaultDisplayUnit(
   return displayQuantityAndUnit(scaled.amount, scaled.unit, system).unit;
 }
 
-export function formatIngredientForDisplay(
-  ingredient: Ingredient,
-  baseYield: number,
-  targetYield: number,
-  system: MeasurementSystem,
-  locale: UiLocale = "en",
-): string {
-  return joinIngredientParts(
-    ingredientDisplayParts(ingredient, baseYield, targetYield, system, locale),
-  );
-}
-
 export function ingredientDisplayUnitOptions(
   ingredient: Ingredient,
   provider: IngredientConversionProvider,
@@ -271,7 +279,7 @@ const UNIT_SYSTEM_SUFFIXES: Record<
   Exclude<UiLocale, "tr">,
   Record<"us" | "imperial" | "metric", string>
 > = {
-  en: { us: " US", imperial: " Imperial", metric: " Metric" },
+  en: { us: " (US)", imperial: " (imperial)", metric: " (metric)" },
   fr: { us: " (US)", imperial: " (impérial)", metric: " (métrique)" },
   de: { us: " (US)", imperial: " (imperial)", metric: " (metrisch)" },
   es: { us: " (EE. UU.)", imperial: " (imperial)", metric: " (métrico)" },
@@ -297,25 +305,6 @@ export function ingredientUnitOptionLabel(
     : unitLabel(unit, locale);
 }
 
-export function formatIngredientForTargetUnit(
-  ingredient: Ingredient,
-  baseYield: number,
-  targetYield: number,
-  targetUnit: CanonicalUnit,
-  provider: IngredientConversionProvider,
-  locale: UiLocale = "en",
-): string | null {
-  const parts = ingredientTargetUnitParts(
-    ingredient,
-    baseYield,
-    targetYield,
-    targetUnit,
-    provider,
-    locale,
-  );
-  return parts ? joinIngredientParts(parts) : null;
-}
-
 /** Parts in an explicitly chosen unit, or null when it can't convert. */
 export function ingredientTargetUnitParts(
   ingredient: Ingredient,
@@ -335,9 +324,6 @@ export function ingredientTargetUnitParts(
 
   const convertValue = (value: number): number | null => {
     try {
-      if (unitFamily(scaled.unit as CanonicalUnit) === unitFamily(targetUnit)) {
-        return convertUnit(value, scaled.unit as CanonicalUnit, targetUnit);
-      }
       return convertIngredientMassVolume(
         value,
         scaled.unit as CanonicalUnit,
@@ -351,7 +337,7 @@ export function ingredientTargetUnitParts(
   };
 
   let failed = false;
-  const converted = mapNumericQuantity(scaled.amount, (value) => {
+  const converted = mapQuantity(scaled.amount, (value) => {
     const result = convertValue(value);
     if (result === null) {
       failed = true;

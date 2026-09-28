@@ -7,10 +7,12 @@ export interface ParseContext {
   sourceMeasurementSystem: MeasurementSystem;
 }
 
-export function defaultParseContext(locale: RecipeLocale): ParseContext {
-  return {
+/** `locale`, read in the given measurement system or else the locale's own. */
+export function defaultParseContext(
+  locale: RecipeLocale,
+  sourceMeasurementSystem = getLocalePack(
     locale,
-    sourceMeasurementSystem:
-      getLocalePack(locale).defaultSourceMeasurementSystem,
-  };
+  ).defaultSourceMeasurementSystem,
+): ParseContext {
+  return { locale, sourceMeasurementSystem };
 }

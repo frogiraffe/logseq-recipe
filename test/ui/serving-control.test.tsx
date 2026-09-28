@@ -4,19 +4,39 @@ import { describe, expect, it } from "vitest";
 import { ServingControl } from "../../src/ui/components/ServingControl";
 import { enMessages } from "../../src/ui/i18n";
 
-function Harness({ initial = 2 }: { initial?: number }) {
+function Harness({ initial = 2, base }: { initial?: number; base?: number }) {
   const [value, setValue] = useState(initial);
   return (
     <ServingControl
       value={value}
       messages={enMessages}
       yieldUnit="cookies"
+      {...(base !== undefined ? { baseValue: base } : {})}
       onChange={setValue}
     />
   );
 }
 
 describe("ServingControl", () => {
+  it("offers the recipe's own servings back once they were changed", () => {
+    render(<Harness initial={4} base={4} />);
+    const reset = () =>
+      screen.queryByRole("button", { name: "Original servings: 4" });
+    expect(reset()).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.moreServings }),
+    );
+    expect((screen.getByLabelText("Servings") as HTMLInputElement).value).toBe(
+      "5",
+    );
+    fireEvent.click(reset() as HTMLElement);
+    expect((screen.getByLabelText("Servings") as HTMLInputElement).value).toBe(
+      "4",
+    );
+    expect(reset()).toBeNull();
+  });
+
   it("allows clearing the field and typing a replacement without a 0/08 flash", () => {
     render(<Harness initial={2} />);
     const input = screen.getByLabelText("Servings") as HTMLInputElement;
@@ -75,5 +95,29 @@ describe("ServingControl", () => {
       screen.getByRole("button", { name: enMessages.fewerServings }),
     );
     expect(input.value).toBe("1");
+  });
+});
+
+describe("ServingControl unit", () => {
+  it("leaves out a unit that only repeats the label", () => {
+    const { rerender } = render(
+      <ServingControl
+        value={4}
+        messages={enMessages}
+        yieldUnit="servings"
+        onChange={() => undefined}
+      />,
+    );
+    expect(screen.queryByText("servings")).toBeNull();
+
+    rerender(
+      <ServingControl
+        value={4}
+        messages={enMessages}
+        yieldUnit="cookies"
+        onChange={() => undefined}
+      />,
+    );
+    expect(screen.getByText("cookies")).toBeTruthy();
   });
 });

@@ -1,13 +1,19 @@
 import type { Quantity } from "../domain/quantity";
 import type { RecipeLocale } from "../domain/recipe";
-import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
+import {
+  type CanonicalUnit,
+  isMeasurementSystem,
+  type MeasurementSystem,
+} from "../domain/unit";
 import type { ParseContext } from "../parsing/context";
 import type { ParseConfidence, ParsedIngredient } from "../parsing/ingredient";
+import { isRecipeLocale } from "../parsing/locales";
 import {
   COUNT_UNITS,
   LINEAR_UNIT_DEFINITIONS,
   TEMPERATURE_UNITS,
 } from "../units/definitions";
+import { isRecord, parseStoredJson } from "./recipe-meta";
 
 // Derived from the unit definitions, never listed by hand: a hand-kept list
 // silently rejected every stored su bardağı / çay bardağı / tatlı kaşığı
@@ -21,22 +27,12 @@ function isCanonicalUnit(value: string): value is CanonicalUnit {
 }
 
 const CONFIDENCES = new Set<ParseConfidence>(["exact", "partial", "unparsed"]);
-const LOCALES = new Set<RecipeLocale>(["en", "tr", "fr", "de", "es"]);
-const MEASUREMENT_SYSTEMS = new Set<MeasurementSystem>([
-  "metric",
-  "us",
-  "imperial",
-]);
 
 export interface StoredIngredientMeta {
   version: 1;
   locale: RecipeLocale;
   sourceMeasurementSystem: MeasurementSystem;
   parsed: ParsedIngredient;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function finiteNumber(value: unknown): value is number {
@@ -113,15 +109,6 @@ function decodeParsedIngredient(value: unknown): ParsedIngredient | null {
   };
 }
 
-function parseRaw(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
 export function encodeIngredientMeta(
   parsed: ParsedIngredient,
   context: ParseContext,
@@ -138,29 +125,19 @@ export function encodeIngredientMeta(
 export function decodeIngredientMeta(
   raw: unknown,
 ): StoredIngredientMeta | null {
-  const value = parseRaw(raw);
+  const value = parseStoredJson(raw);
   if (!isRecord(value) || value.version !== 1) return null;
+  const { locale, sourceMeasurementSystem } = value;
   if (
-    typeof value.locale !== "string" ||
-    !LOCALES.has(value.locale as RecipeLocale)
-  ) {
-    return null;
-  }
-  if (
-    typeof value.sourceMeasurementSystem !== "string" ||
-    !MEASUREMENT_SYSTEMS.has(value.sourceMeasurementSystem as MeasurementSystem)
+    !isRecipeLocale(locale) ||
+    !isMeasurementSystem(sourceMeasurementSystem)
   ) {
     return null;
   }
   const parsed = decodeParsedIngredient(value.parsed);
-  if (!parsed) return null;
-
-  return {
-    version: 1,
-    locale: value.locale as RecipeLocale,
-    sourceMeasurementSystem: value.sourceMeasurementSystem as MeasurementSystem,
-    parsed,
-  };
+  return parsed
+    ? { version: 1, locale, sourceMeasurementSystem, parsed }
+    : null;
 }
 
 export function ingredientMetaMatchesContext(

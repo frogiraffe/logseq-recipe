@@ -15,8 +15,11 @@
   --dr-ember-soft: color-mix(in srgb, var(--dr-ember) 14%, transparent);
 
   box-sizing: border-box;
+  /* The shell's edge padding; full-width bars (sticky actions, the cooking
+     step bar) pull out to it. */
+  --dr-shell-padding: 20px;
   min-height: 100vh;
-  padding: 20px;
+  padding: var(--dr-shell-padding);
   color: var(--ls-primary-text-color);
   background: var(--ls-primary-background-color);
   font-family: var(--ls-font-family, system-ui, sans-serif);
@@ -67,19 +70,6 @@
   font-weight: 600;
   background: var(--ls-link-text-color);
   color: var(--ls-primary-background-color);
-}
-
-.draft-recipe-actions-leading {
-  margin-right: auto;
-}
-
-.draft-recipe-archive-confirm {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  margin-top: 12px;
-  border: 1px solid var(--ls-border-color);
-  border-radius: 12px;
 }
 
 .draft-recipe-validation-error {
@@ -158,10 +148,6 @@
   margin-bottom: 16px;
 }
 
-.draft-recipe-app .draft-recipe-page-header h1 {
-  margin: 0;
-}
-
 .draft-recipe-page-actions {
   display: flex;
   align-items: center;
@@ -192,7 +178,8 @@
 
 .draft-recipe-menu-items {
   position: absolute;
-  right: 0;
+  /* The menu sits in the card's left-hand actions: open toward the page. */
+  left: 0;
   top: calc(100% + 6px);
   z-index: 5;
   display: grid;
@@ -204,21 +191,6 @@
   box-shadow: var(--dr-shadow-raised);
 }
 
-.draft-recipe-app .draft-recipe-menu-items button {
-  text-align: left;
-  background: transparent;
-  border-color: transparent;
-}
-
-.draft-recipe-app .draft-recipe-menu-items button:not(:disabled):hover {
-  border-color: transparent;
-  background: var(--ls-secondary-background-color);
-}
-
-.draft-recipe-app .draft-recipe-menu-items .draft-recipe-menu-danger {
-  color: var(--ls-error-color, #d1453b);
-}
-
 /* Long forms (Edit recipe, Recipe settings, Convert to Recipe) put Save/
    Cancel-equivalent controls at the very end of a form that can scroll well
    past one screen; pinning that one action row keeps it reachable without
@@ -228,8 +200,9 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
-  margin: 12px -20px -20px;
-  padding: 12px 20px;
+  margin: 12px calc(-1 * var(--dr-shell-padding))
+    calc(-1 * var(--dr-shell-padding));
+  padding: 12px var(--dr-shell-padding);
   background: var(--ls-primary-background-color);
   border-top: 1px solid var(--ls-border-color);
 }
@@ -333,10 +306,12 @@
   font-weight: 600;
 }
 
+/* Capped, so the ingredients start on the first screen. */
 .draft-recipe-cover {
   overflow: hidden;
   width: 100%;
   aspect-ratio: 16 / 7;
+  max-height: min(40vh, 320px);
   border: 1px solid var(--ls-border-color);
   border-radius: var(--dr-radius-lg);
   background: var(--ls-secondary-background-color);
@@ -370,6 +345,10 @@
   line-height: 1.2;
 }
 
+.draft-recipe-app .draft-recipe-page-header h1 {
+  margin: 0;
+}
+
 .draft-recipe-meta-row {
   color: var(--ls-secondary-text-color);
   font-size: 0.9rem;
@@ -377,7 +356,8 @@
 }
 
 /* Convert Preview puts labelled selects in the same row. */
-.draft-recipe-meta-row > label {
+.draft-recipe-meta-row > label,
+.draft-recipe-meta-row > small {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -392,7 +372,13 @@
   white-space: pre-line;
 }
 
-.draft-recipe-meta-row > span + span::before {
+/* The dot ends the item before it, so a wrapped line never starts with
+   one. */
+.draft-recipe-meta-row > span {
+  white-space: nowrap;
+}
+
+.draft-recipe-meta-row > span:not(:last-child)::after {
   content: "·";
   margin: 0 8px;
 }
@@ -405,14 +391,14 @@
   padding: 12px 0 16px;
 }
 
-.draft-recipe-card-toolbar .draft-recipe-serving-control {
-  margin-left: auto;
-}
-
 .draft-recipe-serving-control {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.draft-recipe-card-toolbar .draft-recipe-serving-control {
+  margin-left: auto;
 }
 
 .draft-recipe-serving-control input {
@@ -462,6 +448,28 @@
   grid-template-columns: auto max-content minmax(0, 1fr) auto;
 }
 
+/* Lines written under an ingredient in Logseq, below its name. */
+.draft-recipe-ingredient-details {
+  display: block;
+  color: var(--ls-secondary-text-color);
+  font-size: 0.85rem;
+  white-space: pre-line;
+}
+
+.draft-recipe-ingredient-group {
+  grid-column: 1 / -1;
+}
+
+.draft-recipe-ingredient-group h3 {
+  margin: 12px 0 2px;
+  font-size: 0.95rem;
+  color: var(--ls-secondary-text-color);
+}
+
+.draft-recipe-ingredient-group:first-child h3 {
+  margin-top: 0;
+}
+
 .draft-recipe-ingredient-row {
   display: grid;
   grid-column: 1 / -1;
@@ -509,25 +517,30 @@
   color: var(--ls-secondary-text-color);
 }
 
-/* The per-ingredient unit picker stays quiet until the row is in use;
-   touch screens have no hover, so it is always shown there. */
+/* The per-ingredient unit picker stays quiet until the row is in use - as
+   plain, still readable text rather than faded out; touch screens have no
+   hover, so its frame is always shown there. */
 .draft-recipe-app .draft-recipe-unit-picker {
   grid-column: -2;
   padding: 3px 6px;
   font-size: 0.8rem;
-  opacity: 0.45;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ls-secondary-text-color);
 }
 
 .draft-recipe-ingredient-row:hover .draft-recipe-unit-picker,
 .draft-recipe-app .draft-recipe-unit-picker:focus-visible,
 .draft-recipe-app
   .draft-recipe-unit-picker:has(option:checked:not([value=""])) {
-  opacity: 1;
+  border-color: var(--ls-border-color);
+  background: var(--ls-secondary-background-color);
+  color: var(--ls-primary-text-color);
 }
 
 @media (hover: none) {
   .draft-recipe-app .draft-recipe-unit-picker {
-    opacity: 1;
+    border-color: var(--ls-border-color);
   }
 }
 
@@ -606,6 +619,22 @@
   min-width: 108px;
 }
 
+/* Action menu items: plain rows, over the generic button styles. */
+.draft-recipe-app .draft-recipe-menu-items button {
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+
+.draft-recipe-app .draft-recipe-menu-items button:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-app .draft-recipe-menu-items .draft-recipe-menu-danger {
+  color: var(--ls-error-color, #d1453b);
+}
+
 .draft-recipe-editor-item > .draft-recipe-icon-button,
 .draft-recipe-editor-item > .draft-recipe-drag-handle {
   min-width: 32px;
@@ -679,11 +708,6 @@
 
 .draft-recipe-field-group > label {
   flex: 1 1 160px;
-  min-width: 0;
-}
-
-.draft-recipe-field-group > label > input {
-  width: 100%;
   min-width: 0;
 }
 
@@ -830,6 +854,17 @@
   border-radius: 10px;
 }
 
+/* A field's one-line explanation, under its control. */
+.draft-recipe-field-help {
+  color: var(--ls-secondary-text-color);
+  font-size: 0.8rem;
+}
+
+/* Room for the bullets inside the frame. */
+.draft-recipe-warning-list {
+  padding-left: 32px;
+}
+
 .draft-recipe-new-form,
 .draft-recipe-settings-panel,
 .draft-recipe-editor {
@@ -901,6 +936,11 @@
   flex: 1 1 120px;
 }
 
+.draft-recipe-field-group > label > input {
+  width: 100%;
+  min-width: 0;
+}
+
 .draft-recipe-conversion-editor li {
   display: flex;
   justify-content: space-between;
@@ -915,9 +955,72 @@
   gap: 18px;
 }
 
-.draft-recipe-cooking-header > div:first-child {
-  display: grid;
-  gap: 4px;
+.draft-recipe-cooking-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* On a wide window the ingredients sit beside the step, in reach while
+   cooking, instead of above it. */
+@media (min-width: 1000px) {
+  .draft-recipe-cooking-mode.draft-recipe-cooking-split {
+    width: min(1240px, 100%);
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-areas:
+      "header header"
+      "timers timers"
+      "side body"
+      "nav nav";
+    align-items: start;
+    gap: 0 28px;
+  }
+
+  .draft-recipe-cooking-split > .draft-recipe-cooking-header {
+    grid-area: header;
+  }
+
+  .draft-recipe-cooking-split > .draft-recipe-cooking-timers {
+    grid-area: timers;
+    margin: 18px 0 0;
+  }
+
+  .draft-recipe-cooking-split > .draft-recipe-cooking-ingredients {
+    grid-area: side;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 160px);
+    margin-top: 18px;
+    overflow: auto;
+  }
+
+  .draft-recipe-cooking-split > .draft-recipe-cooking-body {
+    grid-area: body;
+    margin-top: 18px;
+  }
+
+  .draft-recipe-cooking-split > .draft-recipe-cooking-nav {
+    grid-area: nav;
+    align-self: end;
+  }
+
+  /* Close lines up with the wider page. */
+  .draft-recipe-app:has(.draft-recipe-cooking-split) .draft-recipe-app-bar {
+    width: min(1240px, 100%);
+  }
+
+  .draft-recipe-cooking-split
+    .draft-recipe-cooking-ingredients
+    .draft-recipe-section {
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+/* A long ingredient name must not squeeze its checkbox. */
+.draft-recipe-cooking-ingredients input[type="checkbox"] {
+  flex-shrink: 0;
 }
 
 .draft-recipe-cooking-ingredients,
@@ -985,7 +1088,13 @@
 
 @media (max-width: 640px) {
   .draft-recipe-app {
-    padding: 12px;
+    --dr-shell-padding: 12px;
+  }
+
+  /* When the header's actions wrap, the main one leads instead of trailing
+     alone on the last line. */
+  .draft-recipe-page-actions > .draft-recipe-split-button {
+    order: -1;
   }
 
   .draft-recipe-filters {
@@ -1006,7 +1115,18 @@
   }
 
   /* Narrow windows: the text field takes its own full line, the handle
-     and buttons wrap beneath it at touch size. */
+     and buttons wrap beneath it at touch size - inside a frame, so they
+     read as that line's controls rather than the next one's. */
+  .draft-recipe-editor-items {
+    gap: 8px;
+  }
+
+  .draft-recipe-editor-item {
+    padding: 8px;
+    border: 1px solid var(--ls-border-color);
+    border-radius: var(--dr-radius-sm);
+  }
+
   .draft-recipe-editor-item > input,
   .draft-recipe-editor-item > textarea,
   .draft-recipe-editor-add-row > input {
@@ -1027,10 +1147,38 @@
   .draft-recipe-editor-item > .draft-recipe-scale-toggle {
     flex: 1 1 0;
     min-width: 0;
-    white-space: normal;
   }
 
   .draft-recipe-editor-item-below {
     padding-left: 12px;
   }
+}
+
+/* Menus at the right edge (the recipe list's header) open leftward. */
+.draft-recipe-menu-end > .draft-recipe-menu-items {
+  left: auto;
+  right: 0;
+}
+
+/* Create Recipe and its ▾ read as one button. */
+.draft-recipe-split-button {
+  display: inline-flex;
+}
+
+.draft-recipe-app .draft-recipe-split-button > button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.draft-recipe-split-button > .draft-recipe-menu > summary {
+  width: 30px;
+  border-left-color: color-mix(
+    in srgb,
+    var(--ls-primary-background-color) 40%,
+    transparent
+  );
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background: var(--ls-link-text-color);
+  color: var(--ls-primary-background-color);
 }

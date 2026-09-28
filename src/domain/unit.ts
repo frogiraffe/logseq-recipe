@@ -1,4 +1,11 @@
-export type MeasurementSystem = "metric" | "us" | "imperial";
+export const MEASUREMENT_SYSTEMS = ["metric", "us", "imperial"] as const;
+export type MeasurementSystem = (typeof MEASUREMENT_SYSTEMS)[number];
+
+export function isMeasurementSystem(
+  value: unknown,
+): value is MeasurementSystem {
+  return MEASUREMENT_SYSTEMS.includes(value as MeasurementSystem);
+}
 
 export type CanonicalUnit =
   | "mg"
@@ -29,6 +36,13 @@ export type CanonicalUnit =
   | "clove"
   | "slice"
   | "pinch"
+  | "can"
+  | "package"
+  | "bunch"
+  | "jar"
+  | "sprig"
+  | "head"
+  | "stick"
   | "second"
   | "minute"
   | "hour"

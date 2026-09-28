@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
 import logseqDevPluginImport from "vite-plugin-logseq";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const pkg = JSON.parse(
   readFileSync(new URL("./package.json", import.meta.url), "utf8"),
@@ -41,5 +41,7 @@ export default defineConfig(({ mode }) => ({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./test/setup.ts"],
+    // Local git worktrees hold other checkouts with their own tests.
+    exclude: [...configDefaults.exclude, ".worktrees/**"],
   },
 }));

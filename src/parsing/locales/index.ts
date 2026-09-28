@@ -17,6 +17,10 @@ const LOCALES: Readonly<Record<RecipeLocale, RecipeLocalePack>> = {
 /** Every recipe locale, English first: the order cross-language fallbacks try. */
 export const RECIPE_LOCALES = Object.keys(LOCALES) as RecipeLocale[];
 
+export function isRecipeLocale(value: unknown): value is RecipeLocale {
+  return typeof value === "string" && Object.hasOwn(LOCALES, value);
+}
+
 export function getLocalePack(locale: RecipeLocale): RecipeLocalePack {
   return LOCALES[locale];
 }

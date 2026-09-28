@@ -63,6 +63,51 @@ describe("duration annotations", () => {
     expect(parsed.durations[0].unit).toBeUndefined();
   });
 
+  it.each([
+    ["en", "Bake for 1 hour 15 minutes.", "1 hour 15 minutes", 75],
+    ["en", "Bake for 1 h 5 min.", "1 h 5 min", 65],
+    ["en", "Rest for 1 hour and 15 minutes.", "1 hour and 15 minutes", 75],
+    ["tr", "Hamuru 1 saat 15 dakika mayalandırın.", "1 saat 15 dakika", 75],
+    ["tr", "1 sa 15 dk pişirin.", "1 sa 15 dk", 75],
+    ["de", "1 Stunde 15 Minuten backen.", "1 Stunde 15 Minuten", 75],
+    ["es", "Hornear 1 hora 15 minutos.", "1 hora 15 minutos", 75],
+    ["fr", "Cuire 1 heure 15 minutes.", "1 heure 15 minutes", 75],
+  ] as const)(
+    "reads hours followed by minutes as one time: %s %s",
+    (locale, text, rawText, minutes) => {
+      const { durations } = parseStep(text, defaultParseContext(locale));
+      expect(durations).toHaveLength(1);
+      expect(durations[0]).toMatchObject({
+        value: { kind: "exact", value: minutes },
+        unit: "minute",
+        rawText,
+      });
+    },
+  );
+
+  it("reads a range whose upper end has hours and minutes", () => {
+    const { durations } = parseStep(
+      "Bake for 1 hour to 1 hour 10 minutes.",
+      defaultParseContext("en"),
+    );
+    expect(durations).toHaveLength(1);
+    expect(durations[0]).toMatchObject({
+      value: { kind: "range", min: 60, max: 70 },
+      unit: "minute",
+    });
+  });
+
+  it("keeps times in separate clauses apart", () => {
+    const { durations } = parseStep(
+      "180 derece fırında 1 saat pişirin, sonra 10 dakika dinlendirin.",
+      defaultParseContext("tr"),
+    );
+    expect(durations.map((duration) => duration.value)).toEqual([
+      { kind: "exact", value: 1 },
+      { kind: "exact", value: 10 },
+    ]);
+  });
+
   it("keeps multiple durations as separate source-spanned annotations", () => {
     const text = "5 dakika kavur, ardından 20 dakika pişir.";
     const parsed = parseStep(text, defaultParseContext("tr"));
@@ -93,6 +138,27 @@ describe("duration annotations", () => {
 });
 
 describe("temperature annotations", () => {
+  it.each([
+    ["en", "Preheat the oven to 350°F (175°C).", 350, "fahrenheit"],
+    ["en", "Bake at 180°C (350°F) for 20 minutes.", 180, "celsius"],
+    ["en", "Bake at 200 °C ( 400 °F ).", 200, "celsius"],
+  ] as const)(
+    "reads a bracketed conversion as the same temperature: %s %s",
+    (locale, text, value, unit) => {
+      const { temperatures } = parseStep(text, defaultParseContext(locale));
+      expect(temperatures).toHaveLength(1);
+      expect(temperatures[0]).toMatchObject({ value, unit });
+    },
+  );
+
+  it("keeps two different temperatures in one step", () => {
+    const { temperatures } = parseStep(
+      "Bake at 220°C (then 350°F for the crust).",
+      defaultParseContext("en"),
+    );
+    expect(temperatures.map((t) => t.value)).toEqual([220, 350]);
+  });
+
   it("does not silently turn a temperature range into its upper bound", () => {
     expect(
       parseStep("180-200°C'de pişir", defaultParseContext("tr")).temperatures,

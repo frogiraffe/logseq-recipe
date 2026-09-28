@@ -39,12 +39,12 @@ export function flattenUnsplitSource(root: UnsplitConversionSource): string {
 
 const FENCED_CODE_BLOCK = /^```[^\n]*\n([\s\S]*?)\n```\s*$/;
 
-function stripCodeFence(text: string): string {
+export function stripCodeFence(text: string): string {
   const match = text.trim().match(FENCED_CODE_BLOCK);
   return match ? match[1] : text;
 }
 
-function leadingWhitespaceLength(line: string): number {
+export function indentOf(line: string): number {
   return line.match(/^[ \t]*/)?.[0].length ?? 0;
 }
 
@@ -66,10 +66,10 @@ export function splitIndentedOutline(rawText: string): OutlineNode | null {
   const lines = text.split("\n").filter((line) => line.trim() !== "");
   if (lines.length < 2) return null;
 
-  const rootIndent = leadingWhitespaceLength(lines[0]);
+  const rootIndent = indentOf(lines[0]);
   const sawDeeperLine = lines
     .slice(1)
-    .some((line) => leadingWhitespaceLength(line) > rootIndent);
+    .some((line) => indentOf(line) > rootIndent);
   if (!sawDeeperLine) return null;
 
   return { text: lines[0].trim(), children: nestLines(lines.slice(1)) };
@@ -87,7 +87,7 @@ export function nestLines(lines: readonly string[]): OutlineNode[] {
   const stack: Array<{ node: OutlineNode; indent: number }> = [];
   for (const line of lines) {
     if (line.trim() === "") continue;
-    const indent = leadingWhitespaceLength(line);
+    const indent = indentOf(line);
     while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
       stack.pop();
     }

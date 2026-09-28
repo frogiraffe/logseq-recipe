@@ -85,6 +85,33 @@ describe("FilterBar category/tag filters", () => {
     expect(onChange).toHaveBeenCalledWith({});
   });
 
+  it("offers Clear filters for a 0-minute bound, not for a range cleared to no bounds", () => {
+    const clear = (filter: RecipeFilter) => {
+      const { unmount } = render(
+        <FilterBar
+          filter={filter}
+          messages={enMessages}
+          categorySuggestions={[]}
+          tagSuggestions={[]}
+          sortBy="title"
+          onChange={() => undefined}
+          onSortChange={() => undefined}
+        />,
+      );
+      const button = screen.queryByRole("button", {
+        name: enMessages.clearFilters,
+      });
+      unmount();
+      return button;
+    };
+
+    expect(clear({ prepMinutes: { min: 0 } })).not.toBeNull();
+    expect(clear({ totalMinutes: { max: 0 } })).not.toBeNull();
+    expect(
+      clear({ cookMinutes: { min: undefined, max: undefined } }),
+    ).toBeNull();
+  });
+
   it("keeps Contains ingredient/Category/Tags/time ranges behind a Filters disclosure, with Sort and Search always visible", () => {
     const { container } = render(
       <FilterBar

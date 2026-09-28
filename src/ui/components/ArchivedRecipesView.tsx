@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { ArchivedRecipeSummary } from "../../application/types";
+import { useConfirm } from "../confirm";
 import type { UiMessages } from "../i18n";
 
 export interface ArchivedRecipesViewProps {
@@ -21,9 +21,7 @@ export function ArchivedRecipesView({
   onDelete,
   onOpenInLogseq,
 }: ArchivedRecipesViewProps) {
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
-    null,
-  );
+  const confirm = useConfirm();
   return (
     <section className="draft-recipe-archived-view">
       <h1>{messages.archivedRecipes}</h1>
@@ -48,55 +46,42 @@ export function ArchivedRecipesView({
                   </small>
                 )}
               </span>
-              {confirmingDeleteId === recipe.id ? (
-                <div className="draft-recipe-archive-confirm">
-                  <p>{messages.deleteRecipePermanentlyConfirm}</p>
-                  <div className="draft-recipe-actions">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDeleteId(null)}
-                    >
-                      {messages.cancel}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`${messages.deleteRecipePermanently}: ${recipe.title}`}
-                      disabled={pending}
-                      onClick={() => {
-                        setConfirmingDeleteId(null);
-                        onDelete(recipe.id);
-                      }}
-                    >
-                      {messages.deleteRecipePermanently}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="draft-recipe-actions">
-                  <button
-                    type="button"
-                    aria-label={`${messages.restoreRecipe}: ${recipe.title}`}
-                    disabled={pending}
-                    onClick={() => onRestore(recipe.id)}
-                  >
-                    {messages.restoreRecipe}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${messages.openInLogseq}: ${recipe.title}`}
-                    onClick={() => onOpenInLogseq(recipe.id)}
-                  >
-                    {messages.openInLogseq}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => setConfirmingDeleteId(recipe.id)}
-                  >
-                    {messages.deleteRecipePermanently}
-                  </button>
-                </div>
-              )}
+              <div className="draft-recipe-actions">
+                <button
+                  type="button"
+                  aria-label={`${messages.restoreRecipe}: ${recipe.title}`}
+                  disabled={pending}
+                  onClick={() => onRestore(recipe.id)}
+                >
+                  {messages.restoreRecipe}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${messages.openInLogseq}: ${recipe.title}`}
+                  onClick={() => onOpenInLogseq(recipe.id)}
+                >
+                  {messages.openInLogseq}
+                </button>
+                <button
+                  type="button"
+                  className="draft-recipe-danger-action"
+                  aria-label={`${messages.deleteRecipePermanently}: ${recipe.title}`}
+                  disabled={pending}
+                  onClick={() =>
+                    confirm(
+                      {
+                        message: messages.deleteRecipePermanentlyConfirm,
+                        detail: recipe.title,
+                        confirmLabel: messages.deleteRecipePermanently,
+                        destructive: true,
+                      },
+                      () => onDelete(recipe.id),
+                    )
+                  }
+                >
+                  {messages.deleteRecipePermanently}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

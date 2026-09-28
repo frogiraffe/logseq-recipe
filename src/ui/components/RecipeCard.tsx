@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { totalMinutes } from "../../application/list-recipes";
 import type { Recipe } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
+import { useConfirm } from "../confirm";
 import type { UiMessages } from "../i18n";
 import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import { CoverImage } from "./CoverImage";
@@ -30,6 +31,8 @@ export interface RecipeCardProps {
   onDuplicateRecipe?(): void;
   onArchiveRecipe?(): void;
   onOpenInLogseq?(): void;
+  // Offered only for a recipe block outside the Recipe Library.
+  onMoveToRecipeLibrary?(): void;
 }
 
 function timeLabel(
@@ -38,12 +41,6 @@ function timeLabel(
 ): string | null {
   if (value === undefined) return null;
   return `${value} ${minutesUnit}`;
-}
-
-function totalMinutes(recipe: Recipe): number | undefined {
-  const values = [recipe.prepMinutes, recipe.chillMinutes, recipe.cookMinutes];
-  if (values.every((value) => value === undefined)) return undefined;
-  return values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
 }
 
 function safeSourceUrl(value: string | undefined): string | null {
@@ -80,8 +77,9 @@ export function RecipeCard({
   onDuplicateRecipe,
   onArchiveRecipe,
   onOpenInLogseq,
+  onMoveToRecipeLibrary,
 }: RecipeCardProps) {
-  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const confirm = useConfirm();
   const notes = recipe.notes;
   const total = totalMinutes(recipe);
   const sourceUrl = safeSourceUrl(recipe.sourceUrl);
@@ -101,12 +99,28 @@ export function RecipeCard({
     ...(onOpenInLogseq
       ? [{ label: messages.openInLogseq, onSelect: onOpenInLogseq }]
       : []),
+    ...(onMoveToRecipeLibrary
+      ? [
+          {
+            label: messages.moveToRecipeLibrary,
+            onSelect: onMoveToRecipeLibrary,
+          },
+        ]
+      : []),
     ...(onArchiveRecipe
       ? [
           {
             label: messages.archiveRecipe,
             danger: true,
-            onSelect: () => setConfirmingArchive(true),
+            onSelect: () =>
+              confirm(
+                {
+                  message: messages.archiveRecipeConfirm,
+                  detail: recipe.title,
+                  confirmLabel: messages.archiveRecipeConfirmAction,
+                },
+                onArchiveRecipe,
+              ),
           },
         ]
       : []),
@@ -186,42 +200,18 @@ export function RecipeCard({
             {messages.editRecipe}
           </button>
         )}
+        {/* Beside the recipe's own actions, not inside the servings control. */}
+        {menuItems.length > 0 && (
+          <ActionMenu label={messages.moreActions} icon="⋯" items={menuItems} />
+        )}
         <ServingControl
           value={targetYield}
           messages={messages}
           yieldUnit={recipe.yieldUnit}
+          baseValue={recipe.baseYield}
           onChange={onTargetYieldChange}
         />
-        {menuItems.length > 0 && (
-          <ActionMenu label={messages.moreActions} icon="⋯" items={menuItems} />
-        )}
       </div>
-
-      {confirmingArchive && (
-        <div
-          className="draft-recipe-archive-confirm"
-          data-testid="archive-confirm"
-        >
-          <p>
-            {messages.archiveRecipeConfirm}
-            <br />
-            <strong>{recipe.title}</strong>
-          </p>
-          <div className="draft-recipe-actions">
-            <button type="button" onClick={() => setConfirmingArchive(false)}>
-              {messages.cancel}
-            </button>
-            <button
-              type="button"
-              className="draft-recipe-danger-action"
-              onClick={onArchiveRecipe}
-              disabled={pending}
-            >
-              {messages.archiveRecipeConfirmAction}
-            </button>
-          </div>
-        </div>
-      )}
 
       {isNewEmptyRecipe && onEditRecipe && (
         <div className="draft-recipe-empty-state">

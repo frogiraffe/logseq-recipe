@@ -1,13 +1,7 @@
 import type { CoverReferenceCapability } from "./capabilities";
 import { PROPERTY_KEYS } from "./property-keys";
 
-export type RecipePropertyType =
-  | "default"
-  | "number"
-  | "checkbox"
-  | "url"
-  | "node"
-  | "json";
+export type RecipePropertyType = "default" | "number" | "checkbox" | "node";
 
 export interface RecipePropertyDefinition {
   key: string;
@@ -18,7 +12,6 @@ export interface RecipePropertyDefinition {
 }
 
 export interface RecipeSchemaCapabilities {
-  jsonProperty: boolean;
   coverReference: CoverReferenceCapability;
 }
 
@@ -37,129 +30,44 @@ export interface PropertySchemaEditor {
 export function buildRecipeSchema(
   capabilities: RecipeSchemaCapabilities,
 ): RecipePropertyDefinition[] {
+  // Plugin bookkeeping stays hidden; the recipe's own fields show on it.
+  const hidden = (key: string, type: RecipePropertyType) => ({
+    key,
+    type,
+    cardinality: "one" as const,
+    hide: true,
+    public: false,
+  });
+  const shown = (key: string, type: RecipePropertyType) => ({
+    ...hidden(key, type),
+    hide: false,
+    public: true,
+  });
   return [
-    {
-      key: PROPERTY_KEYS.recipeMarker,
-      type: "checkbox",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.archivedMarker,
-      type: "checkbox",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.archivedAt,
-      type: "number",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.librarySectionRole,
-      type: "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.schemaVersion,
-      type: "number",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.baseYield,
-      type: "number",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    {
-      key: PROPERTY_KEYS.yieldUnit,
-      type: "default",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    {
-      key: PROPERTY_KEYS.prepMinutes,
-      type: "number",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    {
-      key: PROPERTY_KEYS.chillMinutes,
-      type: "number",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    {
-      key: PROPERTY_KEYS.cookMinutes,
-      type: "number",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    // "url" is a less common/newer Logseq property type than
-    // default/number/checkbox, with no probe to confirm it's actually
-    // supported by the runtime the plugin is loaded into - an unsupported
-    // type here would make upsertProperty throw and block every mutation
-    // (Create/Convert/Duplicate all call ensureRecipeSchema first), not
-    // just source URL handling. Source is free text (a citation, not
-    // necessarily a URL); only the render path (safeSourceUrl) restricts
-    // what becomes a clickable http(s) link, which a native "url" property
-    // type wouldn't help with anyway - a plain text property is the safer
-    // choice across runtimes.
-    {
-      key: PROPERTY_KEYS.sourceUrl,
-      type: "default",
-      cardinality: "one",
-      hide: false,
-      public: true,
-    },
-    {
-      key: PROPERTY_KEYS.recipeMeta,
-      type: capabilities.jsonProperty ? "json" : "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.ingredientMeta,
-      type: "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.coverRef,
-      type: capabilities.coverReference === "asset-node" ? "node" : "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.sectionRole,
-      type: "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
-    {
-      key: PROPERTY_KEYS.scaleMode,
-      type: "default",
-      cardinality: "one",
-      hide: true,
-      public: false,
-    },
+    hidden(PROPERTY_KEYS.recipeMarker, "checkbox"),
+    hidden(PROPERTY_KEYS.archivedMarker, "checkbox"),
+    hidden(PROPERTY_KEYS.archivedAt, "number"),
+    hidden(PROPERTY_KEYS.librarySectionRole, "default"),
+    hidden(PROPERTY_KEYS.schemaVersion, "number"),
+    shown(PROPERTY_KEYS.baseYield, "number"),
+    shown(PROPERTY_KEYS.yieldUnit, "default"),
+    shown(PROPERTY_KEYS.prepMinutes, "number"),
+    shown(PROPERTY_KEYS.chillMinutes, "number"),
+    shown(PROPERTY_KEYS.cookMinutes, "number"),
+    // Plain text, not the newer "url" type: nothing probes that a runtime
+    // supports it, and an unsupported type makes upsertProperty throw and
+    // block every mutation (Create/Convert/Duplicate all ensure the schema
+    // first). Source is free text anyway; only the render path
+    // (safeSourceUrl) decides what becomes a clickable http(s) link.
+    shown(PROPERTY_KEYS.sourceUrl, "default"),
+    hidden(PROPERTY_KEYS.recipeMeta, "default"),
+    hidden(PROPERTY_KEYS.ingredientMeta, "default"),
+    hidden(
+      PROPERTY_KEYS.coverRef,
+      capabilities.coverReference === "asset-node" ? "node" : "default",
+    ),
+    hidden(PROPERTY_KEYS.sectionRole, "default"),
+    hidden(PROPERTY_KEYS.scaleMode, "default"),
   ];
 }
 

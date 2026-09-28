@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RecipeEditPatch } from "../../src/application/edit-recipe";
 import type { Recipe } from "../../src/domain/recipe";
 import { RecipeEditor } from "../../src/ui/components/RecipeEditor";
+import { moveRow } from "../../src/ui/components/SortableList";
 import { enMessages } from "../../src/ui/i18n";
 
 const recipe: Recipe = {
@@ -162,15 +163,30 @@ describe("RecipeEditor", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(enMessages.prepTime), {
-      target: { value: "15" },
-    });
-    fireEvent.change(screen.getByLabelText(enMessages.chillTime), {
-      target: { value: "30" },
-    });
-    fireEvent.change(screen.getByLabelText(enMessages.cookTime), {
-      target: { value: "20" },
-    });
+    fireEvent.change(
+      screen.getByLabelText(
+        `${enMessages.prepTime} (${enMessages.minutesUnit})`,
+      ),
+      {
+        target: { value: "15" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText(
+        `${enMessages.chillTime} (${enMessages.minutesUnit})`,
+      ),
+      {
+        target: { value: "30" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText(
+        `${enMessages.cookTime} (${enMessages.minutesUnit})`,
+      ),
+      {
+        target: { value: "20" },
+      },
+    );
     fireEvent.change(screen.getByLabelText(enMessages.source), {
       target: { value: "https://example.com/cookie" },
     });
@@ -378,6 +394,45 @@ describe("RecipeEditor step notes and media", () => {
     );
   });
 
+  it("shows an attached photo as the file, not as its markup", async () => {
+    const markup = "![butter](../assets/brown-butter.webp)";
+    render(
+      <RecipeEditor
+        recipe={{
+          ...recipe,
+          steps: [
+            {
+              ...recipe.steps[0],
+              children: [
+                {
+                  id: "c1",
+                  kind: "image",
+                  text: markup,
+                  path: "assets/brown-butter.webp",
+                  alt: "butter",
+                },
+              ],
+            },
+          ],
+        }}
+        messages={enMessages}
+        onSave={() => undefined}
+        onCancel={() => undefined}
+        resolveAssetUrl={async (path) => `file:///graph/${path}`}
+      />,
+    );
+
+    expect(screen.queryByDisplayValue(markup)).toBeNull();
+    expect(screen.getByText("brown-butter.webp")).toBeTruthy();
+    expect(
+      ((await screen.findByAltText("butter")) as HTMLImageElement).src,
+    ).toBe("file:///graph/assets/brown-butter.webp");
+    // Still removable like any line.
+    expect(
+      screen.getByRole("button", { name: `${enMessages.remove}: ${markup}` }),
+    ).toBeTruthy();
+  });
+
   it("reports removing an existing step note", () => {
     const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
     render(
@@ -502,5 +557,228 @@ describe("RecipeEditor drag-and-drop", () => {
     } finally {
       layout.mockRestore();
     }
+  });
+});
+
+describe("RecipeEditor ingredient groups", () => {
+  const grouped: Recipe = {
+    ...recipe,
+    ingredients: [
+      {
+        ...recipe.ingredients[0],
+        id: "flour",
+        rawText: "200 g flour",
+        group: { id: "dough", title: "For the dough:" },
+      },
+      {
+        ...recipe.ingredients[0],
+        id: "egg",
+        rawText: "1 egg",
+        group: { id: "dough", title: "For the dough:" },
+      },
+    ],
+  };
+
+  function renderGrouped() {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={grouped}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+    return onSave;
+  }
+
+  it("lists a group as a heading row and saves nothing when unchanged", () => {
+    const onSave = renderGrouped();
+
+    expect(
+      (
+        screen.getByLabelText(
+          `${enMessages.ingredientGroup} 1`,
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe("For the dough:");
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty("ingredientLayout");
+    expect(onSave.mock.calls[0][0].ingredients).toEqual({
+      added: [],
+      updated: [],
+      removed: [],
+    });
+  });
+
+  it("adds a new group with an ingredient and sends the whole arrangement", () => {
+    const onSave = renderGrouped();
+    const add = screen.getByLabelText(enMessages.addIngredient);
+
+    fireEvent.change(add, { target: { value: "For the filling:" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.addIngredientGroup }),
+    );
+    fireEvent.change(add, { target: { value: "250 g cheese" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.addIngredient }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    const patch = onSave.mock.calls[0][0];
+    expect(patch.ingredients.added).toEqual([
+      { tempId: "new:1", text: "For the filling:" },
+      { tempId: "new:2", text: "250 g cheese" },
+    ]);
+    expect(patch.ingredientLayout).toEqual([
+      { id: "dough", items: ["flour", "egg"] },
+      { id: "new:1", items: ["new:2"] },
+    ]);
+    expect(patch).not.toHaveProperty("ingredientOrder");
+  });
+
+  it("saves a one-line group's heading with a colon so it reads back as a group", () => {
+    const onSave = renderGrouped();
+    const add = screen.getByLabelText(enMessages.addIngredient);
+
+    fireEvent.change(add, { target: { value: "Garnish" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.addIngredientGroup }),
+    );
+    fireEvent.change(add, { target: { value: "parsley" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.addIngredient }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave.mock.calls[0][0].ingredients.added).toEqual([
+      { tempId: "new:1", text: "Garnish:" },
+      { tempId: "new:2", text: "parsley" },
+    ]);
+  });
+
+  it("blocks saving a group with no ingredient under it", () => {
+    const onSave = renderGrouped();
+    const add = screen.getByLabelText(enMessages.addIngredient);
+
+    fireEvent.change(add, { target: { value: "For the topping:" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.addIngredientGroup }),
+    );
+
+    expect(screen.getByText(enMessages.emptyIngredientGroup)).toBeTruthy();
+    const save = screen.getByRole("button", {
+      name: enMessages.save,
+    }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe("RecipeEditor when the recipe changes in Logseq", () => {
+  it("keeps a line added elsewhere, warns, and offers the current version", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    const onReload = vi.fn();
+    const props = {
+      messages: enMessages,
+      onSave,
+      onCancel: () => undefined,
+      onReload,
+    };
+    const { rerender } = render(<RecipeEditor recipe={recipe} {...props} />);
+    expect(screen.queryByText(enMessages.recipeChangedElsewhere)).toBeNull();
+
+    rerender(
+      <RecipeEditor
+        recipe={{
+          ...recipe,
+          ingredients: [
+            ...recipe.ingredients,
+            {
+              ...recipe.ingredients[0],
+              id: "added-in-logseq",
+              rawText: "1 egg",
+            },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(screen.getByText(enMessages.recipeChangedElsewhere)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "Cookies" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+    expect(onSave.mock.calls[0][0]).toMatchObject({
+      title: "Cookies",
+      ingredients: { added: [], updated: [], removed: [] },
+    });
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.loadCurrentVersion }),
+    );
+    expect(confirm).toHaveBeenCalled();
+    expect(onReload).toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it("does not warn when a reload brings the same content", () => {
+    const props = {
+      messages: enMessages,
+      onSave: () => undefined,
+      onCancel: () => undefined,
+    };
+    const { rerender } = render(<RecipeEditor recipe={recipe} {...props} />);
+    rerender(<RecipeEditor recipe={structuredClone(recipe)} {...props} />);
+    expect(screen.queryByText(enMessages.recipeChangedElsewhere)).toBeNull();
+  });
+});
+
+describe("moveRow", () => {
+  const rows = ["a", "b", "#H1", "x", "y", "#H2", "z"].map((text) => ({
+    id: text,
+    text,
+    ...(text.startsWith("#") ? { heading: true } : {}),
+  }));
+  const ids = (list: Array<{ id: string }>) => list.map((row) => row.id);
+
+  it("moves a plain row on its own", () => {
+    expect(ids(moveRow(rows, 3, 6))).toEqual([
+      "a",
+      "b",
+      "#H1",
+      "y",
+      "#H2",
+      "z",
+      "x",
+    ]);
+  });
+
+  it("moves a group heading with its ingredients, between groups", () => {
+    expect(ids(moveRow(rows, 2, 6))).toEqual([
+      "a",
+      "b",
+      "#H2",
+      "z",
+      "#H1",
+      "x",
+      "y",
+    ]);
+    // Dropped on the ungrouped rows at the top: it stops below them.
+    expect(ids(moveRow(rows, 5, 0))).toEqual([
+      "a",
+      "b",
+      "#H2",
+      "z",
+      "#H1",
+      "x",
+      "y",
+    ]);
+    // Dropped on one of its own ingredients: nothing moves.
+    expect(ids(moveRow(rows, 2, 4))).toEqual(ids(rows));
   });
 });

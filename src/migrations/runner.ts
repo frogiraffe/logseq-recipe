@@ -1,11 +1,7 @@
 import { RECIPE_SCHEMA_VERSION } from "../domain/recipe";
 import { propertyNumber } from "../logseq/block-reader";
 import { PROPERTY_KEYS } from "../logseq/property-keys";
-import type {
-  RecipeMigration,
-  RecipeMigrationCapabilities,
-  RecipeMigrationHost,
-} from "./types";
+import type { RecipeMigration, RecipeMigrationHost } from "./types";
 import { migrationV1 } from "./v1";
 
 const MIGRATIONS: readonly RecipeMigration[] = [migrationV1];
@@ -25,7 +21,6 @@ export class FutureRecipeSchemaError extends Error {
 export async function runRecipeMigrations(
   host: RecipeMigrationHost,
   recipeId: string,
-  capabilities: RecipeMigrationCapabilities,
 ): Promise<number> {
   const rawVersion = await host.getBlockProperty(
     recipeId,
@@ -46,7 +41,7 @@ export async function runRecipeMigrations(
         `No migration path exists from recipe schema ${version}.`,
       );
     }
-    await migration.run({ host, recipeId, capabilities });
+    await migration.run({ host, recipeId });
     version = migration.to;
   }
 

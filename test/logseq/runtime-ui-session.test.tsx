@@ -13,7 +13,6 @@ const capabilities: RuntimeCapabilities = {
   hiddenProperty: true,
   numberProperty: true,
   textProperty: true,
-  jsonProperty: false,
   dbChangeListener: true,
   stableMainUi: true,
   coverReference: "asset-path",
@@ -70,6 +69,7 @@ async function mountRecipeUi(initialView: DraftRecipeInitialView) {
         ingredientConversionOverrides: [],
       }),
       resolveCover: async () => null,
+      canMoveToRecipeLibrary: async () => false,
       openInLogseq: (id: string) => {
         void logseq.Editor.openInRightSidebar(id);
       },

@@ -4,6 +4,7 @@
 // build (vite builds ./index.html, not ./demo).
 import { createRoot } from "react-dom/client";
 import {
+  analyzeRecipeConversion,
   type ConversionDraft,
   type ConversionSourceNode,
   commitRecipeConversion,
@@ -11,13 +12,16 @@ import {
   planRecipeConversion,
 } from "../src/application/convert-recipe";
 import { commitRecipeEdit } from "../src/application/edit-recipe";
+import { ingredientLines } from "../src/application/ingredient-groups";
+import { recipeSummary } from "../src/application/list-recipes";
 import type { RecipeRepository } from "../src/application/recipe-repository";
-import type {
-  ArchivedRecipeSummary,
-  ExistingRecipeStructure,
-  NewRecipeInput,
-  RecipeSectionRole,
-  RecipeSummary,
+import {
+  type ArchivedRecipeSummary,
+  type ExistingRecipeStructure,
+  type NewRecipeInput,
+  RECIPE_SECTION_ROLES,
+  type RecipeSectionRole,
+  type RecipeSummary,
 } from "../src/application/types";
 import type {
   IngredientScaleMode,
@@ -49,8 +53,7 @@ const theme = params.get("theme") === "dark" ? "dark" : "light";
 // Demo seeds are written in metric, so parse and display in metric for
 // both locales - otherwise "225 g" comes back out as "7.94 oz".
 const sourceMeasurementSystem = "metric" as const;
-const parseContext = defaultParseContext(locale);
-parseContext.sourceMeasurementSystem = sourceMeasurementSystem;
+const parseContext = defaultParseContext(locale, sourceMeasurementSystem);
 
 let counter = 0;
 function nextId(prefix: string): string {
@@ -269,7 +272,7 @@ type Located =
 
 function locate(itemId: string): Located | null {
   for (const recipe of store.values()) {
-    for (const role of ["ingredients", "steps", "notes"] as const) {
+    for (const role of RECIPE_SECTION_ROLES) {
       const index = recipe[role].findIndex((item) => item.id === itemId);
       if (index >= 0) return { recipe, list: recipe[role], index, role };
     }
@@ -287,29 +290,6 @@ function locate(itemId: string): Located | null {
     }
   }
   return null;
-}
-
-function summary(recipe: Recipe): RecipeSummary {
-  return {
-    id: recipe.id,
-    title: recipe.title,
-    categories: recipe.categories,
-    tags: recipe.tags,
-    ...(recipe.prepMinutes ? { prepMinutes: recipe.prepMinutes } : {}),
-    ...(recipe.chillMinutes ? { chillMinutes: recipe.chillMinutes } : {}),
-    ...(recipe.cookMinutes ? { cookMinutes: recipe.cookMinutes } : {}),
-    ingredientTexts: recipe.ingredients.map((item) => item.ingredientText),
-    ...(recipe.cover ? { cover: recipe.cover } : {}),
-    stepTexts: recipe.steps.map((step) => step.rawText),
-    noteTexts: [
-      ...recipe.notes.map((note) => note.text),
-      ...recipe.steps.flatMap((step) =>
-        (step.children ?? [])
-          .filter((child) => child.kind === "note")
-          .map((child) => child.text),
-      ),
-    ],
-  };
 }
 
 const repository: RecipeRepository = {
@@ -347,12 +327,12 @@ const repository: RecipeRepository = {
   listRecipeSummaries: async (): Promise<RecipeSummary[]> =>
     [...store.values()]
       .filter((recipe) => !archivedAt.has(recipe.id))
-      .map(summary),
+      .map(recipeSummary),
   listArchivedRecipeSummaries: async (): Promise<ArchivedRecipeSummary[]> =>
     [...store.values()]
       .filter((recipe) => archivedAt.has(recipe.id))
       .map((recipe) => ({
-        ...summary(recipe),
+        ...recipeSummary(recipe),
         archivedAt: archivedAt.get(recipe.id),
       })),
   validateRecipe: async () => ({ valid: true, issues: [] }),
@@ -403,7 +383,15 @@ const repository: RecipeRepository = {
   },
   updateSectionItem: async (itemId, text) => {
     const found = locate(itemId);
-    if (!found) return;
+    if (!found) {
+      // A group heading: its title lives on its ingredients.
+      for (const recipe of store.values()) {
+        for (const ingredient of recipe.ingredients) {
+          if (ingredient.group?.id === itemId) ingredient.group.title = text;
+        }
+      }
+      return;
+    }
     const { recipe, index } = found;
     if (found.role === "ingredients") {
       recipe.ingredients[index] = { ...makeIngredient(text), id: itemId };
@@ -449,6 +437,29 @@ const repository: RecipeRepository = {
     }
     notify(first.recipe.id);
   },
+  // Every demo recipe lives in the demo's library already.
+  canMoveToRecipeLibrary: async () => false,
+  moveToRecipeLibrary: async () => undefined,
+  arrangeIngredients: async (recipeId, layout) => {
+    const recipe = mustGet(recipeId);
+    const byId = new Map(recipe.ingredients.map((item) => [item.id, item]));
+    const titleOf = (id: string) =>
+      byId.get(id)?.rawText ??
+      recipe.ingredients.find((item) => item.group?.id === id)?.group?.title ??
+      id;
+    // A heading added in this save arrived as an ingredient line; it becomes
+    // the group's title and leaves the list.
+    recipe.ingredients = layout.flatMap((entry) => {
+      const group = entry.items && { id: entry.id, title: titleOf(entry.id) };
+      return (entry.items ?? [entry.id]).flatMap((id) => {
+        const item = byId.get(id);
+        if (!item) return [];
+        const { group: _previous, ...ingredient } = item;
+        return [group ? { ...ingredient, group } : ingredient];
+      });
+    });
+    notify(recipeId);
+  },
   archiveRecipe: async (id) => {
     mustGet(id);
     if (!archivedAt.has(id)) archivedAt.set(id, Date.now());
@@ -476,14 +487,20 @@ let pendingSource: ConversionSourceNode | null =
 
 function conversionView(source: ConversionSourceNode): DraftRecipeInitialView {
   const plan = planRecipeConversion(source, parseContext);
-  return plan.kind === "split"
-    ? {
-        kind: "convert-needs-split",
-        uuid: source.id,
-        outline: plan.outline,
-        staleChildIds: source.children.map((child) => child.id),
-      }
-    : { kind: "convert", source, draft: plan.draft };
+  if (plan.kind === "convert") {
+    return { kind: "convert", source, draft: plan.draft };
+  }
+  // Previewed as rebuilt; the demo "rebuilds" on Confirm.
+  const rebuilt = outlineToSource(plan.outline, source.id);
+  return {
+    kind: "convert",
+    source: rebuilt,
+    draft: analyzeRecipeConversion(rebuilt, parseContext),
+    rebuild: {
+      outline: plan.outline,
+      staleChildIds: source.children.map((child) => child.id),
+    },
+  };
 }
 
 // The recipe a committed conversion leaves behind, read back from the
@@ -518,19 +535,26 @@ function recipeFromConversion(structure: ExistingRecipeStructure): Recipe {
     ...(structure.cookMinutes ? { cookMinutes: structure.cookMinutes } : {}),
     categories: [],
     tags: [],
-    ingredients: section("ingredients").map((block) => {
-      const parsed =
-        parsedById.get(block.id) ?? parseIngredient(block.title, parseContext);
-      return {
-        id: block.id,
-        rawText: block.title,
-        ...(parsed.amount ? { amount: parsed.amount } : {}),
-        ...(parsed.unit ? { unit: parsed.unit } : {}),
-        ingredientText: parsed.ingredientText,
-        ...(parsed.note ? { note: parsed.note } : {}),
-        scaleMode: "linear" as IngredientScaleMode,
-      };
-    }),
+    ingredients: ingredientLines(section("ingredients"), parseContext).map(
+      ({ line: block, group }) => {
+        const parsed =
+          parsedById.get(block.id) ??
+          parseIngredient(block.title, parseContext);
+        return {
+          id: block.id,
+          rawText: block.title,
+          ...(parsed.amount ? { amount: parsed.amount } : {}),
+          ...(parsed.unit ? { unit: parsed.unit } : {}),
+          ingredientText: parsed.ingredientText,
+          ...(parsed.note ? { note: parsed.note } : {}),
+          scaleMode: "linear" as IngredientScaleMode,
+          ...(group ? { group: { id: group.id, title: group.title } } : {}),
+          ...(block.children.length > 0
+            ? { details: block.children.map((child) => child.title) }
+            : {}),
+        };
+      },
+    ),
     steps: section("steps").map((block) => ({
       id: block.id,
       rawText: block.title,
@@ -569,9 +593,14 @@ const controller: DraftRecipeUiController = {
   duplicateRecipe: (id) => repository.duplicateRecipe(id),
   commitConversion: (draft: ConversionDraft) =>
     commitRecipeConversion(repository, draft),
-  splitOutlineAndConvert: async (uuid, outline) => {
-    pendingSource = { ...outlineToSource(outline, uuid), id: uuid };
-    return conversionView(pendingSource);
+  commitRebuiltConversion: async (rebuild, draft) => {
+    pendingSource = outlineToSource(rebuild.outline, draft.rootId);
+    await commitRecipeConversion(repository, draft);
+  },
+  commitImportedRecipe: async (outline, draft) => {
+    pendingSource = outlineToSource(outline, draft.rootId);
+    await commitRecipeConversion(repository, draft);
+    return draft.rootId;
   },
   resolveCover: async (recipe) =>
     recipe.cover ? `./${recipe.cover.value}` : null,
@@ -589,6 +618,8 @@ const controller: DraftRecipeUiController = {
   setCoverPath: async () => undefined,
   clearCover: async () => undefined,
   saveRecipeEdit: (id, patch) => commitRecipeEdit(repository, id, patch),
+  canMoveToRecipeLibrary: (id) => repository.canMoveToRecipeLibrary(id),
+  moveToRecipeLibrary: (id) => repository.moveToRecipeLibrary(id),
   archiveRecipe: (id) => repository.archiveRecipe(id),
   restoreRecipe: (id) => repository.restoreRecipe(id),
   deleteArchivedRecipe: (id) => repository.deleteArchivedRecipe(id),

@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Recipe } from "../../src/domain/recipe";
 import { RecipeCard } from "../../src/ui/components/RecipeCard";
 import { enMessages, trMessages } from "../../src/ui/i18n";
+import { renderWithConfirm } from "./confirm-host";
 import { ingredientLine } from "./ingredient-line";
 
 const recipe: Recipe = {
@@ -254,7 +255,7 @@ describe("RecipeCard", () => {
 
   it("requires an explicit confirmation naming the recipe before archiving", () => {
     const onArchiveRecipe = vi.fn();
-    render(
+    renderWithConfirm(
       <RecipeCard
         ingredientUnitOverrides={{}}
         onIngredientUnitOverrideChange={() => undefined}
@@ -270,20 +271,22 @@ describe("RecipeCard", () => {
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.archiveRecipe }),
     );
-    expect(screen.getByTestId("archive-confirm")).toBeTruthy();
-    expect(screen.getByText(enMessages.archiveRecipeConfirm)).toBeTruthy();
-    expect(screen.getAllByText(recipe.title).length).toBeGreaterThan(0);
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.textContent).toContain(enMessages.archiveRecipeConfirm);
+    expect(dialog.textContent).toContain(recipe.title);
     expect(onArchiveRecipe).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
-    expect(screen.queryByTestId("archive-confirm")).toBeNull();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: enMessages.cancel }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onArchiveRecipe).not.toHaveBeenCalled();
 
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.archiveRecipe }),
     );
     fireEvent.click(
-      screen.getByRole("button", {
+      within(screen.getByRole("alertdialog")).getByRole("button", {
         name: enMessages.archiveRecipeConfirmAction,
       }),
     );

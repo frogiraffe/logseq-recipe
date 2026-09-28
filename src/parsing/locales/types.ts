@@ -24,6 +24,13 @@ export type UnitLexeme =
   | "clove"
   | "slice"
   | "pinch"
+  | "can"
+  | "package"
+  | "bunch"
+  | "jar"
+  | "sprig"
+  | "head"
+  | "stick"
   | "second"
   | "minute"
   | "hour"
@@ -99,9 +106,27 @@ export interface RecipeLocalePack {
    */
   negativeImperativeSuffixes: readonly string[];
   metadataAliases: Readonly<Record<string, RecipeMetadataField>>;
+  /** How a time is written back into a line ("1 saat 30 dk"). */
+  durationWords: { hour: string; minute: string };
   sectionAliases: {
     ingredients: readonly string[];
     steps: readonly string[];
     notes: readonly string[];
+  };
+  /**
+   * Words that tie a section name to what it is for, so a qualified heading
+   * still names the section: `after` follows the name ("Ingredients for the
+   * dough"), `before` precedes it ("Hamur için malzemeler"). `suffixed` are
+   * each section's names as they end a qualified heading, for languages
+   * that mark it on the name itself (Turkish "Kekin yapılışı").
+   */
+  sectionQualifiers: {
+    after: readonly string[];
+    before: readonly string[];
+    suffixed: {
+      ingredients: readonly string[];
+      steps: readonly string[];
+      notes: readonly string[];
+    };
   };
 }

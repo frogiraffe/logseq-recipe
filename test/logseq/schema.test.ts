@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildRecipeSchema } from "../../src/logseq/schema";
 
-function schemaByKey(options: {
-  jsonProperty: boolean;
-  coverReference: "asset-node" | "asset-path" | "unsupported";
-}) {
+function schemaByKey(
+  coverReference: "asset-node" | "asset-path" | "unsupported",
+) {
   return Object.fromEntries(
-    buildRecipeSchema(options).map((definition) => [
+    buildRecipeSchema({ coverReference }).map((definition) => [
       definition.key,
       definition,
     ]),
@@ -15,10 +14,7 @@ function schemaByKey(options: {
 
 describe("recipe DB schema", () => {
   it("keeps technical metadata hidden and useful recipe metadata visible", () => {
-    const schema = schemaByKey({
-      jsonProperty: true,
-      coverReference: "asset-node",
-    });
+    const schema = schemaByKey("asset-node");
 
     expect(schema.recipe_marker).toMatchObject({
       type: "checkbox",
@@ -40,7 +36,7 @@ describe("recipe DB schema", () => {
       public: false,
     });
     expect(schema.schema_version).toMatchObject({ type: "number", hide: true });
-    expect(schema.recipe_meta).toMatchObject({ type: "json", hide: true });
+    expect(schema.recipe_meta).toMatchObject({ type: "default", hide: true });
     expect(schema.ingredient_meta).toMatchObject({
       type: "default",
       hide: true,
@@ -63,11 +59,8 @@ describe("recipe DB schema", () => {
     expect(schema.source_url.type).toBe("default");
   });
 
-  it("falls back to string-compatible hidden properties when richer capabilities are unavailable", () => {
-    const schema = schemaByKey({
-      jsonProperty: false,
-      coverReference: "asset-path",
-    });
+  it("stores covers as plain asset paths unless asset nodes are available", () => {
+    const schema = schemaByKey("asset-path");
 
     expect(schema.recipe_meta.type).toBe("default");
     expect(schema.ingredient_meta.type).toBe("default");
@@ -75,10 +68,9 @@ describe("recipe DB schema", () => {
   });
 
   it("uses one hidden ingredient payload instead of duplicate amount/unit properties", () => {
-    const keys = buildRecipeSchema({
-      jsonProperty: true,
-      coverReference: "asset-node",
-    }).map((definition) => definition.key);
+    const keys = buildRecipeSchema({ coverReference: "asset-node" }).map(
+      (definition) => definition.key,
+    );
 
     expect(keys).toContain("ingredient_meta");
     expect(keys).not.toContain("amount");

@@ -50,7 +50,6 @@ export interface ChipInputProps {
   values: string[];
   variant: ChipVariant;
   ariaLabel: string;
-  placeholder?: string;
   removeLabel: string;
   suggestions?: FacetSuggestion[];
   onChange(values: string[]): void;
@@ -61,7 +60,6 @@ export function ChipInput({
   values,
   variant,
   ariaLabel,
-  placeholder,
   removeLabel,
   suggestions = [],
   onChange,
@@ -77,14 +75,7 @@ export function ChipInput({
   const matches = filterChipSuggestions(draft, suggestions, values);
   const open = !dismissed && matches.length > 0;
 
-  function commit() {
-    const next = addChipValue(values, draft);
-    if (next !== values) onChange(next);
-    setDraft("");
-    setDismissed(false);
-  }
-
-  function selectSuggestion(value: string) {
+  function commit(value = draft) {
     const next = addChipValue(values, value);
     if (next !== values) onChange(next);
     setDraft("");
@@ -112,9 +103,7 @@ export function ChipInput({
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      const active = open ? matches[activeIndex] : undefined;
-      if (active) selectSuggestion(active.value);
-      else commit();
+      commit(open ? matches[activeIndex]?.value : undefined);
       return;
     }
     if (event.key === ",") {
@@ -165,7 +154,6 @@ export function ChipInput({
           aria-expanded={open}
           role="combobox"
           value={draft}
-          placeholder={placeholder}
           onChange={(event) => {
             setDraft(event.currentTarget.value);
             setDismissed(false);
@@ -173,7 +161,7 @@ export function ChipInput({
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          onBlur={commit}
+          onBlur={() => commit()}
         />
       </div>
       {open && (
@@ -190,7 +178,7 @@ export function ChipInput({
                   : undefined
               }
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectSuggestion(suggestion.value)}
+              onClick={() => commit(suggestion.value)}
             >
               {suggestion.value}
             </button>

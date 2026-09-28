@@ -221,7 +221,7 @@ describe("RecipeSettingsPanel", () => {
     for (const text of optionTexts) {
       expect(text).not.toMatch(/_us|_metric|_imperial/);
     }
-    expect(optionTexts).toContain("tbsp US");
+    expect(optionTexts).toContain("tbsp (US)");
   });
 
   it("only offers volume units for the recipe's source measurement system", () => {
@@ -241,9 +241,9 @@ describe("RecipeSettingsPanel", () => {
     const optionTexts = Array.from(select.options).map(
       (option) => option.textContent,
     );
-    expect(optionTexts).toContain("tbsp Metric");
-    expect(optionTexts).not.toContain("tbsp US");
-    expect(optionTexts).not.toContain("tbsp Imperial");
+    expect(optionTexts).toContain("tbsp (metric)");
+    expect(optionTexts).not.toContain("tbsp (US)");
+    expect(optionTexts).not.toContain("tbsp (imperial)");
   });
 
   it("does not render a raw canonical unit id in the saved conversion-rule list", () => {
@@ -267,7 +267,7 @@ describe("RecipeSettingsPanel", () => {
       screen.getByRole("button", { name: enMessages.addConversion }),
     );
 
-    expect(screen.getByText("butter: 1 tbsp US = 14.2 g")).toBeTruthy();
+    expect(screen.getByText("butter: 1 tbsp (US) = 14.2 g")).toBeTruthy();
   });
 
   it("labels the conversion-rule editor to avoid confusion with ingredient authoring", () => {
@@ -304,5 +304,27 @@ describe("RecipeSettingsPanel", () => {
     expect(confirmSpy).toHaveBeenCalledWith(enMessages.discardChangesConfirm);
     expect(onCancel).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe("RecipeSettingsPanel explanations", () => {
+  it("names languages and explains both measurement systems", () => {
+    render(
+      <RecipeSettingsPanel
+        recipe={recipe}
+        assets={[]}
+        messages={enMessages}
+        onSave={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Türkçe" })).toBeTruthy();
+    const source = screen.getByRole("combobox", {
+      name: new RegExp(`^${enMessages.sourceMeasurementSystem}`),
+    });
+    const help = document.getElementById(
+      source.getAttribute("aria-describedby") ?? "",
+    );
+    expect(help?.textContent).toBe(enMessages.sourceMeasurementHelp);
   });
 });

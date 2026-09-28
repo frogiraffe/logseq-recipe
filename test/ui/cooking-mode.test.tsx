@@ -7,6 +7,7 @@ import { defaultParseContext } from "../../src/parsing/context";
 import { parseStep, withNoteDurations } from "../../src/parsing/step";
 import { CookingMode } from "../../src/ui/components/CookingMode";
 import { enMessages } from "../../src/ui/i18n";
+import { renderWithConfirm } from "./confirm-host";
 import { ingredientLine } from "./ingredient-line";
 
 const recipe: Recipe = {
@@ -137,6 +138,32 @@ describe("CookingMode", () => {
     expect(timers.some((label) => label?.includes("15:00"))).toBe(false);
   });
 
+  it("shows a step's timers before its notes and photos", () => {
+    const context = defaultParseContext("en");
+    const text = "Bake for 10 minutes.";
+    render(
+      cookingMode({
+        ...recipe,
+        steps: [
+          {
+            id: "bake",
+            rawText: text,
+            ...parseStep(text, context),
+            children: [parseStepChild("n1", "Golden at the edges.")],
+          },
+        ],
+      }),
+    );
+
+    const timers = document.querySelector(".draft-recipe-step-timers");
+    const notes = document.querySelector(".draft-recipe-step-children");
+    expect(timers && notes).toBeTruthy();
+    expect(
+      (timers as Node).compareDocumentPosition(notes as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("navigates step boundaries and keeps qualitative heat non-numeric", () => {
     render(cookingMode(recipe));
 
@@ -161,13 +188,11 @@ describe("CookingMode", () => {
     ).toBeTruthy();
     expect(screen.getByText("Fan · 180 °C · Preheated")).toBeTruthy();
     expect(screen.getByText("10–12 min")).toBeTruthy();
+    // The last step's bar offers Finish where Next was.
+    expect(screen.queryByRole("button", { name: enMessages.next })).toBeNull();
     expect(
-      (
-        screen.getByRole("button", {
-          name: enMessages.next,
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+      screen.getAllByRole("button", { name: enMessages.finishCooking }),
+    ).toHaveLength(1);
   });
 
   it("supports keyboard navigation and Escape", () => {
@@ -469,6 +494,51 @@ describe("CookingMode sessions and timers", () => {
     expect(screen.getByRole("timer")).toBeTruthy();
   });
 
+  it("asks before finishing while a timer is still counting down", () => {
+    const onExit = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(cookingMode(recipe, onExit));
+    fireEvent.click(screen.getByRole("button", { name: enMessages.next }));
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: new RegExp(`^${enMessages.startTimer}`),
+      })[0],
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.finishCooking }),
+    );
+    expect(confirm).toHaveBeenCalledWith(enMessages.finishCookingConfirm);
+    expect(onExit).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it("keeps keys and clicks on the finish question from reaching the step behind it", () => {
+    const onExit = vi.fn();
+    renderWithConfirm(cookingMode(recipe, onExit));
+    const stepText = () =>
+      document.querySelector(".draft-recipe-current-step p")?.textContent;
+    const firstStep = stepText();
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: new RegExp(`^${enMessages.startTimer}`),
+      })[0],
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.finishCooking }),
+    );
+    const dialog = screen.getByRole("alertdialog");
+
+    // A click in the question keeps focus in it.
+    expect(fireEvent.mouseDown(dialog)).toBe(false);
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "ArrowRight" });
+    expect(stepText()).toBe(firstStep);
+
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onExit).not.toHaveBeenCalled();
+  });
+
   it("finish cooking clears the saved session", () => {
     const key = "logseq-recipe:cooking:graph-a:r1";
     const onExit = vi.fn();
@@ -592,5 +662,27 @@ describe("CookingMode timer pause", () => {
       vi.advanceTimersByTime(60_000);
     });
     expect(screen.getByRole("timer").textContent).toBe("03:00");
+  });
+});
+
+describe("CookingMode on a wide window", () => {
+  it("starts a new cook with the ingredients beside the step", () => {
+    (
+      window as Window & {
+        happyDOM?: { setViewport(v: { width: number; height: number }): void };
+      }
+    ).happyDOM?.setViewport({ width: 1280, height: 800 });
+    render(cookingMode(recipe));
+
+    expect(
+      screen
+        .getByRole("button", { name: enMessages.ingredients })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      document
+        .querySelector(".draft-recipe-cooking-mode")
+        ?.classList.contains("draft-recipe-cooking-split"),
+    ).toBe(true);
   });
 });

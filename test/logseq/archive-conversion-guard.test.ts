@@ -13,7 +13,6 @@ const capabilities: RuntimeCapabilities = {
   hiddenProperty: true,
   numberProperty: true,
   textProperty: true,
-  jsonProperty: false,
   dbChangeListener: true,
   stableMainUi: true,
   coverReference: "asset-path",

@@ -43,6 +43,12 @@ export interface CoverRef {
   value: string;
 }
 
+/** A heading ingredients are nested under ("For the dough"). */
+export interface IngredientGroup {
+  id: string;
+  title: string;
+}
+
 export interface Ingredient {
   id: string;
   rawText: string;
@@ -51,6 +57,9 @@ export interface Ingredient {
   ingredientText: string;
   note?: string;
   scaleMode: IngredientScaleMode;
+  group?: IngredientGroup;
+  // Lines written under the ingredient in Logseq ("at room temperature").
+  details?: string[];
 }
 
 export interface RecipeStep {

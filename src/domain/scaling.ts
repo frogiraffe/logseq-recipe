@@ -1,4 +1,4 @@
-import type { Quantity } from "./quantity";
+import { mapQuantity, type Quantity } from "./quantity";
 import type { Ingredient } from "./recipe";
 
 export function servingFactor(baseYield: number, targetYield: number): number {
@@ -29,22 +29,7 @@ export function scaleQuantity(quantity: Quantity, factor: number): Quantity {
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new RangeError("factor must be a finite number greater than 0");
   }
-
-  switch (quantity.kind) {
-    case "exact":
-    case "minimum":
-    case "maximum":
-    case "approximate":
-      return { ...quantity, value: quantity.value * factor };
-    case "range":
-      return {
-        kind: "range",
-        min: quantity.min * factor,
-        max: quantity.max * factor,
-      };
-    case "inexact":
-      return quantity;
-  }
+  return mapQuantity(quantity, (value) => value * factor);
 }
 
 export function scaleIngredient(

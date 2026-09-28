@@ -1,18 +1,38 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { useConfirm } from "./confirm";
+import type { UiMessages } from "./i18n";
 
 /**
- * Guards a discard action (Cancel/Close) behind a native confirmation
- * prompt when there are meaningful unsaved changes. Deliberately the
- * simplest viable implementation - a native `confirm()` rather than a
- * custom modal - since the only requirement is that a real edit can't be
- * silently thrown away by a stray click.
+ * Guards a discard action (Cancel/Close) behind a confirmation when there
+ * are unsaved changes, so a real edit can't be thrown away by a stray
+ * click. `confirmDiscard(isDirty, discard)` discards at once when clean.
  */
-export function confirmDiscardIfDirty(
-  isDirty: boolean,
-  message: string,
-  discard: () => void,
-): void {
-  if (!isDirty || window.confirm(message)) discard();
+export function useConfirmDiscard(
+  messages: Pick<
+    UiMessages,
+    "discardChangesConfirm" | "discardChanges" | "keepEditing"
+  >,
+): (isDirty: boolean, discard: () => void) => void {
+  const confirm = useConfirm();
+  const { discardChangesConfirm, discardChanges, keepEditing } = messages;
+  return useCallback(
+    (isDirty, discard) => {
+      if (!isDirty) {
+        discard();
+        return;
+      }
+      confirm(
+        {
+          message: discardChangesConfirm,
+          confirmLabel: discardChanges,
+          cancelLabel: keepEditing,
+          destructive: true,
+        },
+        discard,
+      );
+    },
+    [confirm, discardChangesConfirm, discardChanges, keepEditing],
+  );
 }
 
 /**

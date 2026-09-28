@@ -8,7 +8,6 @@ export interface RuntimeCapabilities {
   hiddenProperty: boolean;
   numberProperty: boolean;
   textProperty: boolean;
-  jsonProperty: boolean;
   dbChangeListener: boolean;
   stableMainUi: boolean;
   coverReference: CoverReferenceCapability;
@@ -17,14 +16,6 @@ export interface RuntimeCapabilities {
 function hasFunction(target: unknown, name: string): boolean {
   if (!target || typeof target !== "object") return false;
   return typeof (target as Record<string, unknown>)[name] === "function";
-}
-
-// The runtime's only real dependency is the graph-wide `onChanged` feed
-// (see LogseqRecipeHost.db.onChanged / watchRecipe) - `onBlockChanged` is
-// never called outside this file's own deeper diagnostic probe below, so it
-// must not gate whether the plugin is allowed to run at all.
-function hasRequiredDbListeners(target: unknown): boolean {
-  return hasFunction(target, "onChanged");
 }
 
 function detectCoverReferenceCapability(): CoverReferenceCapability {
@@ -90,8 +81,9 @@ export async function probeRuntimeCapabilities(): Promise<RuntimeCapabilities> {
     hiddenProperty: propertyApi,
     numberProperty: propertyApi,
     textProperty: propertyApi,
-    jsonProperty: false,
-    dbChangeListener: hasRequiredDbListeners(db),
+    // Only the graph-wide `onChanged` feed is used (see watchRecipe), so
+    // `onBlockChanged` must not gate whether the plugin runs.
+    dbChangeListener: hasFunction(db, "onChanged"),
     stableMainUi: await probeMainUi(),
     coverReference: detectCoverReferenceCapability(),
   };

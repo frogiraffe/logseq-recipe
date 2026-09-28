@@ -1,44 +1,3 @@
-export interface DebouncedCallback {
-  trigger(): void;
-  flush(): void;
-  dispose(): void;
-}
-
-export function createDebouncedCallback(
-  callback: () => void,
-  delayMs: number,
-): DebouncedCallback {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let disposed = false;
-
-  const clear = () => {
-    if (timer !== null) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-
-  return {
-    trigger() {
-      if (disposed) return;
-      clear();
-      timer = setTimeout(() => {
-        timer = null;
-        if (!disposed) callback();
-      }, delayMs);
-    },
-    flush() {
-      if (disposed || timer === null) return;
-      clear();
-      callback();
-    },
-    dispose() {
-      disposed = true;
-      clear();
-    },
-  };
-}
-
 export class ListenerBag {
   private readonly listeners = new Set<() => void>();
   private disposed = false;
@@ -62,15 +21,25 @@ export class ListenerBag {
   }
 }
 
+/**
+ * Subscribes, and calls `callback` once a burst of events has been quiet for
+ * `delayMs`. The returned stop also cancels a call still pending.
+ */
 export function watchDebounced(
   subscribe: (listener: () => void) => () => void,
   callback: () => void,
-  delayMs = 120,
+  delayMs: number,
 ): () => void {
-  const debounced = createDebouncedCallback(callback, delayMs);
-  const off = subscribe(() => debounced.trigger());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let active = true;
+  const off = subscribe(() => {
+    if (!active) return;
+    clearTimeout(timer);
+    timer = setTimeout(callback, delayMs);
+  });
   return () => {
+    active = false;
     off();
-    debounced.dispose();
+    clearTimeout(timer);
   };
 }

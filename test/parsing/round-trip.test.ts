@@ -3,16 +3,20 @@ import type { Ingredient } from "../../src/domain/recipe";
 import type { MeasurementSystem } from "../../src/domain/unit";
 import { defaultParseContext } from "../../src/parsing/context";
 import { parseIngredient } from "../../src/parsing/ingredient";
-import { formatIngredientForDisplay } from "../../src/ui/ingredient-display";
+import {
+  ingredientDisplayParts,
+  joinIngredientParts,
+} from "../../src/ui/ingredient-display";
 
 function roundTrip(
   ingredient: Ingredient,
   system: MeasurementSystem,
   locale: "en" | "tr",
 ) {
-  const rendered = formatIngredientForDisplay(ingredient, 1, 1, system);
-  const context = defaultParseContext(locale);
-  context.sourceMeasurementSystem = system;
+  const rendered = joinIngredientParts(
+    ingredientDisplayParts(ingredient, 1, 1, system),
+  );
+  const context = defaultParseContext(locale, system);
   return { rendered, reparsed: parseIngredient(rendered, context) };
 }
 

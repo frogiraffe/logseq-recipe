@@ -1,6 +1,8 @@
 import type { IngredientScaleMode } from "../domain/recipe";
 import { hasUnsafeMediaMarkup } from "../domain/step-media";
+import { RecipeError } from "./errors";
 import type { RecipeRepository } from "./recipe-repository";
+import { type IngredientLayoutEntry, RECIPE_SECTION_ROLES } from "./types";
 
 export interface SectionDiff {
   added: Array<{ tempId: string; text: string }>;
@@ -26,6 +28,9 @@ export interface RecipeEditPatch {
   // Full desired final order, including not-yet-created "new:*" temp ids -
   // commitRecipeEdit maps those to their real created ids before reordering.
   ingredientOrder?: string[];
+  // Replaces ingredientOrder once groups are involved: the full final
+  // arrangement of ingredients and group headings (temp ids allowed).
+  ingredientLayout?: IngredientLayoutEntry[];
   stepOrder?: string[];
   noteOrder?: string[];
   // Per-step notes/attachments; `stepId` may be a "new:*" temp id for a
@@ -94,6 +99,68 @@ export function orderDiff(
 }
 
 /**
+ * Drops what a patch says about lines that no longer exist - removed in
+ * Logseq while the editor was open. Updating, moving, or removing a deleted
+ * block would only fail the save; lines added in this save ("new:*") stay.
+ */
+export function withoutMissingLines(
+  patch: RecipeEditPatch,
+  exists: (id: string) => boolean,
+): RecipeEditPatch {
+  const keep = (id: string) => id.startsWith("new:") || exists(id);
+  const diff = (section: SectionDiff): SectionDiff => ({
+    added: section.added,
+    updated: section.updated.filter((update) => keep(update.id)),
+    removed: section.removed.filter(keep),
+  });
+  const order = (ids: string[] | undefined) =>
+    ids ? { value: ids.filter(keep) } : undefined;
+  const ingredientOrder = order(patch.ingredientOrder);
+  const stepOrder = order(patch.stepOrder);
+  const noteOrder = order(patch.noteOrder);
+  return {
+    ...patch,
+    ingredients: diff(patch.ingredients),
+    steps: diff(patch.steps),
+    notes: diff(patch.notes),
+    ...(patch.ingredientScaleModeChanges
+      ? {
+          ingredientScaleModeChanges: patch.ingredientScaleModeChanges.filter(
+            (change) => keep(change.id),
+          ),
+        }
+      : {}),
+    ...(ingredientOrder ? { ingredientOrder: ingredientOrder.value } : {}),
+    ...(stepOrder ? { stepOrder: stepOrder.value } : {}),
+    ...(noteOrder ? { noteOrder: noteOrder.value } : {}),
+    ...(patch.ingredientLayout
+      ? {
+          // A group left with no ingredient stays where it is.
+          ingredientLayout: patch.ingredientLayout
+            .filter((entry) => keep(entry.id))
+            .map((entry) =>
+              entry.items
+                ? { ...entry, items: entry.items.filter(keep) }
+                : entry,
+            )
+            .filter((entry) => !entry.items || entry.items.length > 0),
+        }
+      : {}),
+    ...(patch.stepChildren
+      ? {
+          stepChildren: patch.stepChildren
+            .filter((entry) => keep(entry.stepId))
+            .map((entry) => ({
+              ...entry,
+              diff: diff(entry.diff),
+              ...(entry.order ? { order: entry.order.filter(keep) } : {}),
+            })),
+        }
+      : {}),
+  };
+}
+
+/**
  * Thrown when a write failed after at least one earlier write succeeded: the
  * graph now holds part of the edit, so the caller must reload from Logseq
  * rather than trust either the old or the edited state.
@@ -105,7 +172,6 @@ export class IncompleteSaveError extends Error {
   }
 }
 
-const SECTION_KEYS = ["ingredients", "steps", "notes"] as const;
 const ORDER_KEYS = {
   ingredients: "ingredientOrder",
   steps: "stepOrder",
@@ -115,13 +181,16 @@ const ORDER_KEYS = {
 /** Pure checks that must pass before the first write. Throws RangeError. */
 function validateRecipeEdit(patch: RecipeEditPatch): void {
   if (patch.title !== undefined && !patch.title.trim()) {
-    throw new RangeError("Recipe title is required.");
+    throw new RecipeError("title-required", "Recipe title is required.");
   }
   if (
     patch.baseYield !== undefined &&
     (!Number.isFinite(patch.baseYield) || patch.baseYield <= 0)
   ) {
-    throw new RangeError("Recipe base yield must be positive.");
+    throw new RecipeError(
+      "base-yield-invalid",
+      "Recipe base yield must be positive.",
+    );
   }
   for (const value of [
     patch.prepMinutes,
@@ -129,11 +198,14 @@ function validateRecipeEdit(patch: RecipeEditPatch): void {
     patch.cookMinutes,
   ]) {
     if (value != null && (!Number.isFinite(value) || value < 0)) {
-      throw new RangeError("Recipe time fields must be zero or positive.");
+      throw new RecipeError(
+        "time-invalid",
+        "Recipe time fields must be zero or positive.",
+      );
     }
   }
   const lists = [
-    ...SECTION_KEYS.map((key) => ({
+    ...RECIPE_SECTION_ROLES.map((key) => ({
       name: key,
       diff: patch[key],
       order: patch[ORDER_KEYS[key]],
@@ -159,6 +231,22 @@ function validateRecipeEdit(patch: RecipeEditPatch): void {
     }
     if (order.some((id) => removed.has(id))) {
       throw new RangeError(`Removed item still present in ${name} order.`);
+    }
+  }
+  const layout = patch.ingredientLayout;
+  if (layout) {
+    if (layout.some((entry) => entry.items?.length === 0)) {
+      throw new RangeError(
+        "An ingredient group needs at least one ingredient.",
+      );
+    }
+    const ids = layout.flatMap((entry) => [entry.id, ...(entry.items ?? [])]);
+    const removed = new Set(patch.ingredients.removed);
+    if (new Set(ids).size !== ids.length) {
+      throw new RangeError("Duplicate item in ingredients layout.");
+    }
+    if (ids.some((id) => removed.has(id))) {
+      throw new RangeError("Removed item still present in ingredients layout.");
     }
   }
 }
@@ -202,7 +290,7 @@ export async function commitRecipeEdit(
     steps: new Map<string, string>(),
     notes: new Map<string, string>(),
   };
-  for (const key of SECTION_KEYS) {
+  for (const key of RECIPE_SECTION_ROLES) {
     for (const { tempId, text } of patch[key].added) {
       await write(async () => {
         created[key].set(
@@ -226,7 +314,7 @@ export async function commitRecipeEdit(
     }
   }
   const updates = [
-    ...SECTION_KEYS.flatMap((key) => patch[key].updated),
+    ...RECIPE_SECTION_ROLES.flatMap((key) => patch[key].updated),
     ...stepChildren.flatMap((entry) => entry.diff.updated),
   ];
   for (const update of updates) {
@@ -259,7 +347,7 @@ export async function commitRecipeEdit(
   }
 
   const orders = [
-    ...SECTION_KEYS.map((key) =>
+    ...RECIPE_SECTION_ROLES.map((key) =>
       resolveOrder(patch[ORDER_KEYS[key]], created[key]),
     ),
     ...stepChildren.map((entry, index) =>
@@ -269,10 +357,23 @@ export async function commitRecipeEdit(
   for (const order of orders) {
     if (order) await write(() => repository.reorderSectionItems(order));
   }
+  const layout = patch.ingredientLayout?.map((entry) => ({
+    id: created.ingredients.get(entry.id) ?? entry.id,
+    ...(entry.items
+      ? {
+          items: entry.items.map((id) => created.ingredients.get(id) ?? id),
+        }
+      : {}),
+  }));
+  if (layout) {
+    await write(() => repository.arrangeIngredients(recipeId, layout));
+  }
 
+  // Reversed, so a removed group's ingredients go before its heading
+  // (removing the heading first would already have taken them with it).
   const removals = [
     ...stepChildren.flatMap((entry) => entry.diff.removed),
-    ...SECTION_KEYS.flatMap((key) => patch[key].removed),
+    ...RECIPE_SECTION_ROLES.flatMap((key) => [...patch[key].removed].reverse()),
   ];
   for (const id of removals) {
     await write(() => repository.removeSectionItem(id));

@@ -18,7 +18,7 @@ export type StepChild =
       alt: string;
     };
 
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+export const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
 const AUDIO_EXTENSIONS = new Set([
   "mp3",
   "m4a",

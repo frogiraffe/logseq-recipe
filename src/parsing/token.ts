@@ -21,5 +21,3 @@ export interface Token {
   startOffset: number;
   endOffset: number;
 }
-
-export type RawToken = Token;

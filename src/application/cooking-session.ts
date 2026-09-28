@@ -1,6 +1,6 @@
 import type { DurationAnnotation } from "../domain/annotations";
 import type { Recipe } from "../domain/recipe";
-import type { TimeUnit } from "../domain/unit";
+import { convertUnit } from "../units/convert";
 
 export interface CookingTimer {
   id: string;
@@ -49,13 +49,6 @@ export interface CookingSession {
   timers: CookingTimer[];
 }
 
-const UNIT_MS: Record<TimeUnit, number> = {
-  second: 1_000,
-  minute: 60_000,
-  hour: 3_600_000,
-  day: 86_400_000,
-};
-
 export interface TimerOption {
   durationMs: number;
   // "about 20 minutes", "at most 20 minutes": offered, but marked so the
@@ -72,7 +65,7 @@ export interface TimerOption {
  */
 export function timerOptions(duration: DurationAnnotation): TimerOption[] {
   if (!duration.unit || duration.negated) return [];
-  const unitMs = UNIT_MS[duration.unit];
+  const unitMs = convertUnit(1, duration.unit, "second") * 1_000;
   const option = (value: number, approximate: boolean) =>
     value > 0 ? [{ durationMs: value * unitMs, approximate }] : [];
   switch (duration.value.kind) {

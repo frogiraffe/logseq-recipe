@@ -1,10 +1,12 @@
 import type { DurationAnnotation } from "../domain/annotations";
-import type { Quantity } from "../domain/quantity";
+import { modifiedQuantity, type Quantity } from "../domain/quantity";
 import type { RecipeLocale } from "../domain/recipe";
 import type { TimeUnit } from "../domain/unit";
+import { convertUnit } from "../units/convert";
 import type { ParseContext } from "./context";
-import { andAHalfAt, lexRecipeText, parseAmountAtom } from "./lexer";
+import { andAHalfAt, isAndWord, lexRecipeText, parseAmountAtom } from "./lexer";
 import { getLocalePack } from "./locales";
+import { escapeRegExp } from "./normalize";
 import { findPhraseSpans } from "./phrases";
 import type { Token } from "./token";
 
@@ -21,26 +23,6 @@ function isTimeUnit(value: unknown): value is TimeUnit {
     value === "day"
   );
 }
-
-function applyModifier(kind: string | undefined, value: number): Quantity {
-  switch (kind) {
-    case "approximate":
-      return { kind: "approximate", value };
-    case "minimum":
-      return { kind: "minimum", value };
-    case "maximum":
-      return { kind: "maximum", value };
-    default:
-      return { kind: "exact", value };
-  }
-}
-
-const MINUTES_PER: Record<TimeUnit, number> = {
-  second: 1 / 60,
-  minute: 1,
-  hour: 60,
-  day: 1440,
-};
 
 interface TimeAt {
   value: number;
@@ -73,10 +55,56 @@ function bareMinutesAt(
   return next === "unit" || next === "fraction" ? null : value;
 }
 
+// The next smaller unit a time can continue in, and how many make one of it.
+const SMALLER_UNIT: Partial<Record<TimeUnit, { unit: TimeUnit; per: number }>> =
+  {
+    day: { unit: "hour", per: 24 },
+    hour: { unit: "minute", per: 60 },
+    minute: { unit: "second", per: 60 },
+  };
+
+// A time continued in the next smaller unit right after it: "1 hour 15
+// minutes", "1 saat 15 dakika", "1 Stunde und 15 Minuten", "2 min 30 s".
+// Folded into one time so it offers one 1:15:00 timer, not 1:00:00 + 15:00.
+function continueTimeAt(
+  tokens: readonly Token[],
+  time: TimeAt,
+  locale: RecipeLocale,
+): void {
+  for (;;) {
+    const smaller = SMALLER_UNIT[time.unit];
+    if (!smaller) return;
+    let index = time.nextIndex;
+    let afterOffset = time.endOffset;
+    if (isAndWord(tokens[index], getLocalePack(locale))) {
+      if (tokens[index].startOffset - afterOffset > 1) return;
+      afterOffset = tokens[index].endOffset;
+      index += 1;
+    }
+    const atom = parseAmountAtom(tokens, index, locale);
+    const unitToken = atom ? tokens[atom.nextIndex] : undefined;
+    if (
+      !atom ||
+      tokens[index].startOffset - afterOffset > 1 ||
+      !Number.isInteger(atom.value) ||
+      atom.value <= 0 ||
+      atom.value >= smaller.per ||
+      unitToken?.kind !== "unit" ||
+      unitToken.normalized !== smaller.unit
+    ) {
+      return;
+    }
+    time.value = time.value * smaller.per + atom.value;
+    time.unit = smaller.unit;
+    time.nextIndex = atom.nextIndex + 1;
+    time.endOffset = unitToken.endOffset;
+  }
+}
+
 // One time at tokens[index]: an amount with its time unit, "and a half"
 // after it ("an hour and a half", "une heure et demie") - but not "20 min
 // and a half hour later", where the half has its own unit - and minutes
-// written after the hours ("1 h 30").
+// written after the hours, with their unit or without ("1 h 30").
 function parseTimeAt(
   tokens: readonly Token[],
   index: number,
@@ -110,6 +138,8 @@ function parseTimeAt(
     time.unit = "minute";
     time.endOffset = tokens[time.nextIndex].endOffset;
     time.nextIndex += 1;
+  } else if (Number.isInteger(time.value)) {
+    continueTimeAt(tokens, time, locale);
   }
   return time;
 }
@@ -132,7 +162,7 @@ function rangeUpperAt(
   if (upper) {
     const unit = upper.unit === lower.unit ? lower.unit : "minute";
     return {
-      value: (upper.value * MINUTES_PER[upper.unit]) / MINUTES_PER[unit],
+      value: convertUnit(upper.value, upper.unit, unit),
       unit,
       nextIndex: upper.nextIndex,
       endOffset: upper.endOffset,
@@ -191,7 +221,7 @@ function parseDurationAt(
   } else {
     const time = parseTimeAt(tokens, index, locale);
     if (!time) return null;
-    quantity = applyModifier(prefixModifier, time.value);
+    quantity = modifiedQuantity(prefixModifier, time.value);
     unit = time.unit;
     nextIndex = time.nextIndex;
     endOffset = time.endOffset;
@@ -201,7 +231,7 @@ function parseDurationAt(
         ? rangeUpperAt(tokens, nextIndex + 1, time, locale)
         : null;
     if (upper) {
-      const low = (time.value * MINUTES_PER[unit]) / MINUTES_PER[upper.unit];
+      const low = convertUnit(time.value, unit, upper.unit);
       if (upper.value <= low) return null;
       quantity = { kind: "range", min: low, max: upper.value };
       unit = upper.unit;
@@ -212,7 +242,10 @@ function parseDurationAt(
 
   const suffixModifier = tokens[nextIndex];
   if (suffixModifier?.kind === "modifier" && quantity.kind === "exact") {
-    quantity = applyModifier(String(suffixModifier.normalized), quantity.value);
+    quantity = modifiedQuantity(
+      String(suffixModifier.normalized),
+      quantity.value,
+    );
     endOffset = suffixModifier.endOffset;
     nextIndex += 1;
   }
@@ -311,10 +344,6 @@ function clauseEnds(
   let to = end;
   while (to < text.length && !isClauseBoundary(text, to)) to += 1;
   return { from, to };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 /**

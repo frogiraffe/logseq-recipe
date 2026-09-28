@@ -1,10 +1,14 @@
+import { recipeNotFound, titleTaken } from "../application/errors";
 import {
   decodeIngredientMeta,
   encodeIngredientMeta,
 } from "../application/ingredient-meta";
+import { sameTitle } from "../application/list-recipes";
+import { encodeRecipeMeta } from "../application/recipe-meta";
 import type { RecipeRepository } from "../application/recipe-repository";
 import type {
   ExistingRecipeStructure,
+  IngredientLayoutEntry,
   NewRecipeInput,
 } from "../application/types";
 import type { Recipe, RecipeMeta } from "../domain/recipe";
@@ -17,14 +21,17 @@ import {
   type RecipeAuthoringHost,
   writeOptionalRootFields,
 } from "./authoring";
-import { unwrapBlockPropertyValue } from "./block-reader";
+import {
+  type RecipeBlockSnapshot,
+  toRecipeBlockSnapshot,
+  unwrapBlockPropertyValue,
+} from "./block-reader";
 import {
   createLogseqRecipeRepository,
   currentLogseqRecipeHost,
   type LogseqRecipeHost,
 } from "./logseq-recipe-repository";
 import { PROPERTY_KEYS } from "./property-keys";
-import { writeRecipeMeta } from "./recipe-meta-store";
 import {
   ensureRecipeSchema,
   type PropertySchemaEditor,
@@ -67,28 +74,41 @@ export function createDraftRecipeRepository(
     settings: options.settings,
   });
 
+  // Copies the lines written under a block (an ingredient's "at room
+  // temperature", a step's notes and photos) under another, nested as they
+  // are: flattened, a note under a note would read back as a group.
+  async function copyLinesUnder(fromId: string, toId: string): Promise<void> {
+    const copy = async (
+      lines: readonly RecipeBlockSnapshot[],
+      parentId: string,
+    ): Promise<void> => {
+      for (const line of lines) {
+        if (line.isPropertyValue || !line.title.trim()) continue;
+        await copy(
+          line.children,
+          await readRepository.addStepChild(parentId, line.title),
+        );
+      }
+    };
+    const block = toRecipeBlockSnapshot(
+      await host.editor.getBlock(fromId, { includeChildren: true }),
+    );
+    await copy(block?.children ?? [], toId);
+  }
+
   return {
     ...readRepository,
 
     async createRecipe(input: NewRecipeInput): Promise<Recipe> {
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);
-      const title = input.title.trim().toLocaleLowerCase();
       const existing = [
         ...(await readRepository.listRecipeSummaries()),
         ...(await readRepository.listArchivedRecipeSummaries()),
       ];
-      if (
-        existing.some(
-          (recipe) => recipe.title.trim().toLocaleLowerCase() === title,
-        )
-      ) {
-        throw new Error(
-          `A recipe named "${input.title.trim()}" already exists.`,
-        );
+      if (existing.some((recipe) => sameTitle(recipe.title, input.title))) {
+        throw titleTaken(input.title.trim());
       }
-      const structure = await createRecipeInLogseq(host.editor, input, {
-        jsonProperty: options.schemaCapabilities.jsonProperty,
-      });
+      const structure = await createRecipeInLogseq(host.editor, input);
       const recipe = await readRepository.getRecipe(structure.rootId);
       if (!recipe) {
         throw new Error(
@@ -102,14 +122,12 @@ export function createDraftRecipeRepository(
       structure: ExistingRecipeStructure,
     ): Promise<void> {
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);
-      await markExistingRecipeInLogseq(host.editor, structure, {
-        jsonProperty: options.schemaCapabilities.jsonProperty,
-      });
+      await markExistingRecipeInLogseq(host.editor, structure);
     },
 
     async duplicateRecipe(id: string): Promise<Recipe> {
       const source = await readRepository.getRecipe(id);
-      if (!source) throw new Error(`Recipe not found: ${id}`);
+      if (!source) throw recipeNotFound(id);
 
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);
       const existing = [
@@ -130,23 +148,41 @@ export function createDraftRecipeRepository(
           sourceMeasurementSystem: source.sourceMeasurementSystem,
           measurementSystemOverride: source.measurementSystemOverride,
         },
-        { jsonProperty: options.schemaCapabilities.jsonProperty },
         { deferMarker: true },
       );
 
-      const context = {
-        ...defaultParseContext(source.parserLocale ?? "en"),
-        ...(source.sourceMeasurementSystem
-          ? { sourceMeasurementSystem: source.sourceMeasurementSystem }
-          : {}),
-      };
+      const context = defaultParseContext(
+        source.parserLocale ?? "en",
+        source.sourceMeasurementSystem,
+      );
 
+      // Group headings go in as lines too; arrangeIngredients then nests
+      // each group's ingredients under its heading.
+      const layout: IngredientLayoutEntry[] = [];
+      const headingEntries = new Map<string, IngredientLayoutEntry>();
       for (const ingredient of source.ingredients) {
+        const group = ingredient.group;
+        if (group && !headingEntries.has(group.id)) {
+          const entry = {
+            id: await readRepository.addSectionItem(
+              structure.rootId,
+              "ingredients",
+              group.title,
+            ),
+            items: [],
+          };
+          headingEntries.set(group.id, entry);
+          layout.push(entry);
+        }
         const blockId = await readRepository.addSectionItem(
           structure.rootId,
           "ingredients",
           ingredient.rawText,
         );
+        const heading = group && headingEntries.get(group.id);
+        if (heading) heading.items?.push(blockId);
+        else layout.push({ id: blockId });
+        if (ingredient.details) await copyLinesUnder(ingredient.id, blockId);
         // getRecipe() above already reconciled the source's ingredient_meta
         // (see parsedIngredientForBlock), so it holds the exact canonical
         // structure in use right now - including any manual correction the
@@ -178,12 +214,16 @@ export function createDraftRecipeRepository(
           await readRepository.setIngredientScaleMode(blockId, "fixed");
         }
       }
+      if (headingEntries.size > 0) {
+        await readRepository.arrangeIngredients(structure.rootId, layout);
+      }
       for (const step of source.steps) {
-        await readRepository.addSectionItem(
+        const stepId = await readRepository.addSectionItem(
           structure.rootId,
           "steps",
           step.rawText,
         );
+        if (step.children) await copyLinesUnder(step.id, stepId);
       }
       for (const note of source.notes) {
         await readRepository.addSectionItem(
@@ -205,9 +245,11 @@ export function createDraftRecipeRepository(
           ? { measurementSystemOverride: source.measurementSystemOverride }
           : {}),
       };
-      await writeRecipeMeta(host.editor, structure.rootId, meta, {
-        jsonProperty: options.schemaCapabilities.jsonProperty,
-      });
+      await host.editor.upsertBlockProperty(
+        structure.rootId,
+        PROPERTY_KEYS.recipeMeta,
+        encodeRecipeMeta(meta),
+      );
 
       await writeOptionalRootFields(host.editor, structure.rootId, {
         prepMinutes: source.prepMinutes,

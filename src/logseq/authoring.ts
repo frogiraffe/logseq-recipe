@@ -1,13 +1,15 @@
+import { RecipeError } from "../application/errors";
 import { encodeIngredientMeta } from "../application/ingredient-meta";
 import {
   decodeRecipeMeta,
   emptyRecipeMeta,
   encodeRecipeMeta,
 } from "../application/recipe-meta";
-import type {
-  ExistingRecipeStructure,
-  NewRecipeInput,
-  RecipeSectionRole,
+import {
+  type ExistingRecipeStructure,
+  type NewRecipeInput,
+  RECIPE_SECTION_ROLES,
+  type RecipeSectionRole,
 } from "../application/types";
 import {
   RECIPE_SCHEMA_VERSION,
@@ -17,7 +19,11 @@ import {
 import { FutureRecipeSchemaError } from "../migrations/runner";
 import { defaultParseContext } from "../parsing/context";
 import { ingredientParseContext } from "../parsing/detect-locale";
-import { propertyNumber, unwrapBlockPropertyValue } from "./block-reader";
+import {
+  createdBlockUuid,
+  propertyNumber,
+  unwrapBlockPropertyValue,
+} from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
 import { ensureRecipeLibrary, type RecipeLibraryHost } from "./recipe-library";
 
@@ -28,10 +34,6 @@ export interface RecipeAuthoringHost extends RecipeLibraryHost {
     options: { sibling: false; end: true },
   ): Promise<unknown>;
   removeBlockProperty(id: string, key: string): Promise<unknown>;
-}
-
-export interface AuthoringCapabilities {
-  jsonProperty: boolean;
 }
 
 export interface CreatedRecipeStructure {
@@ -50,32 +52,10 @@ const SECTION_TITLES: Record<
   es: { ingredients: "Ingredientes", steps: "Preparación", notes: "Notas" },
 };
 
-function identity(value: unknown): string {
-  if (!value || typeof value !== "object") {
-    throw new Error(
-      "Logseq did not return an entity for the authoring operation.",
-    );
-  }
-  const entity = value as Record<string, unknown>;
-  if (typeof entity.uuid === "string") return entity.uuid;
-  if (typeof entity.id === "string" || typeof entity.id === "number") {
-    return String(entity.id);
-  }
-  throw new Error("Logseq entity has no stable id/uuid.");
-}
-
-function metaStorageValue(
-  meta: RecipeMeta,
-  capabilities: AuthoringCapabilities,
-): unknown {
-  return capabilities.jsonProperty ? meta : encodeRecipeMeta(meta);
-}
-
 async function writeRootMetadata(
   host: RecipeAuthoringHost,
   rootId: string,
   meta: RecipeMeta,
-  capabilities: AuthoringCapabilities,
 ): Promise<void> {
   await host.upsertBlockProperty(
     rootId,
@@ -85,7 +65,7 @@ async function writeRootMetadata(
   await host.upsertBlockProperty(
     rootId,
     PROPERTY_KEYS.recipeMeta,
-    metaStorageValue(meta, capabilities),
+    encodeRecipeMeta(meta),
   );
 }
 
@@ -101,60 +81,27 @@ async function markRecipeComplete(
   await host.upsertBlockProperty(rootId, PROPERTY_KEYS.recipeMarker, true);
 }
 
+// Root fields written only when set; blank text is left unset.
+const ROOT_FIELDS = [
+  "baseYield",
+  "yieldUnit",
+  "prepMinutes",
+  "chillMinutes",
+  "cookMinutes",
+  "sourceUrl",
+] as const;
+
 export async function writeOptionalRootFields(
   host: RecipeAuthoringHost,
   rootId: string,
-  structure: Pick<
-    ExistingRecipeStructure,
-    | "baseYield"
-    | "yieldUnit"
-    | "prepMinutes"
-    | "chillMinutes"
-    | "cookMinutes"
-    | "sourceUrl"
-  >,
+  fields: Pick<ExistingRecipeStructure, (typeof ROOT_FIELDS)[number]>,
 ): Promise<void> {
-  if (structure.baseYield !== undefined) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.baseYield,
-      structure.baseYield,
-    );
-  }
-  if (structure.yieldUnit?.trim()) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.yieldUnit,
-      structure.yieldUnit.trim(),
-    );
-  }
-  if (structure.prepMinutes !== undefined) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.prepMinutes,
-      structure.prepMinutes,
-    );
-  }
-  if (structure.chillMinutes !== undefined) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.chillMinutes,
-      structure.chillMinutes,
-    );
-  }
-  if (structure.cookMinutes !== undefined) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.cookMinutes,
-      structure.cookMinutes,
-    );
-  }
-  if (structure.sourceUrl?.trim()) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.sourceUrl,
-      structure.sourceUrl.trim(),
-    );
+  for (const key of ROOT_FIELDS) {
+    const raw = fields[key];
+    const value = typeof raw === "string" ? raw.trim() : raw;
+    if (value !== undefined && value !== "") {
+      await host.upsertBlockProperty(rootId, PROPERTY_KEYS[key], value);
+    }
   }
 }
 
@@ -198,10 +145,10 @@ async function writeIngredientMetadata(
 ): Promise<void> {
   if (!structure.ingredientMetadata?.length) return;
 
-  const context = defaultParseContext(structure.locale ?? "en");
-  if (structure.sourceMeasurementSystem) {
-    context.sourceMeasurementSystem = structure.sourceMeasurementSystem;
-  }
+  const context = defaultParseContext(
+    structure.locale ?? "en",
+    structure.sourceMeasurementSystem,
+  );
 
   for (const ingredient of structure.ingredientMetadata) {
     // Stamped with the same per-line language the recipe loader will pick
@@ -225,17 +172,21 @@ async function writeIngredientMetadata(
 export async function createRecipeInLogseq(
   host: RecipeAuthoringHost,
   input: NewRecipeInput,
-  capabilities: AuthoringCapabilities,
   options: { deferMarker?: boolean } = {},
 ): Promise<CreatedRecipeStructure> {
   const title = input.title.trim();
-  if (!title) throw new RangeError("Recipe title is required.");
+  if (!title) {
+    throw new RecipeError("title-required", "Recipe title is required.");
+  }
   if (!Number.isFinite(input.baseYield) || input.baseYield <= 0) {
-    throw new RangeError("Recipe base yield must be positive.");
+    throw new RecipeError(
+      "base-yield-invalid",
+      "Recipe base yield must be positive.",
+    );
   }
 
   const library = await ensureRecipeLibrary(host);
-  const rootId = identity(
+  const rootId = createdBlockUuid(
     await host.insertBlock(library.recipes, title, {
       sibling: false,
       end: true,
@@ -245,29 +196,18 @@ export async function createRecipeInLogseq(
   const titles = SECTION_TITLES[locale];
   const sectionIds = {} as Record<RecipeSectionRole, string>;
 
-  for (const role of ["ingredients", "steps", "notes"] as const) {
+  for (const role of RECIPE_SECTION_ROLES) {
     const block = await host.insertBlock(rootId, titles[role], {
       sibling: false,
       end: true,
     });
-    sectionIds[role] = identity(block);
+    sectionIds[role] = createdBlockUuid(block);
   }
 
-  await writeRootMetadata(host, rootId, metaFromNewRecipe(input), capabilities);
-  await host.upsertBlockProperty(
-    rootId,
-    PROPERTY_KEYS.baseYield,
-    input.baseYield,
-  );
-  if (input.yieldUnit?.trim()) {
-    await host.upsertBlockProperty(
-      rootId,
-      PROPERTY_KEYS.yieldUnit,
-      input.yieldUnit.trim(),
-    );
-  }
+  await writeRootMetadata(host, rootId, metaFromNewRecipe(input));
+  await writeOptionalRootFields(host, rootId, input);
 
-  for (const role of ["ingredients", "steps", "notes"] as const) {
+  for (const role of RECIPE_SECTION_ROLES) {
     await host.upsertBlockProperty(
       sectionIds[role],
       PROPERTY_KEYS.sectionRole,
@@ -282,7 +222,6 @@ export async function createRecipeInLogseq(
 export async function markExistingRecipeInLogseq(
   host: RecipeAuthoringHost,
   structure: ExistingRecipeStructure,
-  capabilities: AuthoringCapabilities,
 ): Promise<void> {
   const schemaVersion = propertyNumber(
     await host.getBlockProperty(structure.rootId, PROPERTY_KEYS.schemaVersion),
@@ -293,7 +232,7 @@ export async function markExistingRecipeInLogseq(
 
   const meta = await mergedExistingMeta(host, structure);
 
-  await writeRootMetadata(host, structure.rootId, meta, capabilities);
+  await writeRootMetadata(host, structure.rootId, meta);
   await writeOptionalRootFields(host, structure.rootId, structure);
 
   for (const section of structure.sectionRoles) {

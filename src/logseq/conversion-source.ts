@@ -1,5 +1,13 @@
-import type { ConversionSourceNode } from "../application/convert-recipe";
 import {
+  analyzeWithDetectedLocale,
+  type ConversionSourceNode,
+  isSectionHeadingInAnyLocale,
+  outlineToSource,
+} from "../application/convert-recipe";
+import type { RecipeLocale } from "../domain/recipe";
+import type { ConversionRebuild, DraftRecipeInitialView } from "../ui/state";
+import {
+  pageWithChildren,
   type RecipeBlockSnapshot,
   toRecipeBlockSnapshot,
   unwrapBlockPropertyValue,
@@ -27,14 +35,6 @@ function toConversionSource(block: RecipeBlockSnapshot): ConversionSourceNode {
     children: block.children
       .filter((child) => !child.isPropertyValue)
       .map(toConversionSource),
-  };
-}
-
-export function pageWithChildren(page: unknown, children: unknown): unknown {
-  if (!page || typeof page !== "object") return null;
-  return {
-    ...(page as Record<string, unknown>),
-    children: Array.isArray(children) ? children : [],
   };
 }
 
@@ -68,6 +68,100 @@ export async function loadConversionRoot(
 
   const snapshot = toRecipeBlockSnapshot(entity);
   return snapshot ? toConversionSource(snapshot) : null;
+}
+
+/**
+ * A pasted recipe often lands as flat sibling blocks - a title block, then
+ * "Ingredients"/"Steps"/"Notes" blocks holding their lines as multi-line
+ * text - instead of sections nested under the title. Collects the
+ * consecutive next siblings that are childless section headings (any
+ * language) so the outline split can fold them under the title. Stops at
+ * the first sibling that isn't one, so whatever follows the recipe (e.g.
+ * the rest of a journal page) is never swallowed.
+ */
+export async function loadTrailingSectionSiblings(
+  uuid: string,
+): Promise<ConversionSourceNode[]> {
+  const siblings: ConversionSourceNode[] = [];
+  // A page, or a block Logseq can't place, has no siblings to fold in.
+  const nextOf = (id: string) =>
+    logseq.Editor.getNextSiblingBlock(id).catch(() => null);
+  let next = await nextOf(uuid);
+  while (next) {
+    const snapshot = toRecipeBlockSnapshot(
+      await logseq.Editor.getBlock(next.uuid, { includeChildren: true }),
+    );
+    if (!snapshot) break;
+    const node = toConversionSource(snapshot);
+    if (node.children.length > 0 || !isSectionHeadingInAnyLocale(node.title)) {
+      break;
+    }
+    siblings.push(node);
+    next = await nextOf(node.id);
+  }
+  return siblings;
+}
+
+export function conversionView(
+  source: ConversionSourceNode,
+  fallbackLocale: RecipeLocale,
+  rebuild?: ConversionRebuild,
+): DraftRecipeInitialView {
+  const { draft, detectedLocale } = analyzeWithDetectedLocale(
+    source,
+    fallbackLocale,
+  );
+  return {
+    kind: "convert",
+    source,
+    draft,
+    ...(detectedLocale ? { detectedLocale } : {}),
+    ...(rebuild ? { rebuild } : {}),
+  };
+}
+
+/** Convert Preview of blocks to rebuild, before anything is written. */
+export function rebuiltConversionView(
+  rootId: string,
+  rebuild: ConversionRebuild,
+  fallbackLocale: RecipeLocale,
+): DraftRecipeInitialView {
+  return conversionView(
+    outlineToSource(rebuild.outline, rootId),
+    fallbackLocale,
+    rebuild,
+  );
+}
+
+/**
+ * The recipe a block sits inside, if any - converting a line of an existing
+ * recipe (its Ingredients block, say) would make a recipe within a recipe.
+ * Walks up through parent blocks to the page, which may be a recipe too.
+ */
+export async function findEnclosingRecipe(
+  uuid: string,
+): Promise<{ id: string; title: string } | null> {
+  const idOf = (value: unknown, key: "parent" | "page") =>
+    (value as Record<string, { id?: number } | undefined> | null)?.[key]?.id;
+  const recipeAt = async (entity: unknown) => {
+    const snapshot = toRecipeBlockSnapshot(entity);
+    return snapshot && (await isAlreadyDraftRecipe(snapshot.uuid))
+      ? { id: snapshot.uuid, title: snapshot.title }
+      : null;
+  };
+  let block: unknown = await logseq.Editor.getBlock(uuid);
+  for (let depth = 0; block && depth < 100; depth += 1) {
+    const parentId = idOf(block, "parent");
+    const pageId = idOf(block, "page");
+    if (parentId === undefined) return null;
+    if (parentId === pageId) {
+      return recipeAt(await logseq.Editor.getPage(parentId));
+    }
+    block = await logseq.Editor.getBlock(parentId);
+    const recipe = await recipeAt(block);
+    if (recipe) return recipe;
+  }
+  return null;
 }
 
 export async function isAlreadyDraftRecipe(rootId: string): Promise<boolean> {

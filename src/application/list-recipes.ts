@@ -1,4 +1,5 @@
-import { foldLabel } from "../parsing/normalize";
+import type { Recipe } from "../domain/recipe";
+import { foldCaseLocaleIndependent, foldLabel } from "../parsing/normalize";
 import type { RecipeSummary } from "./types";
 
 export interface MinuteRange {
@@ -21,24 +22,63 @@ export interface FacetSuggestion {
   count: number;
 }
 
-// Accent-free and case-free, so "sut" finds "süt" and "creme" finds
-// "Crème" in every language.
-function normalizeSearchText(value: string): string {
-  return foldLabel(value);
+/** A recipe as the Recipes browser lists and searches it. */
+export function recipeSummary(recipe: Recipe): RecipeSummary {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    categories: recipe.categories,
+    tags: recipe.tags,
+    ...(recipe.prepMinutes !== undefined
+      ? { prepMinutes: recipe.prepMinutes }
+      : {}),
+    ...(recipe.chillMinutes !== undefined
+      ? { chillMinutes: recipe.chillMinutes }
+      : {}),
+    ...(recipe.cookMinutes !== undefined
+      ? { cookMinutes: recipe.cookMinutes }
+      : {}),
+    ingredientTexts: recipe.ingredients.map(
+      (ingredient) => ingredient.ingredientText,
+    ),
+    ...(recipe.cover ? { cover: recipe.cover } : {}),
+    stepTexts: recipe.steps.map((step) => step.rawText),
+    noteTexts: [
+      ...recipe.notes.map((note) => note.text),
+      ...recipe.steps.flatMap((step) =>
+        (step.children ?? [])
+          .filter((child) => child.kind === "note")
+          .map((child) => child.text),
+      ),
+      ...new Set(
+        recipe.ingredients.flatMap((ingredient) =>
+          ingredient.group ? [ingredient.group.title] : [],
+        ),
+      ),
+      ...recipe.ingredients.flatMap((ingredient) => ingredient.details ?? []),
+    ],
+  };
 }
 
+/** Two recipe titles that read the same, ignoring case ("KEK" = "kek"). */
+export function sameTitle(a: string, b: string): boolean {
+  return (
+    foldCaseLocaleIndependent(a.trim()) === foldCaseLocaleIndependent(b.trim())
+  );
+}
+
+// Search compares folded text: accent-free and case-free, so "sut" finds
+// "süt" and "creme" finds "Crème" in every language.
 function matchesSelectedValues(values: string[], selected?: string[]): boolean {
   if (!selected || selected.length === 0) return true;
-  const normalizedValues = new Set(values.map(normalizeSearchText));
-  return selected.every((value) =>
-    normalizedValues.has(normalizeSearchText(value)),
-  );
+  const normalizedValues = new Set(values.map(foldLabel));
+  return selected.every((value) => normalizedValues.has(foldLabel(value)));
 }
 
 // Every whitespace-separated query term must appear in some field; one
 // newline-joined string keeps a term from matching across two fields.
 function searchHaystack(recipe: RecipeSummary): string {
-  return normalizeSearchText(
+  return foldLabel(
     [
       recipe.title,
       ...recipe.categories,
@@ -50,15 +90,23 @@ function searchHaystack(recipe: RecipeSummary): string {
   );
 }
 
+/** A time range with a bound set; clearing both inputs leaves `{}` behind. */
+export function isRangeSet(range?: MinuteRange): range is MinuteRange {
+  return range?.min !== undefined || range?.max !== undefined;
+}
+
 function inRange(value: number | undefined, range?: MinuteRange): boolean {
-  if (!range) return true;
+  if (!isRangeSet(range)) return true;
   if (value === undefined) return false;
   if (range.min !== undefined && value < range.min) return false;
   if (range.max !== undefined && value > range.max) return false;
   return true;
 }
 
-function totalMinutes(recipe: RecipeSummary): number | undefined {
+/** Prep + chill + cook, or undefined when none of them is known. */
+export function totalMinutes(
+  recipe: Pick<RecipeSummary, "prepMinutes" | "chillMinutes" | "cookMinutes">,
+): number | undefined {
   const values = [recipe.prepMinutes, recipe.chillMinutes, recipe.cookMinutes];
   if (values.every((value) => value === undefined)) return undefined;
   return values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
@@ -69,11 +117,9 @@ export function filterRecipeSummaries(
   filter: RecipeFilter,
 ): RecipeSummary[] {
   const terms = filter.query
-    ? normalizeSearchText(filter.query).split(" ").filter(Boolean)
+    ? foldLabel(filter.query).split(" ").filter(Boolean)
     : [];
-  const ingredient = filter.ingredient
-    ? normalizeSearchText(filter.ingredient)
-    : "";
+  const ingredient = filter.ingredient ? foldLabel(filter.ingredient) : "";
 
   return recipes.filter((recipe) => {
     if (terms.length > 0) {
@@ -87,7 +133,7 @@ export function filterRecipeSummaries(
     if (
       ingredient &&
       !recipe.ingredientTexts.some((text) =>
-        normalizeSearchText(text).includes(ingredient),
+        foldLabel(text).includes(ingredient),
       )
     ) {
       return false;
@@ -103,9 +149,11 @@ export function filterRecipeSummaries(
 
 export type RecipeSortKey = "title" | "totalTime";
 
+/** `locale` orders titles the way that language's alphabet does. */
 export function sortRecipeSummaries(
   recipes: readonly RecipeSummary[],
   sortBy: RecipeSortKey,
+  locale?: string,
 ): RecipeSummary[] {
   const sorted = [...recipes];
   if (sortBy === "totalTime") {
@@ -119,7 +167,7 @@ export function sortRecipeSummaries(
     });
     return sorted;
   }
-  sorted.sort((a, b) => a.title.localeCompare(b.title));
+  sorted.sort((a, b) => a.title.localeCompare(b.title, locale));
   return sorted;
 }
 
@@ -127,26 +175,16 @@ export function collectFacetSuggestions(
   recipes: readonly RecipeSummary[],
   facet: "categories" | "tags",
 ): FacetSuggestion[] {
-  const byNormalized = new Map<
-    string,
-    { value: string; count: number; firstIndex: number }
-  >();
-  let index = 0;
-
+  const byNormalized = new Map<string, FacetSuggestion>();
   for (const recipe of recipes) {
     for (const value of recipe[facet]) {
-      const key = normalizeSearchText(value);
+      const key = foldLabel(value);
       const existing = byNormalized.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        byNormalized.set(key, { value, count: 1, firstIndex: index });
-      }
-      index += 1;
+      if (existing) existing.count += 1;
+      else byNormalized.set(key, { value, count: 1 });
     }
   }
-
-  return [...byNormalized.values()]
-    .sort((a, b) => b.count - a.count || a.firstIndex - b.firstIndex)
-    .map(({ value, count }) => ({ value, count }));
+  // Ties keep first-seen order: a Map iterates in insertion order and
+  // Array.prototype.sort is stable.
+  return [...byNormalized.values()].sort((a, b) => b.count - a.count);
 }

@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -9,6 +10,13 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import {
+  analyzeWithDetectedLocale,
+  type ConversionDraft,
+  type ConversionSourceNode,
+  outlineToSource,
+} from "../application/convert-recipe";
+import {
+  clearCookingSession,
   cookingSessionKey,
   loadCookingSession,
 } from "../application/cooking-session";
@@ -17,12 +25,14 @@ import {
   collectFacetSuggestions,
   type FacetSuggestion,
 } from "../application/list-recipes";
-import type { Recipe } from "../domain/recipe";
+import type { OutlineNode } from "../application/split-outline";
+import type { Recipe, RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit } from "../domain/unit";
-import { defaultParseContext } from "../parsing/context";
+import { ActionMenu } from "./components/ActionMenu";
 import { ArchivedRecipesView } from "./components/ArchivedRecipesView";
 import { ConvertPreview } from "./components/ConvertPreview";
 import { CookingMode } from "./components/CookingMode";
+import { ImportRecipeText } from "./components/ImportRecipeText";
 import { NewRecipeForm } from "./components/NewRecipeForm";
 import { RecipeCard } from "./components/RecipeCard";
 import { RecipeEditor } from "./components/RecipeEditor";
@@ -32,7 +42,9 @@ import {
 } from "./components/RecipeSettingsPanel";
 import { RecipesView } from "./components/RecipesView";
 import { TimerDock } from "./components/Timers";
-import { confirmDiscardIfDirty } from "./dirty-guard";
+import { ConfirmProvider, useConfirm } from "./confirm";
+import { useConfirmDiscard } from "./dirty-guard";
+import { errorMessage } from "./error-message";
 import { useFocusTrap } from "./focus-trap";
 import type { UiMessages } from "./i18n";
 import type {
@@ -50,39 +62,52 @@ export interface DraftRecipeAppProps {
 // Screen changes cross-fade through the View Transitions API where the host
 // has it; elsewhere, or with reduced motion requested, they are instant.
 function withViewTransition(update: () => void): void {
-  const start = (
-    document as Document & {
-      startViewTransition?(callback: () => void): unknown;
-    }
-  ).startViewTransition;
   const reduced =
     typeof matchMedia === "function" &&
     matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!start || reduced) {
+  if (!("startViewTransition" in document) || reduced) {
     update();
     return;
   }
-  start.call(document, () => flushSync(update));
+  document.startViewTransition(() => flushSync(update));
 }
 
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
+// Preview ids for an imported recipe's blocks, before they exist.
+const IMPORT_ROOT_ID = "import";
 
 type ActiveView =
   | DraftRecipeInitialView
+  | {
+      kind: "import-preview";
+      outline: OutlineNode;
+      text: string;
+      source: ConversionSourceNode;
+      draft: ConversionDraft;
+      detectedLocale?: RecipeLocale;
+    }
   | { kind: "recipe-loaded" }
   | { kind: "cooking" }
   | { kind: "settings" }
   | { kind: "archived" }
   | { kind: "edit" };
 
-export function DraftRecipeApp({
+export function DraftRecipeApp(props: DraftRecipeAppProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  return (
+    <ConfirmProvider hostRef={shellRef} cancelLabel={props.messages.cancel}>
+      <RecipeApp {...props} shellRef={shellRef} />
+    </ConfirmProvider>
+  );
+}
+
+function RecipeApp({
   controller,
   config,
   messages,
-}: DraftRecipeAppProps) {
-  const shellRef = useRef<HTMLDivElement>(null);
+  shellRef,
+}: DraftRecipeAppProps & { shellRef: RefObject<HTMLDivElement | null> }) {
+  const confirm = useConfirm();
+  const confirmDiscard = useConfirmDiscard(messages);
 
   // The plugin's main UI behaves like a modal dialog over the Logseq
   // window: move focus into it on open, and restore whatever had focus
@@ -94,7 +119,7 @@ export function DraftRecipeApp({
     return () => {
       previouslyFocused?.focus?.();
     };
-  }, []);
+  }, [shellRef]);
   // Without this, Tab/Shift+Tab would walk out of the dialog into whatever
   // Logseq itself renders next in DOM order - a real focus escape, not just
   // a cosmetic issue, for an element marked aria-modal="true".
@@ -124,6 +149,9 @@ export function DraftRecipeApp({
     Record<string, CanonicalUnit>
   >({});
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [canMoveToLibrary, setCanMoveToLibrary] = useState(false);
+  // Bumped to start the editor over from the recipe as it is now.
+  const [editSession, setEditSession] = useState(0);
   const [coverAssets, setCoverAssets] = useState<string[]>([]);
   const [categorySuggestions, setCategorySuggestions] = useState<
     FacetSuggestion[]
@@ -177,10 +205,21 @@ export function DraftRecipeApp({
         try {
           await task();
         } catch (cause) {
-          setError(errorMessage(cause));
+          setError(errorMessage(cause, messages));
         }
       }),
-    [runExclusive],
+    [runExclusive, messages],
+  );
+
+  // An archived or deleted recipe takes its unfinished cook (and its
+  // timers, which would otherwise keep ringing) with it.
+  const forgetCooking = useCallback(
+    (id: string) => {
+      if (config.graphKey) {
+        clearCookingSession(cookingSessionKey(config.graphKey, id));
+      }
+    },
+    [config.graphKey],
   );
 
   const measurementSystem =
@@ -208,7 +247,7 @@ export function DraftRecipeApp({
         const loaded = await controller.loadRecipe(id);
         if (loadTokenRef.current !== token) return undefined;
         if (!loaded) {
-          setError(`Recipe not found: ${id}`);
+          setError(messages.errorRecipeNotFound);
           setRecipe(null);
           return null;
         }
@@ -217,12 +256,12 @@ export function DraftRecipeApp({
         return loaded;
       } catch (cause) {
         if (loadTokenRef.current === token) {
-          setError(errorMessage(cause));
+          setError(errorMessage(cause, messages));
         }
         return undefined;
       }
     },
-    [controller],
+    [controller, messages],
   );
 
   const openCookingById = useCallback(
@@ -230,8 +269,10 @@ export function DraftRecipeApp({
       setFormDirty(false);
       const loaded = await refreshRecipeById(id, id !== recipe?.id);
       if (loaded) setView({ kind: "cooking" });
+      // Deleted in Logseq: its timers in the dock lead nowhere.
+      if (loaded === null) forgetCooking(id);
     },
-    [recipe?.id, refreshRecipeById, setView],
+    [recipe?.id, refreshRecipeById, setView, forgetCooking],
   );
 
   const openRecipeById = useCallback(
@@ -248,12 +289,12 @@ export function DraftRecipeApp({
         setError(null);
         setRecipes(await controller.listRecipes(fresh ? { fresh } : undefined));
       } catch (cause) {
-        setError(errorMessage(cause));
+        setError(errorMessage(cause, messages));
       } finally {
         setRecipesLoaded(true);
       }
     },
-    [controller],
+    [controller, messages],
   );
 
   const refreshArchivedRecipes = useCallback(async () => {
@@ -262,11 +303,11 @@ export function DraftRecipeApp({
       setError(null);
       setArchivedRecipes(await controller.listArchivedRecipes());
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, messages));
     } finally {
       setArchivedRecipesLoaded(true);
     }
-  }, [controller]);
+  }, [controller, messages]);
 
   const openSettings = useCallback(async () => {
     // Matches every other Create/Convert/Save/Duplicate/Archive action: keep
@@ -312,6 +353,19 @@ export function DraftRecipeApp({
   }, [controller, recipe]);
 
   const recipeId = recipe?.id;
+  useEffect(() => {
+    setCanMoveToLibrary(false);
+    if (!recipeId) return undefined;
+    let cancelled = false;
+    controller.canMoveToRecipeLibrary(recipeId).then(
+      (movable) => !cancelled && setCanMoveToLibrary(movable),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [controller, recipeId]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: recipeId is a deliberate re-run trigger (a different recipe was opened), not a value the effect body reads.
   useEffect(() => {
     setIngredientUnitOverrides({});
@@ -354,6 +408,46 @@ export function DraftRecipeApp({
     void refreshRecipes();
   };
 
+  // Escape does what the screen's Back or Cancel does, and closes the
+  // plugin from the top; Cooking Mode handles its own. A menu, suggestion
+  // list, drag, or the confirm dialog that used the key marks it handled.
+  const leaveScreen = ((): (() => void) => {
+    const guarded = (leave: () => void) => () =>
+      confirmDiscard(formDirty, leave);
+    switch (view.kind) {
+      case "create":
+      case "archived":
+      case "recipe-loaded":
+        return backToRecipes;
+      case "import-text":
+        return guarded(backToRecipes);
+      case "import-preview": {
+        const text = view.text;
+        return guarded(() => setView({ kind: "import-text", text }));
+      }
+      case "edit":
+      case "settings":
+        return guarded(() => setView({ kind: "recipe-loaded" }));
+      case "cooking":
+        return () => undefined;
+      default:
+        return guarded(controller.close);
+    }
+  })();
+  const escapeRef = useRef(leaveScreen);
+  useEffect(() => {
+    escapeRef.current = leaveScreen;
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        escapeRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const shell = (content: ReactNode, onBack?: () => void) => (
     <div
       ref={shellRef}
@@ -376,13 +470,7 @@ export function DraftRecipeApp({
           className="draft-recipe-close"
           aria-label={messages.close}
           title={messages.close}
-          onClick={() =>
-            confirmDiscardIfDirty(
-              formDirty,
-              messages.discardChangesConfirm,
-              controller.close,
-            )
-          }
+          onClick={() => confirmDiscard(formDirty, controller.close)}
         >
           <span aria-hidden="true">×</span>
         </button>
@@ -405,33 +493,19 @@ export function DraftRecipeApp({
           graphKey={config.graphKey}
           messages={messages}
           onOpenRecipe={(id) =>
-            confirmDiscardIfDirty(
-              formDirty,
-              messages.discardChangesConfirm,
-              () => void openCookingById(id),
-            )
+            confirmDiscard(formDirty, () => void openCookingById(id))
           }
         />
       )}
     </div>
   );
 
-  const createDefaults = useMemo(
-    () => ({
-      locale: config.defaultParserLocale,
-      sourceMeasurementSystem:
-        config.defaultSourceMeasurementSystem ??
-        defaultParseContext(config.defaultParserLocale).sourceMeasurementSystem,
-    }),
-    [config.defaultParserLocale, config.defaultSourceMeasurementSystem],
-  );
-
   if (view.kind === "create") {
     return shell(
       <NewRecipeForm
         messages={messages}
-        locale={createDefaults.locale}
-        sourceMeasurementSystem={createDefaults.sourceMeasurementSystem}
+        locale={config.defaultParserLocale}
+        sourceMeasurementSystem={config.defaultSourceMeasurementSystem}
         pending={pending}
         onCancel={backToRecipes}
         onSubmit={(input) => {
@@ -448,18 +522,81 @@ export function DraftRecipeApp({
     );
   }
 
-  if (view.kind === "convert") {
+  if (view.kind === "import-text") {
+    return shell(
+      <ImportRecipeText
+        messages={messages}
+        fallbackLocale={config.defaultParserLocale}
+        pending={pending}
+        onCancel={backToRecipes}
+        onDirtyChange={setFormDirty}
+        initialText={view.text}
+        onImport={(outline, text) => {
+          // Previewed in memory: nothing is written until Confirm.
+          const source = outlineToSource(outline, IMPORT_ROOT_ID);
+          const { draft, detectedLocale } = analyzeWithDetectedLocale(
+            source,
+            config.defaultParserLocale,
+          );
+          setView({
+            kind: "import-preview",
+            outline,
+            text,
+            source,
+            draft,
+            ...(detectedLocale ? { detectedLocale } : {}),
+          });
+        }}
+      />,
+    );
+  }
+
+  if (view.kind === "import-preview") {
     return shell(
       <ConvertPreview
         source={view.source}
         draft={view.draft}
+        detectedLocale={view.detectedLocale}
         messages={messages}
         pending={pending}
+        notice={messages.importNotice}
+        outline={view.outline}
+        onCancel={() => setView({ kind: "import-text", text: view.text })}
+        onDirtyChange={setFormDirty}
+        onConfirm={(resolvedDraft) => {
+          void runAction(async () => {
+            const id = await controller.commitImportedRecipe(
+              view.outline,
+              resolvedDraft,
+            );
+            await openRecipeById(id, true);
+          });
+        }}
+      />,
+    );
+  }
+
+  if (view.kind === "convert") {
+    const rebuild = view.rebuild;
+    return shell(
+      <ConvertPreview
+        source={view.source}
+        draft={view.draft}
+        detectedLocale={view.detectedLocale}
+        messages={messages}
+        pending={pending}
+        {...(rebuild
+          ? { notice: messages.rebuildNotice, outline: rebuild.outline }
+          : {})}
         onCancel={controller.close}
         onDirtyChange={setFormDirty}
         onConfirm={(resolvedDraft) => {
           void runAction(async () => {
-            await controller.commitConversion(resolvedDraft);
+            if (rebuild) {
+              await controller.commitRebuiltConversion(rebuild, resolvedDraft);
+            } else {
+              await controller.commitConversion(resolvedDraft);
+            }
             await openRecipeById(resolvedDraft.rootId, true);
           });
         }}
@@ -470,7 +607,7 @@ export function DraftRecipeApp({
   if (view.kind === "already-recipe") {
     return shell(
       <div className="draft-recipe-already-recipe">
-        <p>{messages.alreadyRecipe}</p>
+        <p>{view.inside ? messages.insideRecipe : messages.alreadyRecipe}</p>
         <p>
           <strong>{view.title}</strong>
         </p>
@@ -481,36 +618,6 @@ export function DraftRecipeApp({
         >
           {messages.openRecipe}
         </button>
-      </div>,
-    );
-  }
-
-  if (view.kind === "convert-needs-split") {
-    return shell(
-      <div className="draft-recipe-outline-split">
-        <p>{messages.outlineNeedsSplitMessage}</p>
-        <div className="draft-recipe-actions">
-          <button type="button" onClick={backToRecipes}>
-            {messages.cancel}
-          </button>
-          <button
-            type="button"
-            className="draft-recipe-primary-action"
-            disabled={pending}
-            onClick={() => {
-              void runAction(async () => {
-                const next = await controller.splitOutlineAndConvert(
-                  view.uuid,
-                  view.outline,
-                  view.staleChildIds,
-                );
-                setView(next);
-              });
-            }}
-          >
-            {messages.splitOutlineAction}
-          </button>
-        </div>
       </div>,
     );
   }
@@ -555,12 +662,15 @@ export function DraftRecipeApp({
   if (view.kind === "edit" && recipe) {
     return shell(
       <RecipeEditor
+        key={editSession}
         recipe={recipe}
+        onReload={() => setEditSession((session) => session + 1)}
         messages={messages}
         pending={pending}
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onDirtyChange={setFormDirty}
         listStepMediaAssets={controller.listStepMediaAssets}
+        resolveAssetUrl={controller.resolveAssetUrl}
         onSave={(patch) => {
           void runAction(async () => {
             try {
@@ -571,7 +681,9 @@ export function DraftRecipeApp({
               // stale, so show what the graph actually holds now.
               setView({ kind: "recipe-loaded" });
               await refreshRecipeById(recipe.id, false);
-              setError(`${messages.saveIncomplete} ${cause.message}`);
+              setError(
+                `${messages.saveIncomplete} ${errorMessage(cause.cause, messages)}`,
+              );
               return;
             }
             if (patch.baseYield !== undefined) setTargetYield(patch.baseYield);
@@ -627,13 +739,14 @@ export function DraftRecipeApp({
                 summary,
               ]);
             }
-            setView({ kind: "recipes" });
+            // Stay here: several recipes are often restored in a row.
             announce(messages.restoredNotice);
           });
         }}
         onDelete={(id) => {
           void runAction(async () => {
             await controller.deleteArchivedRecipe(id);
+            forgetCooking(id);
             setArchivedRecipes((current) =>
               current.filter((item) => item.id !== id),
             );
@@ -666,11 +779,13 @@ export function DraftRecipeApp({
             setRecipe(duplicated);
             setTargetYield(duplicated.baseYield);
             setView({ kind: "recipe-loaded" });
+            announce(messages.duplicatedNotice);
           });
         }}
         onArchiveRecipe={() => {
           void runAction(async () => {
             await controller.archiveRecipe(recipe.id);
+            forgetCooking(recipe.id);
             if (!recipesLoaded) void refreshRecipes();
             else
               setRecipes((current) =>
@@ -681,6 +796,24 @@ export function DraftRecipeApp({
           });
         }}
         onOpenInLogseq={() => controller.openInLogseq(recipe.id)}
+        onMoveToRecipeLibrary={
+          canMoveToLibrary
+            ? () =>
+                confirm(
+                  {
+                    message: messages.moveToRecipeLibraryConfirm,
+                    detail: recipe.title,
+                    confirmLabel: messages.moveToRecipeLibrary,
+                  },
+                  () =>
+                    void runAction(async () => {
+                      await controller.moveToRecipeLibrary(recipe.id);
+                      setCanMoveToLibrary(false);
+                      announce(messages.movedToLibraryNotice);
+                    }),
+                )
+            : undefined
+        }
         resolveAssetUrl={controller.resolveAssetUrl}
         cookingInProgress={
           config.graphKey
@@ -713,22 +846,41 @@ export function DraftRecipeApp({
           >
             <span aria-hidden="true">↻</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setView({ kind: "archived" });
-              void refreshArchivedRecipes();
-            }}
-          >
-            {messages.archivedRecipes}
-          </button>
-          <button
-            type="button"
-            className="draft-recipe-primary-action"
-            onClick={() => setView({ kind: "create" })}
-          >
-            {messages.createRecipe}
-          </button>
+          <ActionMenu
+            label={messages.moreActions}
+            icon="⋯"
+            align="end"
+            items={[
+              {
+                label: messages.archivedRecipes,
+                onSelect: () => {
+                  setView({ kind: "archived" });
+                  void refreshArchivedRecipes();
+                },
+              },
+            ]}
+          />
+          {/* One control: Create, with its ▾ for the other ways to add. */}
+          <div className="draft-recipe-split-button">
+            <button
+              type="button"
+              className="draft-recipe-primary-action"
+              onClick={() => setView({ kind: "create" })}
+            >
+              {messages.createRecipe}
+            </button>
+            <ActionMenu
+              label={messages.moreWaysToAdd}
+              icon="▾"
+              align="end"
+              items={[
+                {
+                  label: messages.importRecipe,
+                  onSelect: () => setView({ kind: "import-text" }),
+                },
+              ]}
+            />
+          </div>
         </>
       }
     />,

@@ -30,7 +30,10 @@ describe("already-recipe view", () => {
       createRecipe: async () => recipe(),
       duplicateRecipe: async () => recipe(),
       commitConversion: async () => undefined,
-      splitOutlineAndConvert: async () => {
+      commitRebuiltConversion: async () => {
+        throw new Error("not used in this test");
+      },
+      commitImportedRecipe: async () => {
         throw new Error("not used in this test");
       },
       resolveCover: async () => null,
@@ -39,6 +42,8 @@ describe("already-recipe view", () => {
       setCoverPath: async () => undefined,
       clearCover: async () => undefined,
       saveRecipeEdit: async () => undefined,
+      canMoveToRecipeLibrary: async () => false,
+      moveToRecipeLibrary: async () => undefined,
       archiveRecipe: async () => undefined,
       restoreRecipe: async () => undefined,
       deleteArchivedRecipe: async () => undefined,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseRecipeMetadataLine } from "../../src/application/recipe-metadata";
+import {
+  formatMinutes,
+  parseRecipeMetadataLine,
+  rewriteMinutesValue,
+  rewriteYieldLine,
+} from "../../src/application/recipe-metadata";
 import { defaultParseContext } from "../../src/parsing/context";
 
 describe("recipe root metadata parsing", () => {
@@ -109,6 +114,71 @@ describe("recipe root metadata parsing", () => {
   });
 });
 
+describe("yields written without a colon", () => {
+  it.each([
+    ["en", "Serves 4", { baseYield: 4 }],
+    ["en", "Makes 12 cookies", { baseYield: 12, yieldUnit: "cookies" }],
+    ["tr", "4 kişilik", { baseYield: 4, yieldUnit: "kişilik" }],
+    ["tr", "6 kişi için", { baseYield: 6, yieldUnit: "kişi için" }],
+    ["tr", "Kaç kişilik: 2", { baseYield: 2 }],
+    ["tr", "Kişi sayısı: 4", { baseYield: 4 }],
+    ["fr", "Pour 4 personnes", { baseYield: 4, yieldUnit: "personnes" }],
+    ["de", "Für 4 Personen", { baseYield: 4, yieldUnit: "Personen" }],
+    ["es", "Para 4 personas", { baseYield: 4, yieldUnit: "personas" }],
+  ] as const)("reads %s %s", (locale, text, value) => {
+    expect(parseRecipeMetadataLine(text, defaultParseContext(locale))).toEqual({
+      field: "yield",
+      value,
+    });
+  });
+
+  it.each([
+    ["tr", "2 kişi için ayrı tabaklara bölün"],
+    ["en", "4 eggs"],
+    ["de", "Für den Teig"],
+    ["en", "Serves"],
+  ] as const)("leaves %s %s alone", (locale, text) => {
+    expect(
+      parseRecipeMetadataLine(text, defaultParseContext(locale)),
+    ).toBeNull();
+  });
+
+  it("rewrites a count in place, keeping the cook's words", () => {
+    expect(rewriteYieldLine("Serves 4-6", 8, undefined, undefined)).toBe(
+      "Serves 8",
+    );
+    expect(rewriteYieldLine("4 kişilik", 6, "kişilik", "kişilik")).toBe(
+      "6 kişilik",
+    );
+    expect(
+      rewriteYieldLine("Makes 12 cookies", 24, "biscuits", "cookies"),
+    ).toBe("Makes 24 biscuits");
+    expect(rewriteYieldLine("Servings: 4", 6, "people", undefined)).toBe(
+      "Servings: 6 people",
+    );
+  });
+
+  it.each([
+    ["en", "Serves 4 to 6", "Serves 8"],
+    ["fr", "Pour 4 à 6 personnes", "Pour 8 personnes"],
+    ["de", "Für 4 bis 6 Personen", "Für 8 Personen"],
+    ["es", "Para 4 a 6 personas", "Para 8 personas"],
+    ["tr", "4 ile 6 kişilik", "8 kişilik"],
+  ] as const)(
+    "rewrites a %s range in words whole: %s",
+    (locale, text, rewritten) => {
+      const parsed = parseRecipeMetadataLine(text, defaultParseContext(locale));
+      const unit =
+        parsed?.field === "yield" ? parsed.value?.yieldUnit : undefined;
+      expect(rewriteYieldLine(text, 8, unit, unit)).toBe(rewritten);
+      // Still read as the yield, so the next change rewrites it again.
+      expect(
+        parseRecipeMetadataLine(rewritten, defaultParseContext(locale))?.value,
+      ).toMatchObject({ baseYield: 8 });
+    },
+  );
+});
+
 describe("metadata durations with unrecognized parts", () => {
   it("reads short hour units instead of dropping the hour", () => {
     expect(
@@ -126,5 +196,40 @@ describe("metadata durations with unrecognized parts", () => {
       parseRecipeMetadataLine("Cook: 1 zz 5 min", defaultParseContext("en"))
         ?.value,
     ).toBeNull();
+  });
+});
+
+describe("writing a time back into its line", () => {
+  it.each([
+    ["en", "Cook"],
+    ["tr", "Pişirme"],
+    ["fr", "Cuisson"],
+    ["de", "Kochzeit"],
+    ["es", "Cocción"],
+  ] as const)("reads back what it writes in %s", (locale, label) => {
+    const context = defaultParseContext(locale);
+    for (const minutes of [0, 5, 45, 60, 90, 125, 22.5]) {
+      const line = `${label}: ${formatMinutes(minutes, locale)}`;
+      expect(parseRecipeMetadataLine(line, context)?.value).toBe(minutes);
+    }
+  });
+
+  it("keeps a plain minute amount's own wording", () => {
+    expect(
+      rewriteMinutesValue("15 dakika", 20, defaultParseContext("tr")),
+    ).toBe("20 dakika");
+  });
+
+  it("rewrites hours and combined times instead of just their number", () => {
+    const tr = defaultParseContext("tr");
+    const en = defaultParseContext("en");
+    expect(rewriteMinutesValue("1 saat", 90, tr)).toBe("1 saat 30 dk");
+    expect(rewriteMinutesValue("1 saat 30 dk", 100, tr)).toBe("1 saat 40 dk");
+    expect(rewriteMinutesValue("1½ hours", 30, en)).toBe("30 min");
+    expect(rewriteMinutesValue("1 h", 120, en)).toBe("2 h");
+    expect(rewriteMinutesValue("1 h 30 min", 100, en)).toBe("1 h 40 min");
+    expect(rewriteMinutesValue("1 h 30", 100, defaultParseContext("fr"))).toBe(
+      "1 h 40 min",
+    );
   });
 });

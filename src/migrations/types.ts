@@ -7,14 +7,9 @@ export interface RecipeMigrationHost {
   ): Promise<unknown>;
 }
 
-export interface RecipeMigrationCapabilities {
-  jsonProperty: boolean;
-}
-
 export interface RecipeMigrationContext {
   host: RecipeMigrationHost;
   recipeId: string;
-  capabilities: RecipeMigrationCapabilities;
 }
 
 export interface RecipeMigration {

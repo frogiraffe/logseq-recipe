@@ -1,5 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import {
+  cookingSessionKey,
+  loadCookingSession,
+  saveCookingSession,
+} from "../../src/application/cooking-session";
 import {
   IncompleteSaveError,
   type RecipeEditPatch,
@@ -33,7 +44,10 @@ function baseController(overrides: Partial<DraftRecipeUiController> = {}) {
     createRecipe: async () => recipe(),
     duplicateRecipe: async () => recipe(),
     commitConversion: async () => undefined,
-    splitOutlineAndConvert: async () => {
+    commitRebuiltConversion: async () => {
+      throw new Error("not used in this test");
+    },
+    commitImportedRecipe: async () => {
       throw new Error("not used in this test");
     },
     resolveCover: async () => null,
@@ -42,6 +56,8 @@ function baseController(overrides: Partial<DraftRecipeUiController> = {}) {
     setCoverPath: async () => undefined,
     clearCover: async () => undefined,
     saveRecipeEdit: async () => undefined,
+    canMoveToRecipeLibrary: async () => false,
+    moveToRecipeLibrary: async () => undefined,
     archiveRecipe: async () => undefined,
     restoreRecipe: async () => undefined,
     deleteArchivedRecipe: async () => undefined,
@@ -122,7 +138,9 @@ describe("recipe edit/archive flow wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
 
     expect(
-      await screen.findByText(`${enMessages.saveIncomplete} write failed`),
+      await screen.findByText(
+        `${enMessages.saveIncomplete} ${enMessages.errorUnexpected.replace("{detail}", "write failed")}`,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: enMessages.editRecipe }),
@@ -271,6 +289,75 @@ describe("recipe edit/archive flow wiring", () => {
     expect(openInLogseq).toHaveBeenCalledWith("recipe-1");
   });
 
+  it("moves a recipe kept outside the library after confirming", async () => {
+    const moveToRecipeLibrary = vi
+      .fn<(id: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const controller = baseController({
+      canMoveToRecipeLibrary: async () => true,
+      moveToRecipeLibrary,
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: enMessages.moveToRecipeLibrary,
+      }),
+    );
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.textContent).toContain(enMessages.moveToRecipeLibraryConfirm);
+    expect(moveToRecipeLibrary).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: enMessages.moveToRecipeLibrary,
+      }),
+    );
+    await waitFor(() =>
+      expect(moveToRecipeLibrary).toHaveBeenCalledWith("recipe-1"),
+    );
+    // Once moved, it is no longer offered.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: enMessages.moveToRecipeLibrary }),
+      ).toBeNull(),
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      enMessages.movedToLibraryNotice,
+    );
+  });
+
+  it("does not offer the move for a recipe already in the library", async () => {
+    render(
+      <DraftRecipeApp
+        controller={baseController()}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    await screen.findByRole("button", { name: enMessages.openInLogseq });
+    expect(
+      screen.queryByRole("button", { name: enMessages.moveToRecipeLibrary }),
+    ).toBeNull();
+  });
+
   it("archives through the controller and returns to the recipes list", async () => {
     const archiveRecipe = vi
       .fn<(id: string) => Promise<void>>()
@@ -312,7 +399,117 @@ describe("recipe edit/archive flow wiring", () => {
     expect(listRecipes).toHaveBeenCalledTimes(1);
   });
 
-  it("restores an archived recipe locally without rescanning both lists", async () => {
+  it("drops an archived or deleted recipe's unfinished cook and its timers", async () => {
+    const graphKey = "graph-a";
+    const session = {
+      checkedIngredientIds: [],
+      ingredientsOpen: false,
+      timers: [],
+    };
+    saveCookingSession(cookingSessionKey(graphKey, "recipe-1"), session);
+    saveCookingSession(cookingSessionKey(graphKey, "recipe-2"), session);
+    const archived: ArchivedRecipeSummary = {
+      id: "recipe-2",
+      title: "Soup",
+      categories: [],
+      tags: [],
+      ingredientTexts: [],
+    };
+    const controller = baseController({
+      listArchivedRecipes: async () => [archived],
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+          graphKey,
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.archiveRecipe }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: enMessages.archiveRecipeConfirmAction,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        loadCookingSession(cookingSessionKey(graphKey, "recipe-1")),
+      ).toBeNull(),
+    );
+    expect(
+      loadCookingSession(cookingSessionKey(graphKey, "recipe-2")),
+    ).not.toBeNull();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.archivedRecipes }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: `${enMessages.deleteRecipePermanently}: Soup`,
+      }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: enMessages.deleteRecipePermanently,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        loadCookingSession(cookingSessionKey(graphKey, "recipe-2")),
+      ).toBeNull(),
+    );
+  });
+
+  it("drops the timers of a recipe deleted in Logseq when its dock timer is opened", async () => {
+    const graphKey = "graph-a";
+    const key = cookingSessionKey(graphKey, "gone");
+    saveCookingSession(key, {
+      checkedIngredientIds: [],
+      ingredientsOpen: false,
+      timers: [
+        {
+          id: "gone-t",
+          stepId: "s1",
+          label: "Step 1 · 05:00",
+          durationMs: 300_000,
+          endsAt: Date.now() + 300_000,
+          recipeTitle: "Gone Soup",
+        },
+      ],
+    });
+    const controller = baseController({
+      loadRecipe: async (id) => (id === "gone" ? null : recipe()),
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipes" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+          graphKey,
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Gone Soup/ }));
+    await waitFor(() => expect(loadCookingSession(key)).toBeNull());
+  });
+
+  it("restores an archived recipe and stays in the archive for the next one", async () => {
     const archived: ArchivedRecipeSummary = {
       id: "recipe-1",
       title: "Cookie",
@@ -321,7 +518,10 @@ describe("recipe edit/archive flow wiring", () => {
       ingredientTexts: [],
     };
     const listArchivedRecipes = vi.fn().mockResolvedValue([archived]);
-    const listRecipes = vi.fn().mockResolvedValue([]);
+    const listRecipes = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([archived]);
     const restoreRecipe = vi.fn().mockResolvedValue(undefined);
     const controller = baseController({
       listArchivedRecipes,
@@ -349,11 +549,17 @@ describe("recipe edit/archive flow wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore: Cookie" }));
 
     await waitFor(() => expect(restoreRecipe).toHaveBeenCalledWith("recipe-1"));
+    // Restoring keeps you in the archive, with a notice, for the next one.
+    expect(await screen.findByText(enMessages.noArchivedRecipes)).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe(
+      enMessages.restoredNotice,
+    );
+    fireEvent.click(screen.getByRole("button", { name: enMessages.back }));
     expect(
       await screen.findByRole("heading", { name: enMessages.recipes }),
     ).toBeTruthy();
-    expect(screen.getByText("Cookie")).toBeTruthy();
+    expect(await screen.findByText("Cookie")).toBeTruthy();
+    // The archive isn't rescanned after a restore.
     expect(listArchivedRecipes).toHaveBeenCalledTimes(1);
-    expect(listRecipes).toHaveBeenCalledTimes(1);
   });
 });

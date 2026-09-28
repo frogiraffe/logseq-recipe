@@ -1,8 +1,9 @@
-import type {
-  FacetSuggestion,
-  MinuteRange,
-  RecipeFilter,
-  RecipeSortKey,
+import {
+  type FacetSuggestion,
+  isRangeSet,
+  type MinuteRange,
+  type RecipeFilter,
+  type RecipeSortKey,
 } from "../../application/list-recipes";
 import type { UiMessages } from "../i18n";
 import { ChipInput } from "./ChipInput";
@@ -31,9 +32,9 @@ function hasActiveFilters(filter: RecipeFilter): boolean {
     Boolean(filter.ingredient) ||
     (filter.categories?.length ?? 0) > 0 ||
     (filter.tags?.length ?? 0) > 0 ||
-    Boolean(filter.prepMinutes?.min ?? filter.prepMinutes?.max) ||
-    Boolean(filter.cookMinutes?.min ?? filter.cookMinutes?.max) ||
-    Boolean(filter.totalMinutes?.min ?? filter.totalMinutes?.max)
+    isRangeSet(filter.prepMinutes) ||
+    isRangeSet(filter.cookMinutes) ||
+    isRangeSet(filter.totalMinutes)
   );
 }
 
@@ -53,13 +54,7 @@ export function FilterBar({
     edge: keyof MinuteRange,
     value: string,
   ) => {
-    const nextRange: MinuteRange = {
-      ...filter[key],
-      [edge]: rangeValue(value),
-    };
-    if (key === "prepMinutes") update({ prepMinutes: nextRange });
-    else if (key === "cookMinutes") update({ cookMinutes: nextRange });
-    else update({ totalMinutes: nextRange });
+    update({ [key]: { ...filter[key], [edge]: rangeValue(value) } });
   };
 
   return (
@@ -74,6 +69,12 @@ export function FilterBar({
           onChange={(event) =>
             update({ query: event.currentTarget.value || undefined })
           }
+          // Escape clears a search first; only an empty box lets it leave.
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !filter.query) return;
+            event.preventDefault();
+            update({ query: undefined });
+          }}
         />
       </label>
       <label>

@@ -2,7 +2,6 @@ import type { RecipeLocale } from "../domain/recipe";
 import { getLocalePack } from "./locales";
 import type { RecipeLocalePack } from "./locales/types";
 import {
-  normalizeDash,
   normalizeLookup,
   parseSlashFraction,
   VULGAR_FRACTIONS,
@@ -360,7 +359,7 @@ function scanRawTokens(input: string, pack: RecipeLocalePack): Token[] {
     }
 
     if (DASHES.has(char)) {
-      tokens.push(symbolToken("range", char, normalizeDash(char), cursor));
+      tokens.push(symbolToken("range", char, "-", cursor));
       cursor += 1;
       continue;
     }
@@ -638,7 +637,10 @@ function classifyAliases(
   return classified;
 }
 
-function isAndWord(token: Token | undefined, pack: RecipeLocalePack): boolean {
+export function isAndWord(
+  token: Token | undefined,
+  pack: RecipeLocalePack,
+): boolean {
   if (token?.kind !== "word") return false;
   const word = String(token.normalized);
   return (

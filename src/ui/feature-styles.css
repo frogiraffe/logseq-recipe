@@ -1,18 +1,50 @@
+/* Cooking Mode's header: a cover thumbnail beside the title and progress. */
+.draft-recipe-cooking-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.draft-recipe-cooking-title > div {
+  display: grid;
+  gap: 4px;
+}
+
 .draft-recipe-cooking-cover {
+  flex: none;
   overflow: hidden;
-  width: min(100%, 720px);
-  max-height: 220px;
-  margin: 0 auto;
+  width: 52px;
+  height: 52px;
   border: 1px solid var(--ls-border-color);
-  border-radius: 14px;
+  border-radius: var(--dr-radius-sm);
   background: var(--ls-secondary-background-color);
 }
 
 .draft-recipe-cooking-cover img {
   display: block;
   width: 100%;
-  height: 220px;
+  height: 100%;
   object-fit: cover;
+}
+
+/* The step bar stays in reach at the bottom, however long the step. */
+.draft-recipe-cooking-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 16px calc(-1 * var(--dr-shell-padding))
+    calc(-1 * var(--dr-shell-padding));
+  padding: 12px var(--dr-shell-padding);
+  border-top: 1px solid var(--ls-border-color);
+  background: var(--ls-primary-background-color);
+}
+
+/* A secondary action that shouldn't compete with its neighbours. */
+.draft-recipe-app button.draft-recipe-quiet-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ls-secondary-text-color);
 }
 
 .draft-recipe-classification-row {
@@ -152,10 +184,6 @@
   color: var(--ls-secondary-text-color);
 }
 
-.draft-recipe-advanced-disclosure[open] summary {
-  margin-bottom: 8px;
-}
-
 .draft-recipe-conversion-editor-help {
   grid-column: 1 / -1;
   margin: -4px 0 4px;
@@ -171,17 +199,6 @@
 .draft-recipe-yield-unit {
   color: var(--ls-secondary-text-color);
   font-size: 0.9rem;
-}
-
-@media (max-width: 640px) {
-  .draft-recipe-cooking-cover,
-  .draft-recipe-cooking-cover img {
-    max-height: 160px;
-  }
-
-  .draft-recipe-cooking-cover img {
-    height: 160px;
-  }
 }
 
 /* Cooking Mode timers */
@@ -232,12 +249,6 @@
 }
 
 /* Step notes and graph-local media */
-.draft-recipe-current-step .draft-recipe-step-children {
-  justify-self: center;
-  width: min(100%, 560px);
-  font-size: 1rem;
-}
-
 .draft-recipe-step-children {
   display: grid;
   gap: 6px;
@@ -246,6 +257,12 @@
   list-style: disc;
   font-size: 0.92rem;
   opacity: 0.9;
+}
+
+.draft-recipe-current-step .draft-recipe-step-children {
+  justify-self: center;
+  width: min(100%, 560px);
+  font-size: 1rem;
 }
 
 .draft-recipe-step-image,
@@ -259,6 +276,33 @@
   max-height: 320px;
   border-radius: var(--dr-radius-sm);
   object-fit: contain;
+}
+
+/* An attached photo or audio in the editor: the file, not its markup. */
+.draft-recipe-editor-media {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.draft-recipe-editor-media img {
+  width: auto;
+  max-width: 96px;
+  max-height: 56px;
+  border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-editor-media audio {
+  width: min(100%, 240px);
+}
+
+/* The step and its timers stay in view above a step photo. */
+.draft-recipe-current-step .draft-recipe-step-image img {
+  max-height: 30vh;
 }
 
 .draft-recipe-step-audio audio {
@@ -305,6 +349,11 @@
   border-color: var(--ls-border-color);
 }
 
+/* An ingredient group's heading row: its title reads as a heading. */
+.draft-recipe-editor-heading textarea {
+  font-weight: 600;
+}
+
 .draft-recipe-editor-item-dragging {
   position: relative;
   z-index: 2;
@@ -329,6 +378,62 @@
 .draft-recipe-archived-title small {
   color: var(--ls-secondary-text-color);
   font-size: 0.82rem;
+}
+
+/* A standing notice inside a view: something to know before confirming. */
+.draft-recipe-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--ls-link-text-color);
+  border-radius: var(--dr-radius-sm);
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-banner p {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
+/* What a conversion will write, as an indented outline. */
+.draft-recipe-outline-preview ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.draft-recipe-outline-scroll > ul {
+  padding-left: 4px;
+  list-style: none;
+}
+
+.draft-recipe-outline-preview li {
+  overflow-wrap: anywhere;
+}
+
+/* A long recipe's outline scrolls instead of pushing the page down. */
+.draft-recipe-outline-scroll {
+  max-height: 45vh;
+  overflow: auto;
+}
+
+/* Lines with no amount: one row each, the correction on demand. */
+.draft-recipe-no-amount-lines {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft-recipe-no-amount-lines > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 /* Success notices: an always-present live region, so every new notice is
@@ -387,6 +492,10 @@
 .draft-recipe-app summary {
   cursor: pointer;
   border-radius: var(--dr-radius-sm);
+}
+
+.draft-recipe-advanced-disclosure[open] summary {
+  margin-bottom: 8px;
 }
 
 .draft-recipe-app summary:focus-visible {
@@ -720,6 +829,11 @@
   animation: draft-recipe-rise-in 260ms var(--dr-ease-out);
 }
 
+/* On a view with a sticky Save/Confirm bar, the dock sits above it. */
+.draft-recipe-app:has(.draft-recipe-sticky-actions) .draft-recipe-timer-dock {
+  bottom: 76px;
+}
+
 .draft-recipe-timer-dock ul {
   display: grid;
   gap: 6px;
@@ -782,4 +896,61 @@
   .draft-recipe-timer-paused [role="timer"] {
     animation: none;
   }
+}
+
+/* The app's one confirmation dialog (discard, archive, delete, move,
+   finish cooking), above every sticky bar and the timer dock. */
+.draft-recipe-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 40%);
+}
+
+.draft-recipe-confirm {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 420px);
+  padding: 20px;
+  border: 1px solid var(--ls-border-color);
+  border-radius: var(--dr-radius-lg);
+  background: var(--ls-primary-background-color);
+  box-shadow: var(--dr-shadow-raised);
+}
+
+.draft-recipe-confirm p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.draft-recipe-confirm .draft-recipe-actions {
+  justify-content: flex-end;
+}
+
+/* Convert/Import preview: each ingredient line as it will be read. */
+.draft-recipe-read-lines table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.draft-recipe-read-lines th,
+.draft-recipe-read-lines td {
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px dashed var(--ls-border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.draft-recipe-read-lines td:first-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.draft-recipe-read-lines small {
+  color: var(--ls-secondary-text-color);
 }

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { ArchivedRecipesView } from "../../src/ui/components/ArchivedRecipesView";
 import { enMessages } from "../../src/ui/i18n";
+import { renderWithConfirm } from "./confirm-host";
 
 it("shows archived recipes and offers restore and native Logseq navigation", () => {
   const onRestore = vi.fn();
@@ -55,9 +56,9 @@ it("distinguishes an empty archive from a loading archive", () => {
   expect(screen.getByText(enMessages.noArchivedRecipes)).toBeTruthy();
 });
 
-it("asks for confirmation before permanently deleting", () => {
+it("asks for confirmation naming the recipe before permanently deleting", () => {
   const onDelete = vi.fn();
-  render(
+  renderWithConfirm(
     <ArchivedRecipesView
       recipes={[
         {
@@ -74,22 +75,28 @@ it("asks for confirmation before permanently deleting", () => {
       onOpenInLogseq={vi.fn()}
     />,
   );
+  const deleteCookie = () =>
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `${enMessages.deleteRecipePermanently}: Cookie`,
+      }),
+    );
 
-  fireEvent.click(
-    screen.getByRole("button", { name: enMessages.deleteRecipePermanently }),
+  deleteCookie();
+  const dialog = screen.getByRole("alertdialog");
+  expect(dialog.textContent).toContain(
+    enMessages.deleteRecipePermanentlyConfirm,
   );
+  expect(dialog.textContent).toContain("Cookie");
   expect(onDelete).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
-  expect(
-    screen.queryByText(enMessages.deleteRecipePermanentlyConfirm),
-  ).toBeNull();
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(onDelete).not.toHaveBeenCalled();
 
+  deleteCookie();
   fireEvent.click(
-    screen.getByRole("button", { name: enMessages.deleteRecipePermanently }),
-  );
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: `${enMessages.deleteRecipePermanently}: Cookie`,
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: enMessages.deleteRecipePermanently,
     }),
   );
   expect(onDelete).toHaveBeenCalledWith("recipe-1");

@@ -5,6 +5,7 @@ import {
   type RecipeFilter,
   type RecipeSortKey,
   sortRecipeSummaries,
+  totalMinutes,
 } from "../../application/list-recipes";
 import type { RecipeSummary } from "../../application/types";
 import type { UiMessages } from "../i18n";
@@ -60,13 +61,6 @@ function RecipeThumb({
   );
 }
 
-function totalMinutes(recipe: RecipeSummary): number | undefined {
-  const parts = [recipe.prepMinutes, recipe.chillMinutes, recipe.cookMinutes];
-  return parts.some((value) => value !== undefined)
-    ? parts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
-    : undefined;
-}
-
 export interface RecipesViewProps {
   recipes: RecipeSummary[];
   messages: UiMessages;
@@ -91,8 +85,13 @@ export function RecipesView({
   const [filter, setFilter] = useState<RecipeFilter>({});
   const [sortBy, setSortBy] = useState<RecipeSortKey>("title");
   const filtered = useMemo(
-    () => sortRecipeSummaries(filterRecipeSummaries(recipes, filter), sortBy),
-    [recipes, filter, sortBy],
+    () =>
+      sortRecipeSummaries(
+        filterRecipeSummaries(recipes, filter),
+        sortBy,
+        messages.uiLocale,
+      ),
+    [recipes, filter, sortBy, messages.uiLocale],
   );
   const categorySuggestions = useMemo(
     () => collectFacetSuggestions(recipes, "categories"),
@@ -133,7 +132,13 @@ export function RecipesView({
       ) : (
         <>
           <p className="draft-recipe-result-count">
-            {filtered.length} / {recipes.length} {messages.recipes}
+            {(new Intl.PluralRules(messages.uiLocale).select(recipes.length) ===
+            "one"
+              ? messages.recipeCountOne
+              : messages.recipeCountOther
+            )
+              .replace("{shown}", String(filtered.length))
+              .replace("{total}", String(recipes.length))}
           </p>
           {filtered.length === 0 && <p>{messages.noResults}</p>}
         </>

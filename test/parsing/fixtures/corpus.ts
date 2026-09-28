@@ -41,7 +41,7 @@ export const CORPUS: Record<RecipeLocale, LocaleCorpus> = {
       ["twenty five grams butter", "25 g | butter"],
       [
         "1 (15 oz) can black beans, rinsed",
-        "1 - | can black beans, rinsed | 15 oz",
+        "1 can | black beans, rinsed | 15 oz",
       ],
       ["8 oz cream cheese, softened", "8 oz_mass | cream cheese, softened"],
       ["1 tbsp. olive oil", "1 tbsp_us | olive oil"],
@@ -75,10 +75,7 @@ export const CORPUS: Record<RecipeLocale, LocaleCorpus> = {
     ],
     steps: [
       ["Preheat oven to 350° F.", "T: 350F preheat"],
-      [
-        "Preheat the oven to 350 degrees F (175 degrees C).",
-        "T: 350F preheat, 175C preheat",
-      ],
+      ["Preheat the oven to 350 degrees F (175 degrees C).", "T: 350F preheat"],
       ["Bake at 180C for 20 minutes.", "D: 20 minute; T: 180C"],
       [
         "Preheat oven to 200°C/180°C fan/gas 6.",
@@ -88,7 +85,7 @@ export const CORPUS: Record<RecipeLocale, LocaleCorpus> = {
       ["Simmer for between 10 and 15 minutes.", "D: 10-15 minute"],
       ["Cook for two to three minutes.", "D: 2-3 minute"],
       ["Bake for twenty five minutes.", "D: 25 minute"],
-      ["Let rest for 1 hr 15 mins.", "D: 1 hour, 15 minute"],
+      ["Let rest for 1 hr 15 mins.", "D: 75 minute"],
       ["Chill for at least 2 hours.", "D: >=2 hour"],
       ["Bake for an hour and a half.", "D: 1.5 hour"],
       ["Cook for half an hour.", "D: 0.5 hour"],
@@ -110,7 +107,12 @@ export const CORPUS: Record<RecipeLocale, LocaleCorpus> = {
       ["Yield: 12 cookies", "yield 12 cookies"],
       ["Yield: a dozen cookies", "yield 12 cookies"],
       ["Yield: 1 loaf (about 10 slices)", "yield 1 loaf"],
-      ["Servings: 4-6", "yield null"],
+      ["Servings: 4-6", "yield 4"],
+      ["Serves 4", "yield 4"],
+      ["Serves 4-6", "yield 4"],
+      ["Makes 1 loaf", "yield 1 loaf"],
+      ["Makes about 24 cookies", "yield 24 cookies"],
+      ["6 servings", "yield 6 servings"],
       ["Cook time: 1 hr 30 mins", "cook 90"],
       ["Cook: 45 min or until golden", "cook 45"],
       ["Cook: 10 min or 12 min", "cook null"],

@@ -56,6 +56,13 @@ export const COUNT_UNITS = new Set<CanonicalUnit>([
   "clove",
   "slice",
   "pinch",
+  "can",
+  "package",
+  "bunch",
+  "jar",
+  "sprig",
+  "head",
+  "stick",
 ]);
 
 export const TEMPERATURE_UNITS = new Set<CanonicalUnit>([

@@ -162,7 +162,7 @@ describe("analyzeRecipeConversion", () => {
     expect(isConversionCommittable(result)).toBe(true);
   });
 
-  it("blocks conversion when base yield is missing", () => {
+  it("counts a recipe without servings as 1 and asks, without blocking", () => {
     const root = node("root", "Recipe", [
       node("ingredients", "Ingredients", [node("i1", "100 g flour")]),
       node("steps", "Steps", [node("s1", "Mix.")]),
@@ -173,7 +173,9 @@ describe("analyzeRecipeConversion", () => {
     expect(result.issues).toContainEqual(
       expect.objectContaining({ code: "missing-base-yield" }),
     );
-    expect(isConversionCommittable(result)).toBe(false);
+    expect(result.metadata.baseYield).toBe(1);
+    expect(result.metadata.yieldUnit).toBeUndefined();
+    expect(isConversionCommittable(result)).toBe(true);
   });
 
   it("records the source root's title so the preview can show what is being converted", () => {
@@ -322,9 +324,9 @@ describe("correctConversionYield", () => {
     return analyzeRecipeConversion(root, defaultParseContext("en"));
   }
 
-  it("resolves the missing-base-yield dead end without fabricating a value", () => {
+  it("replaces the assumed single serving with the cook's number", () => {
     const draft = draftMissingYield();
-    expect(isConversionCommittable(draft)).toBe(false);
+    expect(draft.metadata.baseYield).toBe(1);
 
     const corrected = correctConversionYield(draft, 8, "cookies");
 

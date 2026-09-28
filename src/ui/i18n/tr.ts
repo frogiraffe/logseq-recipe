@@ -70,10 +70,10 @@ export const trMessages: UiMessages = {
   rangeMax: "En çok",
   minutesUnit: "dk",
   converting: "Dönüştürülüyor",
-  alreadyRecipe: "Bu sayfa zaten bir tarif.",
+  alreadyRecipe: "Bu zaten bir tarif:",
   openRecipe: "Tarifi aç",
   missingYieldPrompt:
-    "Bu tarif kaç porsiyon/adet veriyor? Devam etmek için bu gerekli.",
+    "Bu tarif kaç porsiyon ya da adet veriyor? Bulunamadı; siz girene kadar 1 (yazıldığı haliyle tarif) sayılır.",
   yieldUnitHelp: "porsiyon, kurabiye, adet...",
   useThisYield: "Bu miktarı kullan",
   conversionRulesTitle: "Özel malzeme dönüşümü",
@@ -128,29 +128,31 @@ export const trMessages: UiMessages = {
   archivedNotice: "Tarif arşivlendi",
   restoredNotice: "Tarif geri yüklendi",
   deletedNotice: "Tarif silindi",
+  duplicatedNotice: "Kopya oluşturuldu; şu an kopyayı görüyorsunuz",
+  movedToLibraryNotice: "Recipe Library'ye taşındı",
   archivedOn: "Arşivlenme: {date}",
   moreActions: "Diğer işlemler",
   fewerServings: "Porsiyonu azalt",
   moreServings: "Porsiyonu artır",
+  resetServings: "Asıl porsiyon: {count}",
   noRecipesHint:
-    'Buradan yeni bir tarif oluşturun ya da mevcut bir sayfayı blok menüsündeki "Logseq Recipe: Convert to Recipe" ile tarife çevirin.',
+    'Buradan yeni bir tarif oluşturun, "Metinden içe aktar" ile bir tarif yapıştırın ya da mevcut bir sayfayı blok menüsündeki "Logseq Recipe: Convert to Recipe" ile tarife çevirin.',
   saveIncomplete:
     "Kaydetme yarıda kesildi ve yalnızca bir kısmı uygulandı. Tarif Logseq'ten yeniden yüklendi; kontrol edip eksik değişiklikleri tekrar yapın.",
   blankItemError: "Kaydetmeden önce boş satırları kaldırın veya doldurun.",
   cookingNoSteps: "Bu tarifte pişirilecek adım yok.",
   stepProgress: "Adım",
   discardChangesConfirm: "Kaydedilmemiş değişiklikler silinsin mi?",
+  discardChanges: "Değişiklikleri at",
+  keepEditing: "Düzenlemeye devam et",
   refresh: "Yenile",
   loadingRecipes: "Tarifler yükleniyor…",
   loadingRecipe: "Tarif yükleniyor…",
   newRecipeGuidance:
     "Bu tarifte henüz malzeme veya adım yok. Tarifi düzenle'den ekleyebilirsiniz.",
   clearFilters: "Filtreleri temizle",
-  outlineNeedsSplitMessage:
-    "Bu, ayrı Logseq blokları yerine tek bir bloğa yapıştırılmış bir tarif taslağına benziyor - Dönüştür'ün bölüm olarak okuyabileceği bir şey henüz yok. Gösterilen girintiye uygun, gerçek ve iç içe bloklara ayırıp devam edilsin mi?",
-  splitOutlineAction: "Bloklara ayır ve devam et",
   issueMissingBaseYield:
-    "Tarifin dönüştürülebilmesi için pozitif bir porsiyon/adet sayısı gerekli.",
+    "Porsiyon sayısı bulunamadı; siz girene kadar tarif 1 porsiyon sayılır.",
   issueNoIngredientsSection: "Malzemeler bölümü bulunamadı.",
   issueNoStepsSection: "Yapılış bölümü bulunamadı.",
   issueDuplicateSectionRole: "Birden fazla bölüm {detail} olarak tanındı.",
@@ -162,4 +164,58 @@ export const trMessages: UiMessages = {
   issueIngredientAmountUnparsed: '"{detail}" malzemesinde miktar bulunamadı.',
   issueIngredientAmountAmbiguous:
     '"{detail}" satırındaki miktar belirsiz (iki miktar ya da okunamayan bir sayı). Miktarı girin ya da satırı yazıldığı gibi bırakın.',
+  importRecipe: "Metinden içe aktar",
+  moreWaysToAdd: "Tarif eklemenin diğer yolları",
+  importRecipeHelp:
+    'Tarifin tamamını yapıştırın. İlk satır başlıktır; "Malzemeler", "Yapılış" ve "Notlar" gibi bölüm başlıkları tarifi bölümlere ayırır, "Hamur için:" gibi bir satır da bir malzeme grubu başlatır; ilk başlıktan önceki satırlar ("Porsiyon: 4", "Hazırlık: 15 dk") tarif bilgisi olur. Önizlemeyi onaylayana kadar hiçbir şey yazılmaz.',
+  recipeText: "Tarif metni",
+  importNoSections:
+    'Bölüm başlığı bulunamadı. "Malzemeler" ve "Yapılış" (ya da tarifin dilindeki karşılıkları) ayrı satırlarda olmalı.',
+  importRecipeAction: "Önizle",
+  localeAutoDetected: "otomatik algılandı",
+  addIngredientGroup: "Grup ekle",
+  ingredientGroup: "Malzeme grubu",
+  emptyIngredientGroup: "Her grubun altında en az bir malzeme olmalı.",
+  moveToRecipeLibrary: "Recipe Library'ye taşı",
+  moveToRecipeLibraryConfirm:
+    "Bu tarif bulunduğu sayfadan Recipe Library sayfasına taşınsın mı? İçeriği ve bağlantıları aynı kalır.",
+  recipeChangedElsewhere:
+    "Bu tarif siz düzenlerken Logseq'te değişti. Kaydetmek yalnızca sizin değişikliklerinizi yazar; diğer değişiklikler korunur.",
+  loadCurrentVersion: "Güncel hâlini yükle",
+  rebuildNotice:
+    'Bu bloklar henüz tarif düzeninde değil. Onaylayınca "Yeni blok yapısı"nda gösterildiği gibi yeni bloklarla değiştirilip tarife dönüştürülür. Yalnızca metinleri aktarılır; bu bloklara verilen bağlantılar ve üzerlerindeki özellikler korunmaz. Onaylayana kadar hiçbir şey değişmez.',
+  importNotice:
+    'Onaylayınca bu tarif "Yeni blok yapısı"nda gösterildiği gibi Recipe Library\'ye eklenir; onaylayana kadar hiçbir şey yazılmaz.',
+  newStructure: "Yeni blok yapısı",
+  ingredientsAsRead: "Her malzeme nasıl okundu",
+  errorTitleRequired: "Tarifin bir başlığı olmalı.",
+  errorTitleTaken: '"{detail}" adında bir tarif zaten var.',
+  errorPageTitleTaken: '"{detail}" adında bir Logseq sayfası zaten var.',
+  errorBaseYieldInvalid: "Porsiyon 0'dan büyük bir sayı olmalı.",
+  errorTimeInvalid: "Süreler 0 dakika ya da daha fazla olmalı.",
+  errorRecipeNotFound: "Bu tarif artık grafikte yok.",
+  errorSectionMissing:
+    "Bu tarifin Logseq'te {detail} bölümü yok; düzenlemek için geri ekleyin.",
+  errorRecipeInvalid: "Bu tarifin verisi güvenle gösterilemiyor: {detail}",
+  errorFutureSchema:
+    "Bu tarif Logseq Recipe'in daha yeni bir sürümüyle kaydedilmiş. Açmak için eklentiyi güncelleyin.",
+  errorUnexpected: "Logseq bu işlemi tamamlayamadı: {detail}",
+  notDbGraph: "Logseq Recipe yalnızca Logseq DB grafikleriyle çalışır.",
+  unsupportedLogseqBuild:
+    "Logseq Recipe: bu Logseq sürümünde eklentinin ihtiyaç duyduğu bir özellik eksik. Logseq'i güncelleyip yeniden deneyin.",
+  nothingToConvert:
+    "Logseq Recipe: önce tarif içeren bir sayfayı açın ya da bir bloğa sağ tıklayın.",
+  insideRecipe: "Bu blok zaten bir tarifin parçası:",
+  finishCookingConfirm:
+    "Hâlâ çalışan bir zamanlayıcı var. Pişirme bitirilip zamanlayıcılar, geçerli adım ve işaretli malzemeler silinsin mi?",
+  fixedAmountShort: "Sabit",
+  sourceMeasurementHelp:
+    'Tarifin yazıldığı ölçüler: tarifteki "bardak" ya da "yemek kaşığı" ABD, metrik ya da İngiliz ölçüsü mü.',
+  displayMeasurementHelp:
+    "Bu tarifte miktarların gösterileceği ölçüler; varsayılan bırakılırsa eklenti ayarı geçerli olur.",
+  noAmountLinesNote:
+    "Bu satırların miktarı yok; yazıldığı gibi kalır ve porsiyonla ölçeklenmez:",
+  enterAmount: "Miktar gir",
+  recipeCountOne: "{shown} / {total} tarif",
+  recipeCountOther: "{shown} / {total} tarif",
 };

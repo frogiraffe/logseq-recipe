@@ -1,6 +1,7 @@
-import type { Quantity } from "../domain/quantity";
+import { modifiedQuantity, type Quantity } from "../domain/quantity";
 import type { RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
+import { COUNT_UNITS } from "../units/definitions";
 import type { ParseContext } from "./context";
 import { andAHalfAt, lexRecipeText, parseAmountAtom } from "./lexer";
 import { getLocalePack, type UnitLexeme } from "./locales";
@@ -28,15 +29,6 @@ interface QuantityParse {
   endOffset: number;
 }
 
-function resolveCookingUnit(
-  generic: "tsp" | "tbsp" | "cup",
-  system: MeasurementSystem,
-): CanonicalUnit {
-  if (system === "us") return `${generic}_us` as CanonicalUnit;
-  if (system === "imperial") return `${generic}_imperial` as CanonicalUnit;
-  return `${generic}_metric` as CanonicalUnit;
-}
-
 function resolveUnitLexeme(
   unit: UnitLexeme,
   system: MeasurementSystem,
@@ -45,7 +37,7 @@ function resolveUnitLexeme(
     case "tsp":
     case "tbsp":
     case "cup":
-      return resolveCookingUnit(unit, system);
+      return `${unit}_${system}`;
     case "fl_oz":
       return system === "imperial" ? "fl_oz_imperial" : "fl_oz_us";
     default:
@@ -53,80 +45,34 @@ function resolveUnitLexeme(
   }
 }
 
-function numericAtom(
-  tokens: readonly Token[],
-  index: number,
-  locale: RecipeLocale,
-): QuantityParse | null {
-  const atom = parseAmountAtom(tokens, index, locale);
-  return atom
-    ? {
-        quantity: { kind: "exact", value: atom.value },
-        nextIndex: atom.nextIndex,
-        endOffset: atom.endOffset,
-      }
-    : null;
-}
-
-function applyModifier(modifier: string, quantity: Quantity): Quantity {
-  if (quantity.kind !== "exact") return quantity;
-
-  if (modifier === "approximate") {
-    return { kind: "approximate", value: quantity.value };
-  }
-  if (modifier === "minimum") {
-    return { kind: "minimum", value: quantity.value };
-  }
-  if (modifier === "maximum") {
-    return { kind: "maximum", value: quantity.value };
-  }
-  return quantity;
-}
-
 function parseQuantity(
   tokens: readonly Token[],
   locale: RecipeLocale,
 ): QuantityParse | null {
-  let index = 0;
-  let modifier: string | undefined;
-
-  if (tokens[index]?.kind === "modifier") {
-    modifier = String(tokens[index].normalized);
-    index += 1;
-  }
-
-  const first = numericAtom(tokens, index, locale);
+  const modifier =
+    tokens[0]?.kind === "modifier" ? String(tokens[0].normalized) : undefined;
+  const first = parseAmountAtom(tokens, modifier === undefined ? 0 : 1, locale);
   if (!first) return null;
 
-  const rangeToken = tokens[first.nextIndex];
-  if (rangeToken?.kind === "range") {
-    const second = numericAtom(tokens, first.nextIndex + 1, locale);
-    if (
-      second &&
-      first.quantity.kind === "exact" &&
-      second.quantity.kind === "exact"
-    ) {
-      // A reversed range ("3-2 tbsp") is not a valid structured quantity.
-      // Reject the whole quantity rather than silently keeping just the
-      // first number (misleadingly confident) or reordering min/max
-      // (guessing the author's intent).
-      if (second.quantity.value < first.quantity.value) return null;
-      return {
-        quantity: {
-          kind: "range",
-          min: first.quantity.value,
-          max: second.quantity.value,
-        },
-        nextIndex: second.nextIndex,
-        endOffset: second.endOffset,
-      };
-    }
+  const second =
+    tokens[first.nextIndex]?.kind === "range"
+      ? parseAmountAtom(tokens, first.nextIndex + 1, locale)
+      : null;
+  if (second) {
+    // A reversed range ("3-2 tbsp") is not a valid structured quantity.
+    // Reject the whole quantity rather than silently keeping just the
+    // first number (misleadingly confident) or reordering min/max
+    // (guessing the author's intent).
+    if (second.value < first.value) return null;
+    return {
+      quantity: { kind: "range", min: first.value, max: second.value },
+      nextIndex: second.nextIndex,
+      endOffset: second.endOffset,
+    };
   }
 
   return {
-    quantity: modifier
-      ? applyModifier(modifier, first.quantity)
-      : first.quantity,
+    quantity: modifiedQuantity(modifier, first.value),
     nextIndex: first.nextIndex,
     endOffset: first.endOffset,
   };
@@ -477,6 +423,33 @@ function readIngredient(text: string, context: ParseContext): ParsedIngredient {
       nextIndex = unitIndex;
     }
   }
+  // "1 (400 g) can tomatoes", "2 (15 oz) cans": the size sits between the
+  // count and the counted unit, and joins the note.
+  let sizeNote: string | undefined;
+  if (tokens[nextIndex]?.kind === "lparen") {
+    const close = tokens.findIndex(
+      (token, index) =>
+        index > nextIndex &&
+        (token.kind === "rparen" || token.kind === "lparen"),
+    );
+    const counted = tokens[close + 1];
+    if (
+      close > nextIndex + 1 &&
+      tokens[close].kind === "rparen" &&
+      counted?.kind === "unit" &&
+      COUNT_UNITS.has(
+        resolveUnitLexeme(
+          String(counted.normalized) as UnitLexeme,
+          context.sourceMeasurementSystem,
+        ),
+      )
+    ) {
+      sizeNote = text
+        .slice(tokens[nextIndex].endOffset, tokens[close].startOffset)
+        .trim();
+      nextIndex = close + 1;
+    }
+  }
   const unitToken = tokens[nextIndex];
   let trailingQualifier: Token | undefined;
   if (unitToken?.kind === "unit") {
@@ -528,6 +501,7 @@ function readIngredient(text: string, context: ParseContext): ParsedIngredient {
   }
 
   const note = joinedNote(
+    sizeNote,
     unit ? leadingNote : undefined,
     trailingQualifier?.raw,
     leading.note,

@@ -16,10 +16,13 @@ export function ActionMenu({
   label,
   icon,
   items,
+  align = "start",
 }: {
   label: string;
   icon: ReactNode;
   items: ActionMenuItem[];
+  /** "end" opens toward the left, for a menu at the right edge. */
+  align?: "start" | "end";
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
 
@@ -44,8 +47,35 @@ export function ActionMenu({
     };
   }, []);
 
+  // A narrow window may have no room on the side the menu opens toward:
+  // shift it back inside, 8 px from the edge. Measured from its button and
+  // width, which the opening animation's scale leaves untouched.
+  const keepInWindow = () => {
+    const menu = ref.current;
+    const list = menu?.querySelector<HTMLElement>(".draft-recipe-menu-items");
+    if (!menu?.open || !list) return;
+    const button = menu.getBoundingClientRect();
+    const left =
+      align === "end" ? button.right - list.offsetWidth : button.left;
+    const room =
+      (document.documentElement.clientWidth || window.innerWidth) - 8;
+    const shift = Math.max(
+      8 - left,
+      Math.min(0, room - left - list.offsetWidth),
+    );
+    list.style.translate = shift ? `${shift}px 0` : "";
+  };
+
   return (
-    <details className="draft-recipe-menu" ref={ref}>
+    <details
+      className={
+        align === "end"
+          ? "draft-recipe-menu draft-recipe-menu-end"
+          : "draft-recipe-menu"
+      }
+      ref={ref}
+      onToggle={keepInWindow}
+    >
       <summary aria-label={label} title={label}>
         <span aria-hidden="true">{icon}</span>
       </summary>

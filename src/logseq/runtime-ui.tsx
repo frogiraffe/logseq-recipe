@@ -1,5 +1,9 @@
 import { createRoot, type Root } from "react-dom/client";
-import { planRecipeConversion } from "../application/convert-recipe";
+import {
+  type ConversionSourceNode,
+  planRecipeConversion,
+} from "../application/convert-recipe";
+import type { OutlineNode } from "../application/split-outline";
 import { defaultParseContext } from "../parsing/context";
 import { DraftRecipeApp } from "../ui/app";
 import { getUiMessages, type UiMessages } from "../ui/i18n";
@@ -13,8 +17,15 @@ import {
   watchTimerAlarms,
 } from "../ui/timer-alarms";
 import type { RuntimeCapabilities } from "./capabilities";
-import { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
-import { readSettings } from "./settings";
+import {
+  conversionView,
+  findEnclosingRecipe,
+  isAlreadyDraftRecipe,
+  loadConversionRoot,
+  loadTrailingSectionSiblings,
+  rebuiltConversionView,
+} from "./conversion-source";
+import { readSettings, resolveUiLanguage } from "./settings";
 import { createRuntimeUiContext } from "./ui-controller";
 
 export { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
@@ -71,6 +82,14 @@ async function currentGraphKey(): Promise<string | undefined> {
   return graph ? graph.path || graph.url || graph.name : undefined;
 }
 
+/** The interface language's messages, for notices shown outside the UI. */
+export async function currentUiMessages(): Promise<UiMessages> {
+  const configs = await logseq.App.getUserConfigs();
+  return getUiMessages(
+    resolveUiLanguage(readSettings().uiLanguage, configs.preferredLanguage),
+  );
+}
+
 /**
  * Arms the current graph's timer alarms without opening any UI, at plugin
  * load and after a graph switch: a cook kept across a Logseq restart must
@@ -78,9 +97,7 @@ async function currentGraphKey(): Promise<string | undefined> {
  */
 export async function startTimerAlarms(): Promise<void> {
   const graphKey = await currentGraphKey();
-  if (graphKey) {
-    ensureTimerAlarms(graphKey, getUiMessages(readSettings().uiLanguage));
-  }
+  if (graphKey) ensureTimerAlarms(graphKey, await currentUiMessages());
 }
 
 function appElement(): HTMLElement {
@@ -161,19 +178,45 @@ export async function createConversionInitialView(
   if (await isAlreadyDraftRecipe(source.id)) {
     return { kind: "already-recipe", recipeId: source.id, title: source.title };
   }
-
-  const parseContext = defaultParseContext(context.defaultParserLocale);
-  parseContext.sourceMeasurementSystem = context.defaultSourceMeasurementSystem;
-  const plan = planRecipeConversion(source, parseContext);
-  if (plan.kind === "split") {
+  const enclosing = uuid ? await findEnclosingRecipe(source.id) : null;
+  if (enclosing) {
     return {
-      kind: "convert-needs-split",
-      uuid: source.id,
-      outline: plan.outline,
-      staleChildIds: source.children.map((child) => child.id),
+      kind: "already-recipe",
+      recipeId: enclosing.id,
+      title: enclosing.title,
+      inside: true,
     };
   }
-  return { kind: "convert", source, draft: plan.draft };
+
+  const parseContext = defaultParseContext(
+    context.defaultParserLocale,
+    context.defaultSourceMeasurementSystem,
+  );
+  const needsSplit = (
+    outline: OutlineNode,
+    stale: readonly ConversionSourceNode[],
+  ): DraftRecipeInitialView =>
+    rebuiltConversionView(
+      source.id,
+      { outline, staleChildIds: stale.map((child) => child.id) },
+      context.defaultParserLocale,
+    );
+
+  // A title block whose sections were pasted as its siblings: fold them in,
+  // but only when that yields a split that moves them under the title -
+  // never convert with sections that live outside the recipe root.
+  if (source.children.length === 0) {
+    const siblings = await loadTrailingSectionSiblings(source.id);
+    const plan =
+      siblings.length > 0
+        ? planRecipeConversion({ ...source, children: siblings }, parseContext)
+        : null;
+    if (plan?.kind === "split") return needsSplit(plan.outline, siblings);
+  }
+
+  const plan = planRecipeConversion(source, parseContext);
+  if (plan.kind === "split") return needsSplit(plan.outline, source.children);
+  return conversionView(source, context.defaultParserLocale);
 }
 
 export async function openDraftRecipeUi(
@@ -183,12 +226,14 @@ export async function openDraftRecipeUi(
   const request = ++uiRequest;
   const runtime = await createRuntimeUiContext(capabilities);
   if (request !== uiRequest) return;
-  const messages = getUiMessages(runtime.settings.uiLanguage);
   const [configs, themeCssProperties, graphKey] = await Promise.all([
     logseq.App.getUserConfigs(),
     resolveHostThemeCssProperties(),
     currentGraphKey(),
   ]);
+  const messages = getUiMessages(
+    resolveUiLanguage(runtime.settings.uiLanguage, configs.preferredLanguage),
+  );
   if (request !== uiRequest) return;
   if (graphKey) ensureTimerAlarms(graphKey, messages);
   const appRoot = resetRoot();

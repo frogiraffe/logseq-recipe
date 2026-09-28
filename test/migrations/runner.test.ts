@@ -18,9 +18,9 @@ describe("recipe migration runner", () => {
       upsertBlockProperty: writes,
     };
 
-    await runRecipeMigrations(host, "recipe-1", { jsonProperty: false });
+    await runRecipeMigrations(host, "recipe-1");
     const firstWriteCount = writes.mock.calls.length;
-    await runRecipeMigrations(host, "recipe-1", { jsonProperty: false });
+    await runRecipeMigrations(host, "recipe-1");
 
     expect(values.get("schema_version")).toBe(1);
     expect(firstWriteCount).toBeGreaterThan(0);
@@ -35,9 +35,9 @@ describe("recipe migration runner", () => {
       upsertBlockProperty: writes,
     };
 
-    await expect(
-      runRecipeMigrations(host, "recipe-1", { jsonProperty: true }),
-    ).rejects.toBeInstanceOf(FutureRecipeSchemaError);
+    await expect(runRecipeMigrations(host, "recipe-1")).rejects.toBeInstanceOf(
+      FutureRecipeSchemaError,
+    );
     expect(writes).not.toHaveBeenCalled();
   });
 });

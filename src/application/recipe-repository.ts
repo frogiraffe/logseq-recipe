@@ -2,6 +2,7 @@ import type { IngredientScaleMode, Recipe } from "../domain/recipe";
 import type {
   ArchivedRecipeSummary,
   ExistingRecipeStructure,
+  IngredientLayoutEntry,
   NewRecipeInput,
   RecipeSectionRole,
   RecipeSummary,
@@ -43,6 +44,14 @@ export interface RecipeRepository {
     scaleMode: IngredientScaleMode,
   ): Promise<void>;
   reorderSectionItems(orderedIds: string[]): Promise<void>;
+  /** Puts ingredients and group headings where `layout` says, in order. */
+  arrangeIngredients(
+    recipeId: string,
+    layout: IngredientLayoutEntry[],
+  ): Promise<void>;
+  /** A recipe block kept outside the Recipe Library (a journal, a page). */
+  canMoveToRecipeLibrary(id: string): Promise<boolean>;
+  moveToRecipeLibrary(id: string): Promise<void>;
   archiveRecipe(id: string): Promise<void>;
   restoreRecipe(id: string): Promise<void>;
   deleteArchivedRecipe(id: string): Promise<void>;

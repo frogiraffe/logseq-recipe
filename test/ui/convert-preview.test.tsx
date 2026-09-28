@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  ConversionDraft,
-  ConversionSourceNode,
+import {
+  analyzeWithDetectedLocale,
+  type ConversionDraft,
+  type ConversionSourceNode,
 } from "../../src/application/convert-recipe";
 import { ConvertPreview } from "../../src/ui/components/ConvertPreview";
 import { enMessages } from "../../src/ui/i18n";
@@ -72,11 +73,62 @@ describe("ConvertPreview", () => {
     expect(
       screen.getByText(enMessages.steps).nextElementSibling?.textContent,
     ).toBe("1");
+    // A line with no amount is listed once, not repeated as a warning.
+    expect(screen.getByText(enMessages.noAmountLinesNote)).toBeTruthy();
+    expect(screen.getByText("salt to taste")).toBeTruthy();
     expect(
-      screen.getByText(
+      screen.queryByText(
         'No amount was found in the ingredient "salt to taste".',
       ),
-    ).toBeTruthy();
+    ).toBeNull();
+  });
+
+  it("lists how each ingredient line was read", () => {
+    const withAmounts: ConversionDraft = {
+      ...draft,
+      issues: [],
+      ingredients: [
+        {
+          blockId: "i1",
+          parsed: {
+            rawText: "225 g butter (softened)",
+            amount: { kind: "exact", value: 225 },
+            unit: "g",
+            ingredientText: "butter",
+            note: "softened",
+            confidence: "exact",
+          },
+        },
+        {
+          blockId: "i2",
+          parsed: {
+            rawText: "salt to taste",
+            ingredientText: "salt to taste",
+            confidence: "unparsed",
+          },
+        },
+      ],
+    };
+    render(
+      <ConvertPreview
+        source={source}
+        draft={withAmounts}
+        messages={enMessages}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    const rows = [
+      ...document.querySelectorAll(".draft-recipe-read-lines tbody tr"),
+    ].map((row) =>
+      [...row.querySelectorAll("td")].map((cell) => cell.textContent),
+    );
+    expect(screen.getByText(enMessages.ingredientsAsRead)).toBeTruthy();
+    expect(rows).toEqual([
+      ["225", "g", "butter (softened)"],
+      ["—", "—", "salt to taste"],
+    ]);
   });
 
   it("commits the resolved draft only after explicit confirmation", () => {
@@ -211,8 +263,15 @@ describe("ConvertPreview", () => {
         onCancel={() => undefined}
       />,
     );
+    // No amount is fine as written; the correction opens on request.
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.enterAmount }),
+    );
 
-    expect(screen.getByText("flour to taste")).toBeTruthy();
+    const review = document.querySelector(
+      ".draft-recipe-ingredient-review-row",
+    ) as HTMLElement;
+    expect(within(review).getByText("flour to taste")).toBeTruthy();
 
     const useStructured = screen.getByRole("button", {
       name: enMessages.useStructuredAmount,
@@ -257,6 +316,10 @@ describe("ConvertPreview", () => {
         onConfirm={() => undefined}
         onCancel={() => undefined}
       />,
+    );
+    // No amount is fine as written; the correction opens on request.
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.enterAmount }),
     );
 
     fireEvent.click(
@@ -339,6 +402,49 @@ describe("ConvertPreview", () => {
     expect(onConfirm.mock.calls[0][0].metadata).toMatchObject({
       baseYield: 8,
       yieldUnit: "cookies",
+    });
+  });
+
+  it("commits a serving count or amount typed in but not yet applied", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConvertPreview
+        source={source}
+        draft={{
+          ...draft,
+          metadata: { baseYield: 1 },
+          issues: [
+            ...draft.issues,
+            {
+              code: "missing-base-yield",
+              message: "No serving count was found.",
+              blockId: "root",
+            },
+          ],
+        }}
+        messages={enMessages}
+        onConfirm={onConfirm}
+        onCancel={() => undefined}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.servings), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.enterAmount }),
+    );
+    fireEvent.change(
+      screen.getByLabelText(`${enMessages.amount}: flour to taste`),
+      { target: { value: "200" } },
+    );
+
+    // Straight to Confirm, without either line's own button.
+    fireEvent.click(screen.getByRole("button", { name: enMessages.confirm }));
+    const committed = onConfirm.mock.calls[0][0] as ConversionDraft;
+    expect(committed.metadata.baseYield).toBe(4);
+    expect(committed.ingredients[0].parsed.amount).toEqual({
+      kind: "exact",
+      value: 200,
     });
   });
 
@@ -504,6 +610,10 @@ describe("ConvertPreview", () => {
         onCancel={onCancel}
       />,
     );
+    // No amount is fine as written; the correction opens on request.
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.enterAmount }),
+    );
 
     fireEvent.change(
       screen.getByLabelText(`${enMessages.amount}: flour to taste`),
@@ -514,5 +624,96 @@ describe("ConvertPreview", () => {
     expect(confirmSpy).toHaveBeenCalledWith(enMessages.discardChangesConfirm);
     expect(onCancel).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe("ConvertPreview recipe language", () => {
+  const turkish: ConversionSourceNode = {
+    id: "root",
+    title: "Kurabiye",
+    children: [
+      { id: "yield", title: "Porsiyon: 8", children: [] },
+      {
+        id: "ingredients",
+        title: "Malzemeler",
+        children: [{ id: "i1", title: "1 tk tuz", children: [] }],
+      },
+      {
+        id: "steps",
+        title: "Yapılış",
+        children: [{ id: "s1", title: "Karıştır.", children: [] }],
+      },
+    ],
+  };
+
+  function renderDetected() {
+    const { draft, detectedLocale } = analyzeWithDetectedLocale(turkish, "en");
+    render(
+      <ConvertPreview
+        source={turkish}
+        draft={draft}
+        detectedLocale={detectedLocale ?? undefined}
+        messages={enMessages}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+  }
+
+  const language = () =>
+    screen.getByLabelText(enMessages.parserLanguage) as HTMLSelectElement;
+  const system = () =>
+    screen.getByLabelText(
+      enMessages.sourceMeasurementSystem,
+    ) as HTMLSelectElement;
+
+  it("opens in the detected language with its measurement system, marked as detected", () => {
+    renderDetected();
+    expect(language().value).toBe("tr");
+    expect(system().value).toBe("metric");
+    expect(screen.getByText(enMessages.localeAutoDetected)).toBeTruthy();
+
+    fireEvent.change(language(), { target: { value: "en" } });
+    expect(screen.queryByText(enMessages.localeAutoDetected)).toBeNull();
+  });
+
+  it("moves the measurement system with the language until the user picks one", () => {
+    renderDetected();
+    fireEvent.change(language(), { target: { value: "en" } });
+    expect(system().value).toBe("us");
+
+    fireEvent.change(system(), { target: { value: "imperial" } });
+    fireEvent.change(language(), { target: { value: "tr" } });
+    expect(system().value).toBe("imperial");
+  });
+});
+
+describe("ConvertPreview ingredient review", () => {
+  it("asks to settle an unreadable amount right away, without listing it twice", () => {
+    render(
+      <ConvertPreview
+        source={source}
+        draft={{
+          ...draft,
+          issues: [
+            {
+              code: "ingredient-amount-ambiguous",
+              message: "The amount is ambiguous.",
+              detail: "flour to taste",
+              blockId: "i1",
+            },
+          ],
+        }}
+        messages={enMessages}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText(`${enMessages.amount}: flour to taste`),
+    ).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.getByRole("option", { name: "Español" })).toBeTruthy();
   });
 });

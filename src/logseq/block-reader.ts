@@ -55,6 +55,24 @@ export function toRecipeBlockSnapshot(
   };
 }
 
+/** The uuid of a block Logseq just created; throws when none came back. */
+export function createdBlockUuid(value: unknown): string {
+  const uuid = (value as { uuid?: unknown } | null)?.uuid;
+  if (typeof uuid !== "string") {
+    throw new Error("Logseq did not return the newly created block.");
+  }
+  return uuid;
+}
+
+/** A page entity carrying its block tree as `children`, like a block. */
+export function pageWithChildren(page: unknown, children: unknown): unknown {
+  if (!page || typeof page !== "object") return null;
+  return {
+    ...(page as Record<string, unknown>),
+    children: Array.isArray(children) ? children : [],
+  };
+}
+
 export function flattenRecipeTree(
   root: RecipeBlockSnapshot,
 ): RecipeBlockSnapshot[] {

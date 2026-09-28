@@ -131,12 +131,12 @@ describe("RecipesView", () => {
         onOpen={() => undefined}
       />,
     );
-    expect(screen.getByText("3 / 3 Recipes")).toBeTruthy();
+    expect(screen.getByText("3 / 3 recipes")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText(enMessages.searchRecipes), {
       target: { value: "cookie" },
     });
-    expect(screen.getByText("1 / 3 Recipes")).toBeTruthy();
+    expect(screen.getByText("1 / 3 recipes")).toBeTruthy();
   });
 
   it("opens the selected recipe", () => {

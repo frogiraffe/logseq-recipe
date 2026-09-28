@@ -73,17 +73,13 @@ function fakeHost(
 describe("recipe authoring", () => {
   it("creates a readable recipe block tree under Recipe Library", async () => {
     const fake = fakeHost();
-    const result = await createRecipeInLogseq(
-      fake.host,
-      {
-        title: "Cookie",
-        baseYield: 8,
-        yieldUnit: "cookies",
-        locale: "en",
-        sourceMeasurementSystem: "us",
-      },
-      { jsonProperty: false },
-    );
+    const result = await createRecipeInLogseq(fake.host, {
+      title: "Cookie",
+      baseYield: 8,
+      yieldUnit: "cookies",
+      locale: "en",
+      sourceMeasurementSystem: "us",
+    });
 
     expect(result.rootId).toBe("inserted-1");
     expect(fake.inserted.map((item) => [item.parentId, item.title])).toEqual([
@@ -109,32 +105,28 @@ describe("recipe authoring", () => {
 
   it("stamps a line written in another language with that line's language", async () => {
     const fake = fakeHost();
-    await markExistingRecipeInLogseq(
-      fake.host,
-      {
-        rootId: "existing-root",
-        locale: "en",
-        sourceMeasurementSystem: "metric",
-        baseYield: 4,
-        sectionRoles: [
-          { blockId: "ingredients", role: "ingredients" },
-          { blockId: "steps", role: "steps" },
-        ],
-        ingredientMetadata: [
-          {
-            blockId: "ingredient-1",
-            parsed: {
-              rawText: "2 su bardağı un",
-              amount: { kind: "exact", value: 2 },
-              unit: "su_bardagi",
-              ingredientText: "un",
-              confidence: "exact",
-            },
+    await markExistingRecipeInLogseq(fake.host, {
+      rootId: "existing-root",
+      locale: "en",
+      sourceMeasurementSystem: "metric",
+      baseYield: 4,
+      sectionRoles: [
+        { blockId: "ingredients", role: "ingredients" },
+        { blockId: "steps", role: "steps" },
+      ],
+      ingredientMetadata: [
+        {
+          blockId: "ingredient-1",
+          parsed: {
+            rawText: "2 su bardağı un",
+            amount: { kind: "exact", value: 2 },
+            unit: "su_bardagi",
+            ingredientText: "un",
+            confidence: "exact",
           },
-        ],
-      },
-      { jsonProperty: false },
-    );
+        },
+      ],
+    });
 
     expect(
       decodeIngredientMeta(fake.properties.get("ingredient-1:ingredient_meta")),
@@ -144,11 +136,12 @@ describe("recipe authoring", () => {
   it("writes the recipe marker only after every other structural write, so a partial failure stays undiscoverable", async () => {
     const fake = fakeHost();
 
-    await createRecipeInLogseq(
-      fake.host,
-      { title: "Cookie", baseYield: 8, yieldUnit: "cookies", locale: "en" },
-      { jsonProperty: false },
-    );
+    await createRecipeInLogseq(fake.host, {
+      title: "Cookie",
+      baseYield: 8,
+      yieldUnit: "cookies",
+      locale: "en",
+    });
 
     const markerIndex = fake.writes.findIndex(
       (write) => write.key === "recipe_marker",
@@ -159,16 +152,12 @@ describe("recipe authoring", () => {
   it("leaves an unrelated same-title page untouched", async () => {
     const fake = fakeHost({}, { Cookie: { id: 55, uuid: "existing-cookie" } });
 
-    const result = await createRecipeInLogseq(
-      fake.host,
-      {
-        title: "Cookie",
-        baseYield: 8,
-        locale: "en",
-        sourceMeasurementSystem: "us",
-      },
-      { jsonProperty: false },
-    );
+    const result = await createRecipeInLogseq(fake.host, {
+      title: "Cookie",
+      baseYield: 8,
+      locale: "en",
+      sourceMeasurementSystem: "us",
+    });
 
     expect(result.rootId).toBe("inserted-1");
     expect(fake.createPageCalls).toEqual(["Recipe Library"]);
@@ -179,19 +168,15 @@ describe("recipe authoring", () => {
 
   it("marks an existing subtree without rewriting visible block text", async () => {
     const fake = fakeHost();
-    await markExistingRecipeInLogseq(
-      fake.host,
-      {
-        rootId: "existing-root",
-        locale: "tr",
-        sourceMeasurementSystem: "metric",
-        sectionRoles: [
-          { blockId: "ingredients", role: "ingredients" },
-          { blockId: "steps", role: "steps" },
-        ],
-      },
-      { jsonProperty: false },
-    );
+    await markExistingRecipeInLogseq(fake.host, {
+      rootId: "existing-root",
+      locale: "tr",
+      sourceMeasurementSystem: "metric",
+      sectionRoles: [
+        { blockId: "ingredients", role: "ingredients" },
+        { blockId: "steps", role: "steps" },
+      ],
+    });
 
     expect(fake.appended).toHaveLength(0);
     expect(fake.writes).toEqual(
@@ -205,31 +190,27 @@ describe("recipe authoring", () => {
 
   it("writes the recipe marker only after section roles and ingredient metadata during conversion", async () => {
     const fake = fakeHost();
-    await markExistingRecipeInLogseq(
-      fake.host,
-      {
-        rootId: "existing-root",
-        locale: "en",
-        sourceMeasurementSystem: "us",
-        sectionRoles: [
-          { blockId: "ingredients", role: "ingredients" },
-          { blockId: "steps", role: "steps" },
-        ],
-        ingredientMetadata: [
-          {
-            blockId: "ingredient-1",
-            parsed: {
-              rawText: "1 cup flour",
-              amount: { kind: "exact", value: 1 },
-              unit: "cup_us",
-              ingredientText: "flour",
-              confidence: "exact",
-            },
+    await markExistingRecipeInLogseq(fake.host, {
+      rootId: "existing-root",
+      locale: "en",
+      sourceMeasurementSystem: "us",
+      sectionRoles: [
+        { blockId: "ingredients", role: "ingredients" },
+        { blockId: "steps", role: "steps" },
+      ],
+      ingredientMetadata: [
+        {
+          blockId: "ingredient-1",
+          parsed: {
+            rawText: "1 cup flour",
+            amount: { kind: "exact", value: 1 },
+            unit: "cup_us",
+            ingredientText: "flour",
+            confidence: "exact",
           },
-        ],
-      },
-      { jsonProperty: false },
-    );
+        },
+      ],
+    });
 
     const markerIndex = fake.writes.findIndex(
       (write) => write.id === "existing-root" && write.key === "recipe_marker",
@@ -239,32 +220,28 @@ describe("recipe authoring", () => {
 
   it("writes one hidden canonical ingredient payload during conversion", async () => {
     const fake = fakeHost();
-    await markExistingRecipeInLogseq(
-      fake.host,
-      {
-        rootId: "existing-root",
-        locale: "en",
-        sourceMeasurementSystem: "us",
-        baseYield: 4,
-        sectionRoles: [
-          { blockId: "ingredients", role: "ingredients" },
-          { blockId: "steps", role: "steps" },
-        ],
-        ingredientMetadata: [
-          {
-            blockId: "ingredient-1",
-            parsed: {
-              rawText: "1 cup flour",
-              amount: { kind: "exact", value: 1 },
-              unit: "cup_us",
-              ingredientText: "flour",
-              confidence: "exact",
-            },
+    await markExistingRecipeInLogseq(fake.host, {
+      rootId: "existing-root",
+      locale: "en",
+      sourceMeasurementSystem: "us",
+      baseYield: 4,
+      sectionRoles: [
+        { blockId: "ingredients", role: "ingredients" },
+        { blockId: "steps", role: "steps" },
+      ],
+      ingredientMetadata: [
+        {
+          blockId: "ingredient-1",
+          parsed: {
+            rawText: "1 cup flour",
+            amount: { kind: "exact", value: 1 },
+            unit: "cup_us",
+            ingredientText: "flour",
+            confidence: "exact",
           },
-        ],
-      },
-      { jsonProperty: false },
-    );
+        },
+      ],
+    });
 
     const stored = decodeIngredientMeta(
       fake.properties.get("ingredient-1:ingredient_meta"),
@@ -300,19 +277,15 @@ describe("recipe authoring", () => {
       }),
     });
 
-    await markExistingRecipeInLogseq(
-      fake.host,
-      {
-        rootId: "existing-root",
-        locale: "tr",
-        sourceMeasurementSystem: "metric",
-        sectionRoles: [
-          { blockId: "ingredients", role: "ingredients" },
-          { blockId: "steps", role: "steps" },
-        ],
-      },
-      { jsonProperty: false },
-    );
+    await markExistingRecipeInLogseq(fake.host, {
+      rootId: "existing-root",
+      locale: "tr",
+      sourceMeasurementSystem: "metric",
+      sectionRoles: [
+        { blockId: "ingredients", role: "ingredients" },
+        { blockId: "steps", role: "steps" },
+      ],
+    });
 
     const metaWrite = fake.writes.find(
       (write) => write.id === "existing-root" && write.key === "recipe_meta",
@@ -339,15 +312,11 @@ describe("recipe authoring", () => {
     const fake = fakeHost({ "existing-root:schema_version": 2 });
 
     await expect(
-      markExistingRecipeInLogseq(
-        fake.host,
-        {
-          rootId: "existing-root",
-          locale: "en",
-          sectionRoles: [{ blockId: "ingredients", role: "ingredients" }],
-        },
-        { jsonProperty: false },
-      ),
+      markExistingRecipeInLogseq(fake.host, {
+        rootId: "existing-root",
+        locale: "en",
+        sectionRoles: [{ blockId: "ingredients", role: "ingredients" }],
+      }),
     ).rejects.toThrow(/schema 2 is newer than supported schema 1/i);
 
     expect(fake.writes).toHaveLength(0);

@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { Ingredient } from "../../src/domain/recipe";
 import {
-  formatIngredientForDisplay,
-  formatIngredientForTargetUnit,
+  ingredientDisplayParts,
+  ingredientTargetUnitParts,
+  joinIngredientParts,
 } from "../../src/ui/ingredient-display";
+
+const formatIngredientForDisplay = (
+  ...args: Parameters<typeof ingredientDisplayParts>
+) => joinIngredientParts(ingredientDisplayParts(...args));
+
+const formatIngredientForTargetUnit = (
+  ...args: Parameters<typeof ingredientTargetUnitParts>
+) => {
+  const parts = ingredientTargetUnitParts(...args);
+  return parts ? joinIngredientParts(parts) : null;
+};
 
 function gramIngredient(value: number): Ingredient {
   return {
@@ -78,5 +90,48 @@ describe("adaptive same-family display units", () => {
       { find: () => null },
     );
     expect(result).toBe("1500 g flour");
+  });
+});
+
+describe("container count units", () => {
+  it("pluralizes them after a number where the language does", () => {
+    const cans: Ingredient = {
+      id: "t",
+      rawText: "1 can tomatoes",
+      amount: { kind: "exact", value: 1 },
+      unit: "can",
+      ingredientText: "tomatoes",
+      scaleMode: "linear",
+    };
+    const text = (locale: "en" | "de" | "tr") =>
+      joinIngredientParts(ingredientDisplayParts(cans, 1, 2, "us", locale));
+    expect(text("en")).toBe("2 cans tomatoes");
+    expect(text("de")).toBe("2 Dosen tomatoes");
+    expect(text("tr")).toBe("2 kutu tomatoes");
+  });
+});
+
+describe("linking words", () => {
+  const line = (rawText: string, ingredientText: string): Ingredient => ({
+    id: "i",
+    rawText,
+    amount: { kind: "exact", value: 1 },
+    unit: "cup_metric",
+    ingredientText,
+    scaleMode: "linear",
+  });
+  const text = (ingredient: Ingredient, locale: "fr" | "en" | "tr") =>
+    ingredientDisplayParts(ingredient, 1, 2, "metric", locale).name;
+
+  it("keeps the one the cook wrote between the unit and the name", () => {
+    expect(text(line("1 tasse de farine", "farine"), "fr")).toBe("de farine");
+    expect(text(line("1 tasse d'huile", "huile"), "fr")).toBe("d'huile");
+    expect(text(line("1 tasse d’huile", "huile"), "fr")).toBe("d’huile");
+    expect(text(line("1 cup of flour", "flour"), "en")).toBe("of flour");
+  });
+
+  it("adds none where none was written", () => {
+    expect(text(line("1 tasse farine", "farine"), "fr")).toBe("farine");
+    expect(text(line("1 su bardağı un", "un"), "tr")).toBe("un");
   });
 });

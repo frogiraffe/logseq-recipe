@@ -80,10 +80,13 @@ describe.each(Object.entries(CASES))("%s parity", (locale, cases) => {
     });
   });
 
-  it("finds short-unit durations in steps", () => {
+  it("reads short-unit hours and minutes in a step as one time", () => {
     expect(
-      parseStep(cases.shortTimes, context).durations.map((d) => d.unit),
-    ).toEqual(["hour", "minute"]);
+      parseStep(cases.shortTimes, context).durations.map((d) => [
+        d.value,
+        d.unit,
+      ]),
+    ).toEqual([[{ kind: "exact", value: 65 }, "minute"]]);
   });
 
   it("totals an hour-and-minutes metadata value", () => {

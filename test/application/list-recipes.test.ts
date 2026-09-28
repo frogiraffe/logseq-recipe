@@ -117,6 +117,29 @@ describe("filterRecipeSummaries", () => {
       }).map((r) => r.id),
     ).toEqual(["cookie", "eggplant-bake"]);
   });
+
+  it("ignores a range cleared back to no bounds, but a 0 bound still filters", () => {
+    const withUntimed: RecipeSummary[] = [
+      ...recipes,
+      {
+        id: "salad",
+        title: "Salad",
+        categories: [],
+        tags: [],
+        ingredientTexts: [],
+      },
+    ];
+    const ids = (prepMinutes: { min?: number; max?: number }) =>
+      filterRecipeSummaries(withUntimed, { prepMinutes }).map((r) => r.id);
+
+    expect(ids({})).toHaveLength(4);
+    expect(ids({ min: undefined, max: undefined })).toHaveLength(4);
+    expect(ids({ min: 0 })).toEqual([
+      "eggplant-pasta",
+      "cookie",
+      "eggplant-bake",
+    ]);
+  });
 });
 
 describe("sortRecipeSummaries", () => {
@@ -142,6 +165,21 @@ describe("sortRecipeSummaries", () => {
     expect(
       sortRecipeSummaries(withUnknownTotal, "totalTime").map((r) => r.id),
     ).toEqual(["eggplant-pasta", "eggplant-bake", "cookie", "mystery"]);
+  });
+
+  it("orders titles by the interface language's alphabet", () => {
+    const titled = ["Sütlaç", "Şakşuka", "Irmik helvası", "İçli köfte"].map(
+      (title) => ({
+        id: title,
+        title,
+        categories: [],
+        tags: [],
+        ingredientTexts: [],
+      }),
+    );
+    expect(sortRecipeSummaries(titled, "title", "tr").map((r) => r.id)).toEqual(
+      ["Irmik helvası", "İçli köfte", "Sütlaç", "Şakşuka"],
+    );
   });
 
   it("does not mutate the input array", () => {

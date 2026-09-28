@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeSettings,
-  resolveMeasurementSystem,
   resolveParserLocale,
+  resolveUiLanguage,
 } from "../../src/logseq/settings";
 
 describe("Draft Recipe settings", () => {
   it("falls back safely for missing or invalid stored values", () => {
     expect(normalizeSettings({})).toEqual({
-      uiLanguage: "en",
+      uiLanguage: "auto",
       defaultParserLocale: "auto",
       defaultMeasurementSystem: "metric",
     });
@@ -19,7 +19,7 @@ describe("Draft Recipe settings", () => {
         defaultMeasurementSystem: "unknown",
       }),
     ).toEqual({
-      uiLanguage: "en",
+      uiLanguage: "auto",
       defaultParserLocale: "auto",
       defaultMeasurementSystem: "metric",
     });
@@ -58,10 +58,14 @@ describe("Draft Recipe settings", () => {
       ),
     ).toBe("en");
   });
+});
 
-  it("resolves display measurement by recipe override then global default", () => {
-    const settings = normalizeSettings({ defaultMeasurementSystem: "us" });
-    expect(resolveMeasurementSystem("imperial", settings)).toBe("imperial");
-    expect(resolveMeasurementSystem(undefined, settings)).toBe("us");
+describe("UI language", () => {
+  it("follows Logseq's language on auto, falling back to English", () => {
+    expect(resolveUiLanguage("auto", "tr")).toBe("tr");
+    expect(resolveUiLanguage("auto", "de-DE")).toBe("de");
+    expect(resolveUiLanguage("auto", "zh-CN")).toBe("en");
+    expect(resolveUiLanguage("auto", undefined)).toBe("en");
+    expect(resolveUiLanguage("fr", "tr")).toBe("fr");
   });
 });

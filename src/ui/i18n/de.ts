@@ -70,10 +70,10 @@ export const deMessages: UiMessages = {
   rangeMax: "Max.",
   minutesUnit: "Min.",
   converting: "Umwandlung",
-  alreadyRecipe: "Diese Seite ist bereits ein Rezept.",
+  alreadyRecipe: "Das ist bereits ein Rezept:",
   openRecipe: "Rezept öffnen",
   missingYieldPrompt:
-    "Wie viele Portionen/Stück ergibt dieses Rezept? Diese Angabe ist zum Fortfahren nötig.",
+    "Wie viele Portionen oder Stück ergibt dieses Rezept? Nichts gefunden – bis Sie es angeben, zählt es als 1 (das Rezept wie geschrieben).",
   yieldUnitHelp: "Portionen, Kekse, Stück …",
   useThisYield: "Diese Menge verwenden",
   conversionRulesTitle: "Eigene Zutatenumrechnung",
@@ -128,29 +128,31 @@ export const deMessages: UiMessages = {
   archivedNotice: "Rezept archiviert",
   restoredNotice: "Rezept wiederhergestellt",
   deletedNotice: "Rezept gelöscht",
+  duplicatedNotice: "Kopie erstellt; Sie sehen jetzt die Kopie",
+  movedToLibraryNotice: "In die Recipe Library verschoben",
   archivedOn: "Archiviert am {date}",
   moreActions: "Weitere Aktionen",
   fewerServings: "Weniger Portionen",
   moreServings: "Mehr Portionen",
+  resetServings: "Ursprüngliche Portionen: {count}",
   noRecipesHint:
-    "Legen Sie hier eines an oder machen Sie eine bestehende Seite mit „Logseq Recipe: Convert to Recipe“ im Blockmenü zum Rezept.",
+    "Legen Sie hier eines an, fügen Sie eines mit „Aus Text importieren“ ein, oder machen Sie eine bestehende Seite mit „Logseq Recipe: Convert to Recipe“ im Blockmenü zum Rezept.",
   saveIncomplete:
     "Das Speichern wurde unterbrochen und nur teilweise übernommen. Das Rezept wurde neu aus Logseq geladen; prüfen Sie es und wiederholen Sie die fehlenden Änderungen.",
   blankItemError: "Leere Einträge vor dem Speichern entfernen oder ausfüllen.",
   cookingNoSteps: "Dieses Rezept hat keine Schritte zum Kochen.",
   stepProgress: "Schritt",
   discardChangesConfirm: "Ungespeicherte Änderungen verwerfen?",
+  discardChanges: "Änderungen verwerfen",
+  keepEditing: "Weiter bearbeiten",
   refresh: "Aktualisieren",
   loadingRecipes: "Rezepte werden geladen …",
   loadingRecipe: "Rezept wird geladen …",
   newRecipeGuidance:
     "Dieses Rezept hat noch keine Zutaten oder Schritte. Fügen Sie sie über Rezept bearbeiten hinzu.",
   clearFilters: "Filter zurücksetzen",
-  outlineNeedsSplitMessage:
-    "Das sieht aus wie eine ganze Rezeptgliederung, die in einen einzigen Block eingefügt wurde statt in einzelne Logseq-Blöcke – Umwandeln kann hier noch keine Abschnitte lesen. In echte, verschachtelte Blöcke gemäß der angezeigten Einrückung aufteilen und fortfahren?",
-  splitOutlineAction: "In Blöcke aufteilen und fortfahren",
   issueMissingBaseYield:
-    "Vor der Umwandlung ist eine positive Portionen- oder Mengenangabe nötig.",
+    "Keine Portionenangabe gefunden – bis Sie sie angeben, zählt das Rezept als 1 Portion.",
   issueNoIngredientsSection: "Kein Zutaten-Abschnitt gefunden.",
   issueNoStepsSection: "Kein Zubereitungs-Abschnitt gefunden.",
   issueDuplicateSectionRole: "Mehrere Abschnitte wurden als {detail} erkannt.",
@@ -164,4 +166,59 @@ export const deMessages: UiMessages = {
     "In der Zutat „{detail}“ wurde keine Menge gefunden.",
   issueIngredientAmountAmbiguous:
     "Die Menge in „{detail}“ ist unklar (zwei Mengen oder eine unlesbare Zahl). Geben Sie sie ein oder behalten Sie die Zeile wie geschrieben.",
+  importRecipe: "Aus Text importieren",
+  moreWaysToAdd: "Weitere Wege, ein Rezept hinzuzufügen",
+  importRecipeHelp:
+    "Fügen Sie ein ganzes Rezept ein. Die erste Zeile ist der Titel; Abschnittsüberschriften wie „Zutaten“, „Zubereitung“ und „Notizen“ teilen es in Abschnitte, und eine Zeile wie „Für den Teig:“ beginnt eine Zutatengruppe; Zeilen vor der ersten Überschrift („Portionen: 4“, „Vorbereitung: 15 Min.“) werden zu Rezeptangaben. Nichts wird geschrieben, bevor Sie die Vorschau bestätigen.",
+  recipeText: "Rezepttext",
+  importNoSections:
+    "Keine Abschnittsüberschrift gefunden. Setzen Sie „Zutaten“ und „Zubereitung“ (oder die Entsprechung in der Sprache des Rezepts) jeweils in eine eigene Zeile.",
+  importRecipeAction: "Vorschau",
+  localeAutoDetected: "automatisch erkannt",
+  addIngredientGroup: "Gruppe hinzufügen",
+  ingredientGroup: "Zutatengruppe",
+  emptyIngredientGroup: "Jede Gruppe braucht mindestens eine Zutat.",
+  moveToRecipeLibrary: "In die Recipe Library verschieben",
+  moveToRecipeLibraryConfirm:
+    "Dieses Rezept von seiner aktuellen Seite auf die Seite Recipe Library verschieben? Inhalt und Verweise bleiben gleich.",
+  recipeChangedElsewhere:
+    "Dieses Rezept wurde in Logseq geändert, während Sie es bearbeitet haben. Beim Speichern werden nur Ihre Änderungen geschrieben; die anderen bleiben erhalten.",
+  loadCurrentVersion: "Aktuelle Version laden",
+  rebuildNotice:
+    "Diese Blöcke sind noch nicht als Rezept angeordnet. Beim Bestätigen werden sie wie unter „Neue Blockstruktur“ gezeigt durch neue Blöcke ersetzt und umgewandelt. Nur ihr Text wird übernommen; Verweise auf diese Blöcke und ihre Eigenschaften bleiben nicht erhalten. Vorher ändert sich nichts.",
+  importNotice:
+    "Beim Bestätigen wird dieses Rezept wie unter „Neue Blockstruktur“ gezeigt zur Recipe Library hinzugefügt; vorher wird nichts geschrieben.",
+  newStructure: "Neue Blockstruktur",
+  ingredientsAsRead: "So wurde jede Zutat gelesen",
+  errorTitleRequired: "Ein Rezept braucht einen Titel.",
+  errorTitleTaken: "Ein Rezept namens „{detail}“ gibt es bereits.",
+  errorPageTitleTaken: "Eine Logseq-Seite namens „{detail}“ gibt es bereits.",
+  errorBaseYieldInvalid: "Die Portionenzahl muss größer als 0 sein.",
+  errorTimeInvalid: "Zeiten müssen 0 Minuten oder mehr betragen.",
+  errorRecipeNotFound: "Dieses Rezept ist nicht mehr im Graphen.",
+  errorSectionMissing:
+    "Diesem Rezept fehlt in Logseq der Abschnitt {detail}; fügen Sie ihn wieder hinzu, um es zu bearbeiten.",
+  errorRecipeInvalid:
+    "Die Daten dieses Rezepts können nicht sicher angezeigt werden: {detail}",
+  errorFutureSchema:
+    "Dieses Rezept wurde mit einer neueren Version von Logseq Recipe gespeichert. Aktualisieren Sie das Plugin, um es zu öffnen.",
+  errorUnexpected: "Logseq konnte das nicht abschließen: {detail}",
+  notDbGraph: "Logseq Recipe funktioniert nur mit Logseq-DB-Graphen.",
+  unsupportedLogseqBuild:
+    "Logseq Recipe: Dieser Logseq-Version fehlt eine Funktion, die das Plugin braucht. Aktualisieren Sie Logseq und versuchen Sie es erneut.",
+  nothingToConvert:
+    "Logseq Recipe: Öffnen Sie zuerst eine Seite oder klicken Sie mit der rechten Maustaste auf einen Block mit einem Rezept.",
+  insideRecipe: "Dieser Block gehört bereits zu einem Rezept:",
+  finishCookingConfirm:
+    "Ein Timer läuft noch. Kochen beenden und Timer, aktuellen Schritt und abgehakte Zutaten löschen?",
+  fixedAmountShort: "Fest",
+  sourceMeasurementHelp:
+    "Die Einheiten, in denen das Rezept geschrieben ist: ob seine „Tasse“ oder sein „EL“ amerikanisch, metrisch oder imperial ist.",
+  displayMeasurementHelp:
+    "Die Einheiten, in denen Mengen dieses Rezepts angezeigt werden; sonst gilt die Plugin-Einstellung.",
+  noAmountLinesNote:
+    "Diese Zeilen haben keine Menge; sie bleiben wie geschrieben und ändern sich nicht mit den Portionen:",
+  enterAmount: "Menge eingeben",
+  recipeCountOne: "{shown} / {total} Rezept",
+  recipeCountOther: "{shown} / {total} Rezepte",
 };

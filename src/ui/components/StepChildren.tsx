@@ -4,7 +4,7 @@ import type { UiMessages } from "../i18n";
 
 type MediaChild = Extract<StepChild, { kind: "image" | "audio" }>;
 
-function StepMedia({
+export function StepMedia({
   child,
   messages,
   resolveAssetUrl,

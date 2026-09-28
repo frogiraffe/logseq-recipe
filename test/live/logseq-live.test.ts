@@ -156,7 +156,7 @@ describe.skipIf(!TOKEN).sequential("live Logseq graph", () => {
     installBridge();
     repository = createDraftRecipeRepository(currentDraftRecipeHost(), {
       settings: readSettings(),
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
     const page = (await call(
       "logseq.Editor.createPage",
@@ -183,6 +183,11 @@ describe.skipIf(!TOKEN).sequential("live Logseq graph", () => {
       await repository
         .deleteArchivedRecipe(libraryRecipeId)
         .catch(() => undefined);
+    }
+    // A DB graph moves a deleted page to its recycle bin with its blocks:
+    // remove the converted recipe first, or it lingers there.
+    if (rootUuid) {
+      await call("logseq.Editor.removeBlock", rootUuid).catch(() => undefined);
     }
     await call("logseq.Editor.deletePage", pageName).catch(() => undefined);
   }, 120_000);

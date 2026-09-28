@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   analyzeRecipeConversion,
-  type ConversionSourceNode,
+  outlineToSource,
 } from "../../src/application/convert-recipe";
 import type { OutlineNode } from "../../src/application/split-outline";
 import { defaultParseContext } from "../../src/parsing/context";
@@ -15,16 +15,23 @@ import type {
 
 const outline: OutlineNode = {
   text: "Classic Banana Bread",
-  children: [{ text: "Ingredients", children: [] }],
+  children: [
+    { text: "Yield: 10 slices", children: [] },
+    {
+      text: "Ingredients",
+      children: [{ text: "3 ripe bananas", children: [] }],
+    },
+    { text: "Steps", children: [{ text: "Mash the bananas.", children: [] }] },
+  ],
 };
-
-const source: ConversionSourceNode = {
-  id: "block-1",
-  title: "Classic Banana Bread",
-  children: [{ id: "ing", title: "Ingredients", children: [] }],
+const rebuild = { outline, staleChildIds: ["chunk-1", "chunk-2"] };
+const source = outlineToSource(outline, "block-1");
+const initialView: DraftRecipeInitialView = {
+  kind: "convert",
+  source,
+  draft: analyzeRecipeConversion(source, defaultParseContext("en")),
+  rebuild,
 };
-
-const draft = analyzeRecipeConversion(source, defaultParseContext("en"));
 
 function baseController(
   overrides: Partial<DraftRecipeUiController> = {},
@@ -40,7 +47,10 @@ function baseController(
       throw new Error("not used");
     },
     commitConversion: async () => undefined,
-    splitOutlineAndConvert: async () => {
+    commitRebuiltConversion: async () => {
+      throw new Error("not used in this test");
+    },
+    commitImportedRecipe: async () => {
       throw new Error("not used in this test");
     },
     resolveCover: async () => null,
@@ -49,6 +59,8 @@ function baseController(
     setCoverPath: async () => undefined,
     clearCover: async () => undefined,
     saveRecipeEdit: async () => undefined,
+    canMoveToRecipeLibrary: async () => false,
+    moveToRecipeLibrary: async () => undefined,
     archiveRecipe: async () => undefined,
     restoreRecipe: async () => undefined,
     deleteArchivedRecipe: async () => undefined,
@@ -58,120 +70,71 @@ function baseController(
   };
 }
 
-describe("convert-needs-split view", () => {
-  it("offers to split the outline, and transitions to Convert Preview on success", async () => {
-    const splitOutlineAndConvert = vi
-      .fn<
-        (
-          uuid: string,
-          node: OutlineNode,
-          staleChildIds: string[],
-        ) => Promise<DraftRecipeInitialView>
-      >()
-      .mockResolvedValue({ kind: "convert", source, draft });
-    const controller = baseController({ splitOutlineAndConvert });
+function renderPreview(controller: DraftRecipeUiController) {
+  render(
+    <DraftRecipeApp
+      controller={controller}
+      messages={enMessages}
+      config={{
+        initialView,
+        globalMeasurementSystem: "metric",
+        defaultParserLocale: "en",
+        defaultSourceMeasurementSystem: "us",
+      }}
+    />,
+  );
+}
 
-    render(
-      <DraftRecipeApp
-        controller={controller}
-        messages={enMessages}
-        config={{
-          initialView: {
-            kind: "convert-needs-split",
-            uuid: "block-1",
-            outline,
-            staleChildIds: ["chunk-1", "chunk-2"],
-          },
-          globalMeasurementSystem: "metric",
-          defaultParserLocale: "en",
-          defaultSourceMeasurementSystem: "us",
-        }}
-      />,
+describe("Convert Preview of blocks to rebuild", () => {
+  it("shows the new structure and rebuilds only on Confirm", async () => {
+    const commitRebuiltConversion = vi
+      .fn<DraftRecipeUiController["commitRebuiltConversion"]>()
+      .mockResolvedValue(undefined);
+    const loadRecipe = vi.fn().mockResolvedValue(null);
+    renderPreview(baseController({ commitRebuiltConversion, loadRecipe }));
+
+    expect(screen.getByText(enMessages.rebuildNotice)).toBeTruthy();
+    expect(screen.getByText(enMessages.newStructure)).toBeTruthy();
+    expect(commitRebuiltConversion).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: enMessages.confirm }));
+
+    await waitFor(() => expect(commitRebuiltConversion).toHaveBeenCalled());
+    const [rebuilt, draft] = commitRebuiltConversion.mock.calls[0];
+    expect(rebuilt).toBe(rebuild);
+    expect(draft.rootId).toBe("block-1");
+    await waitFor(() => expect(loadRecipe).toHaveBeenCalledWith("block-1"));
+  });
+
+  it("surfaces an error instead of silently failing when the rebuild fails", async () => {
+    renderPreview(
+      baseController({
+        commitRebuiltConversion: vi
+          .fn()
+          .mockRejectedValue(new Error("Logseq refused the write")),
+      }),
     );
 
-    expect(screen.getByText(enMessages.outlineNeedsSplitMessage)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: enMessages.confirm }));
 
-    fireEvent.click(
-      screen.getByRole("button", { name: enMessages.splitOutlineAction }),
-    );
-
-    await waitFor(() => {
-      expect(splitOutlineAndConvert).toHaveBeenCalledWith("block-1", outline, [
-        "chunk-1",
-        "chunk-2",
-      ]);
-    });
     expect(
-      await screen.findByText(enMessages.convertToRecipe, { exact: false }),
+      await screen.findByText(
+        enMessages.errorUnexpected.replace(
+          "{detail}",
+          "Logseq refused the write",
+        ),
+      ),
     ).toBeTruthy();
   });
 
-  it("surfaces an error instead of silently failing when the split fails", async () => {
-    const splitOutlineAndConvert = vi
-      .fn<
-        (
-          uuid: string,
-          node: OutlineNode,
-          staleChildIds: string[],
-        ) => Promise<DraftRecipeInitialView>
-      >()
-      .mockRejectedValue(new Error("Logseq refused the write"));
-    const controller = baseController({ splitOutlineAndConvert });
-
-    render(
-      <DraftRecipeApp
-        controller={controller}
-        messages={enMessages}
-        config={{
-          initialView: {
-            kind: "convert-needs-split",
-            uuid: "block-1",
-            outline,
-            staleChildIds: ["chunk-1", "chunk-2"],
-          },
-          globalMeasurementSystem: "metric",
-          defaultParserLocale: "en",
-          defaultSourceMeasurementSystem: "us",
-        }}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: enMessages.splitOutlineAction }),
-    );
-
-    expect(await screen.findByText("Logseq refused the write")).toBeTruthy();
-  });
-
-  it("cancels back to the Recipes browser without touching the graph", async () => {
-    const splitOutlineAndConvert = vi.fn();
-    const listRecipes = vi.fn().mockResolvedValue([]);
-    const controller = baseController({
-      splitOutlineAndConvert,
-      listRecipes,
-    });
-
-    render(
-      <DraftRecipeApp
-        controller={controller}
-        messages={enMessages}
-        config={{
-          initialView: {
-            kind: "convert-needs-split",
-            uuid: "block-1",
-            outline,
-            staleChildIds: ["chunk-1", "chunk-2"],
-          },
-          globalMeasurementSystem: "metric",
-          defaultParserLocale: "en",
-          defaultSourceMeasurementSystem: "us",
-        }}
-      />,
-    );
+  it("cancels without touching the graph", () => {
+    const commitRebuiltConversion = vi.fn();
+    const close = vi.fn();
+    renderPreview(baseController({ commitRebuiltConversion, close }));
 
     fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
 
-    expect(splitOutlineAndConvert).not.toHaveBeenCalled();
-    expect(await screen.findByText(enMessages.createRecipe)).toBeTruthy();
+    expect(close).toHaveBeenCalled();
+    expect(commitRebuiltConversion).not.toHaveBeenCalled();
   });
 });

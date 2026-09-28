@@ -6,21 +6,15 @@ import type { RecipeMigration } from "./types";
 export const migrationV1: RecipeMigration = {
   from: 0,
   to: 1,
-  async run({ host, recipeId, capabilities }) {
+  async run({ host, recipeId }) {
     const rawMeta = unwrapBlockPropertyValue(
       await host.getBlockProperty(recipeId, PROPERTY_KEYS.recipeMeta),
     );
-    const normalizedMeta = decodeRecipeMeta(rawMeta);
-    const encoded = capabilities.jsonProperty
-      ? normalizedMeta
-      : encodeRecipeMeta(normalizedMeta);
-
-    const currentComparable =
+    const encoded = encodeRecipeMeta(decodeRecipeMeta(rawMeta));
+    const current =
       typeof rawMeta === "string" ? rawMeta : JSON.stringify(rawMeta ?? null);
-    const nextComparable =
-      typeof encoded === "string" ? encoded : JSON.stringify(encoded);
 
-    if (currentComparable !== nextComparable) {
+    if (current !== encoded) {
       await host.upsertBlockProperty(
         recipeId,
         PROPERTY_KEYS.recipeMeta,

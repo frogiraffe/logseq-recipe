@@ -1,3 +1,4 @@
+import type { RecipeLocale } from "../../domain/recipe";
 import { deMessages } from "./de";
 import { enMessages } from "./en";
 import { esMessages } from "./es";
@@ -24,3 +25,15 @@ export function getUiMessages(value: unknown): UiMessages {
 
 export type { UiMessages } from "./types";
 export { deMessages, enMessages, esMessages, frMessages, trMessages };
+
+/**
+ * Recipe languages by their own names, the way language pickers show them
+ * ("Türkçe", not "TR"), whatever the interface language.
+ */
+export const RECIPE_LOCALE_NAMES: Readonly<Record<RecipeLocale, string>> = {
+  en: "English",
+  tr: "Türkçe",
+  fr: "Français",
+  de: "Deutsch",
+  es: "Español",
+};

@@ -1,23 +1,23 @@
 import type { ConversionDraft } from "../application/convert-recipe";
 import {
-  analyzeRecipeConversion,
   commitRecipeConversion,
+  conversionStructure,
+  withWrittenBlockIds,
 } from "../application/convert-recipe";
 import {
   commitRecipeEdit,
   type RecipeEditPatch,
 } from "../application/edit-recipe";
+import { RecipeError, titleTaken } from "../application/errors";
+import { sameTitle } from "../application/list-recipes";
+import { encodeRecipeMeta } from "../application/recipe-meta";
 import type { OutlineNode } from "../application/split-outline";
 import type { NewRecipeInput } from "../application/types";
 import { validateLoadedRecipe } from "../application/validate-recipe";
 import type { Recipe, RecipeMeta } from "../domain/recipe";
 import { runRecipeMigrations } from "../migrations/runner";
-import { defaultParseContext } from "../parsing/context";
 import { getLocalePack } from "../parsing/locales";
-import type {
-  DraftRecipeInitialView,
-  DraftRecipeUiController,
-} from "../ui/state";
+import type { ConversionRebuild, DraftRecipeUiController } from "../ui/state";
 import {
   clearRecipeCover,
   currentAssetListHost,
@@ -29,9 +29,8 @@ import {
   setRecipeCover,
 } from "./assets";
 import type { RuntimeCapabilities } from "./capabilities";
-import { isAlreadyDraftRecipe, loadConversionRoot } from "./conversion-source";
 import { watchDebounced } from "./events";
-import { writeRecipeMeta } from "./recipe-meta-store";
+import { PROPERTY_KEYS } from "./property-keys";
 import {
   createDraftRecipeRepository,
   currentDraftRecipeHost,
@@ -42,7 +41,7 @@ import {
   readSettings,
   resolveParserLocale,
 } from "./settings";
-import { applyOutlineSplit } from "./split-outline-writer";
+import { applyOutlineSplit, writeImportedRecipe } from "./split-outline-writer";
 
 export interface RuntimeUiContext {
   capabilities: RuntimeCapabilities;
@@ -60,15 +59,7 @@ export async function createRuntimeUiContext(
   const settings = readSettings();
   const host = currentDraftRecipeHost();
 
-  // Draft Recipe deliberately uses the string-JSON metadata codec even when a
-  // build appears to expose native JSON properties. The deep compatibility
-  // probe still measures JSON support, but core runtime behavior does not
-  // depend on it.
-  const metadataCapabilities = { jsonProperty: false } as const;
-  const schemaCapabilities = {
-    ...metadataCapabilities,
-    coverReference: capabilities.coverReference,
-  } as const;
+  const schemaCapabilities = { coverReference: capabilities.coverReference };
 
   await ensureRecipeSchema(host.editor, schemaCapabilities);
 
@@ -86,16 +77,7 @@ export async function createRuntimeUiContext(
     getLocalePack(defaultParserLocale).defaultSourceMeasurementSystem;
 
   async function migrateThenLoad(id: string): Promise<Recipe | null> {
-    await runRecipeMigrations(
-      {
-        getBlockProperty: (blockId, key) =>
-          logseq.Editor.getBlockProperty(blockId, key),
-        upsertBlockProperty: (blockId, key, value) =>
-          logseq.Editor.upsertBlockProperty(blockId, key, value),
-      },
-      id,
-      metadataCapabilities,
-    );
+    await runRecipeMigrations(logseq.Editor, id);
 
     const recipe = await repository.getRecipe(id);
     if (!recipe) return null;
@@ -105,10 +87,11 @@ export async function createRuntimeUiContext(
       const errors = validation.issues
         .filter((issue) => issue.severity === "error")
         .map((issue) => issue.message);
-      throw new Error(
-        errors.length > 0
-          ? errors.join(" ")
-          : "Recipe data is invalid and cannot be rendered safely.",
+      const detail = errors.join(" ");
+      throw new RecipeError(
+        "recipe-invalid",
+        detail || "Recipe data is invalid and cannot be rendered safely.",
+        detail,
       );
     }
 
@@ -124,29 +107,37 @@ export async function createRuntimeUiContext(
     duplicateRecipe: (id: string) => repository.duplicateRecipe(id),
     commitConversion: (draft: ConversionDraft) =>
       commitRecipeConversion(repository, draft),
-    splitOutlineAndConvert: async (
-      uuid: string,
+    commitRebuiltConversion: async (
+      rebuild: ConversionRebuild,
+      draft: ConversionDraft,
+    ): Promise<void> => {
+      // Checked before the first write: an unconvertible draft writes nothing.
+      const structure = conversionStructure(draft);
+      const ids = await applyOutlineSplit(
+        draft.rootId,
+        rebuild.outline,
+        rebuild.staleChildIds,
+      );
+      await repository.markExistingRecipe(withWrittenBlockIds(structure, ids));
+    },
+    commitImportedRecipe: async (
       outline: OutlineNode,
-      staleChildIds: string[],
-    ): Promise<DraftRecipeInitialView> => {
-      await applyOutlineSplit(uuid, outline, staleChildIds);
-      const source = await loadConversionRoot(uuid);
-      if (!source) {
-        throw new Error(
-          "Could not re-read the recipe after splitting it into blocks.",
-        );
+      draft: ConversionDraft,
+    ): Promise<string> => {
+      // Checked before the first write: an unconvertible draft, or a title
+      // another recipe has, writes nothing.
+      const structure = conversionStructure(draft);
+      const existing = [
+        ...(await repository.listRecipeSummaries()),
+        ...(await repository.listArchivedRecipeSummaries()),
+      ];
+      if (existing.some((recipe) => sameTitle(recipe.title, outline.text))) {
+        throw titleTaken(outline.text);
       }
-      if (await isAlreadyDraftRecipe(source.id)) {
-        return {
-          kind: "already-recipe",
-          recipeId: source.id,
-          title: source.title,
-        };
-      }
-      const parseContext = defaultParseContext(defaultParserLocale);
-      parseContext.sourceMeasurementSystem = defaultSourceMeasurementSystem;
-      const draft = analyzeRecipeConversion(source, parseContext);
-      return { kind: "convert", source, draft };
+      const ids = await writeImportedRecipe(outline, draft.rootId);
+      const written = withWrittenBlockIds(structure, ids);
+      await repository.markExistingRecipe(written);
+      return written.rootId;
     },
     resolveCover: (recipe: Pick<Recipe, "cover">) =>
       resolveCoverUrl(currentCoverResolverHost(), recipe.cover),
@@ -155,7 +146,11 @@ export async function createRuntimeUiContext(
     resolveAssetUrl: (path: string) =>
       resolveAssetUrl(currentCoverResolverHost(), path),
     saveRecipeMeta: (id: string, meta: RecipeMeta) =>
-      writeRecipeMeta(logseq.Editor, id, meta, metadataCapabilities),
+      logseq.Editor.upsertBlockProperty(
+        id,
+        PROPERTY_KEYS.recipeMeta,
+        encodeRecipeMeta(meta),
+      ),
     setCoverPath: async (id: string, path: string) => {
       if (capabilities.coverReference !== "asset-path") {
         throw new Error(
@@ -172,6 +167,9 @@ export async function createRuntimeUiContext(
     clearCover: (id: string) => clearRecipeCover(logseq.Editor, id),
     saveRecipeEdit: (id: string, patch: RecipeEditPatch) =>
       commitRecipeEdit(repository, id, patch),
+    canMoveToRecipeLibrary: (id: string) =>
+      repository.canMoveToRecipeLibrary(id),
+    moveToRecipeLibrary: (id: string) => repository.moveToRecipeLibrary(id),
     archiveRecipe: (id: string) => repository.archiveRecipe(id),
     restoreRecipe: (id: string) => repository.restoreRecipe(id),
     deleteArchivedRecipe: (id: string) => repository.deleteArchivedRecipe(id),

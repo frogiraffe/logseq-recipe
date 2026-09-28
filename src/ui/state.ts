@@ -12,27 +12,34 @@ import type {
 import type { Recipe, RecipeLocale, RecipeMeta } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
 
+/**
+ * How a pasted outline's blocks are rebuilt before it converts: the outline
+ * to write under the root, and the existing blocks it replaces.
+ */
+export interface ConversionRebuild {
+  outline: OutlineNode;
+  staleChildIds: string[];
+}
+
 export type DraftRecipeInitialView =
   | { kind: "recipes" }
   | { kind: "recipe"; recipeId: string }
   | { kind: "create" }
-  | { kind: "convert"; source: ConversionSourceNode; draft: ConversionDraft }
-  // A conversion target whose direct children (if any) are all flat
-  // leaves with no nesting of their own - the common paste failure,
-  // whether Logseq left the whole outline in one block, or chunked it
-  // into a handful of flat sibling blocks without ever nesting anything.
-  // `staleChildIds` are those existing flat children (empty when there
-  // were none at all) that get removed once split into a real, properly
-  // nested tree under the same root. Offers this instead of opening
-  // Convert on an empty draft or failing with "select a recipe root
-  // block/page".
   | {
-      kind: "convert-needs-split";
-      uuid: string;
-      outline: OutlineNode;
-      staleChildIds: string[];
+      kind: "convert";
+      source: ConversionSourceNode;
+      draft: ConversionDraft;
+      // Set when the recipe's language was picked from its own headings/labels.
+      detectedLocale?: RecipeLocale;
+      // Set when the blocks must be rebuilt first (a paste Logseq split along
+      // the wrong lines): `source` previews the rebuilt outline, and nothing
+      // is written until the conversion is confirmed.
+      rebuild?: ConversionRebuild;
     }
-  | { kind: "already-recipe"; recipeId: string; title: string };
+  // Import from Text; `text` refills the box when returning from its preview.
+  | { kind: "import-text"; text?: string }
+  // `inside`: the block converted is a line of that recipe.
+  | { kind: "already-recipe"; recipeId: string; title: string; inside?: true };
 
 export interface DraftRecipeUiController {
   listRecipes(options?: { fresh?: boolean }): Promise<RecipeSummary[]>;
@@ -41,11 +48,17 @@ export interface DraftRecipeUiController {
   createRecipe(input: NewRecipeInput): Promise<Recipe>;
   duplicateRecipe(id: string): Promise<Recipe>;
   commitConversion(draft: ConversionDraft): Promise<void>;
-  splitOutlineAndConvert(
-    uuid: string,
+  // Rebuilds the blocks as previewed, then commits the conversion.
+  commitRebuiltConversion(
+    rebuild: ConversionRebuild,
+    draft: ConversionDraft,
+  ): Promise<void>;
+  // Writes an imported recipe's blocks, then commits the conversion its
+  // preview settled (made before anything was written). Returns its id.
+  commitImportedRecipe(
     outline: OutlineNode,
-    staleChildIds: string[],
-  ): Promise<DraftRecipeInitialView>;
+    draft: ConversionDraft,
+  ): Promise<string>;
   // Takes a Recipe or a RecipeSummary: only the cover reference is read.
   resolveCover(recipe: Pick<Recipe, "cover">): Promise<string | null>;
   listImageAssets(): Promise<string[]>;
@@ -55,6 +68,8 @@ export interface DraftRecipeUiController {
   setCoverPath(id: string, path: string): Promise<void>;
   clearCover(id: string): Promise<void>;
   saveRecipeEdit(id: string, patch: RecipeEditPatch): Promise<void>;
+  canMoveToRecipeLibrary(id: string): Promise<boolean>;
+  moveToRecipeLibrary(id: string): Promise<void>;
   archiveRecipe(id: string): Promise<void>;
   restoreRecipe(id: string): Promise<void>;
   deleteArchivedRecipe(id: string): Promise<void>;

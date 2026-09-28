@@ -1,17 +1,11 @@
 import type {
   IngredientConversionOverride,
-  RecipeLocale,
   RecipeMeta,
   VolumeConversionUnit,
 } from "../domain/recipe";
-import type { MeasurementSystem } from "../domain/unit";
+import { isMeasurementSystem } from "../domain/unit";
+import { isRecipeLocale } from "../parsing/locales";
 
-const RECIPE_LOCALES = new Set<RecipeLocale>(["en", "tr", "fr", "de", "es"]);
-const MEASUREMENT_SYSTEMS = new Set<MeasurementSystem>([
-  "metric",
-  "us",
-  "imperial",
-]);
 const VOLUME_UNITS = new Set<VolumeConversionUnit>([
   "ml",
   "tsp_metric",
@@ -33,8 +27,18 @@ export function emptyRecipeMeta(): RecipeMeta {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** A stored property's JSON: string values are parsed, unreadable ones null. */
+export function parseStoredJson(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function stringArray(value: unknown): string[] {
@@ -43,19 +47,6 @@ function stringArray(value: unknown): string[] {
     (item): item is string =>
       typeof item === "string" && item.trim().length > 0,
   );
-}
-
-function recipeLocale(value: unknown): RecipeLocale | undefined {
-  return typeof value === "string" && RECIPE_LOCALES.has(value as RecipeLocale)
-    ? (value as RecipeLocale)
-    : undefined;
-}
-
-function measurementSystem(value: unknown): MeasurementSystem | undefined {
-  return typeof value === "string" &&
-    MEASUREMENT_SYSTEMS.has(value as MeasurementSystem)
-    ? (value as MeasurementSystem)
-    : undefined;
 }
 
 function conversionOverride(
@@ -99,33 +90,22 @@ function conversionOverrides(value: unknown): IngredientConversionOverride[] {
   });
 }
 
-function parseRawMeta(raw: unknown): unknown {
-  if (typeof raw !== "string") return raw;
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-
 export function decodeRecipeMeta(raw: unknown): RecipeMeta {
-  const parsed = parseRawMeta(raw);
+  const parsed = parseStoredJson(raw);
   if (!isRecord(parsed)) return emptyRecipeMeta();
 
-  const parserLocaleValue = recipeLocale(parsed.parserLocale);
-  const sourceMeasurementSystem = measurementSystem(
-    parsed.sourceMeasurementSystem,
-  );
-  const measurementSystemOverride = measurementSystem(
-    parsed.measurementSystemOverride,
-  );
-
+  const { parserLocale, sourceMeasurementSystem, measurementSystemOverride } =
+    parsed;
   return {
     categories: stringArray(parsed.categories),
     tags: stringArray(parsed.tags),
-    ...(parserLocaleValue ? { parserLocale: parserLocaleValue } : {}),
-    ...(sourceMeasurementSystem ? { sourceMeasurementSystem } : {}),
-    ...(measurementSystemOverride ? { measurementSystemOverride } : {}),
+    ...(isRecipeLocale(parserLocale) ? { parserLocale } : {}),
+    ...(isMeasurementSystem(sourceMeasurementSystem)
+      ? { sourceMeasurementSystem }
+      : {}),
+    ...(isMeasurementSystem(measurementSystemOverride)
+      ? { measurementSystemOverride }
+      : {}),
     ingredientConversionOverrides: conversionOverrides(
       parsed.ingredientConversionOverrides,
     ),

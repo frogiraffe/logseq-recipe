@@ -1,12 +1,20 @@
 import type { RecipeLocale } from "../domain/recipe";
-import type { MeasurementSystem } from "../domain/unit";
+import {
+  isMeasurementSystem,
+  MEASUREMENT_SYSTEMS,
+  type MeasurementSystem,
+} from "../domain/unit";
+import { isRecipeLocale, RECIPE_LOCALES } from "../parsing/locales";
+import type { UiLocale } from "../units/format";
 
-export type UiLanguage = "en" | "tr" | "fr" | "de" | "es";
-const UI_LANGUAGES = new Set<UiLanguage>(["en", "tr", "fr", "de", "es"]);
+export type UiLanguage = UiLocale;
+// "auto" follows Logseq's own interface language.
+export type UiLanguageSetting = UiLanguage | "auto";
+const UI_LANGUAGES: readonly UiLanguage[] = ["en", "tr", "fr", "de", "es"];
 export type ParserLocaleSetting = RecipeLocale | "auto";
 
 export interface DraftRecipeSettings {
-  uiLanguage: UiLanguage;
+  uiLanguage: UiLanguageSetting;
   defaultParserLocale: ParserLocaleSetting;
   defaultMeasurementSystem: MeasurementSystem;
 }
@@ -25,10 +33,11 @@ const SETTINGS_SCHEMA: EnumSettingSchema[] = [
   {
     key: "uiLanguage",
     type: "enum",
-    default: "en",
+    default: "auto",
     title: "UI language",
-    description: "Language used by Logseq Recipe controls.",
-    enumChoices: ["en", "tr", "fr", "de", "es"],
+    description:
+      "Language used by Logseq Recipe controls. auto follows Logseq's language.",
+    enumChoices: ["auto", ...UI_LANGUAGES],
     enumPicker: "select",
   },
   {
@@ -37,7 +46,7 @@ const SETTINGS_SCHEMA: EnumSettingSchema[] = [
     default: "auto",
     title: "Default recipe language",
     description: "Language used first when parsing recipe text.",
-    enumChoices: ["auto", "en", "tr", "fr", "de", "es"],
+    enumChoices: ["auto", ...RECIPE_LOCALES],
     enumPicker: "select",
   },
   {
@@ -46,52 +55,32 @@ const SETTINGS_SCHEMA: EnumSettingSchema[] = [
     default: "metric",
     title: "Measurement system",
     description: "Default display system. Individual recipes may override it.",
-    enumChoices: ["metric", "us", "imperial"],
+    enumChoices: [...MEASUREMENT_SYSTEMS],
     enumPicker: "select",
   },
 ];
 
-const PARSER_LOCALES = new Set<RecipeLocale>(["en", "tr", "fr", "de", "es"]);
-const MEASUREMENT_SYSTEMS = new Set<MeasurementSystem>([
-  "metric",
-  "us",
-  "imperial",
-]);
-
-function isParserLocale(value: unknown): value is RecipeLocale {
-  return typeof value === "string" && PARSER_LOCALES.has(value as RecipeLocale);
+function isUiLanguage(value: unknown): value is UiLanguage {
+  return UI_LANGUAGES.includes(value as UiLanguage);
 }
 
-function isMeasurementSystem(value: unknown): value is MeasurementSystem {
-  return (
-    typeof value === "string" &&
-    MEASUREMENT_SYSTEMS.has(value as MeasurementSystem)
-  );
+// Logseq's "tr-TR" or "pt_BR" -> "tr", "pt".
+function languageCode(value: string | undefined): string | undefined {
+  return value?.toLocaleLowerCase().split(/[-_]/u)[0];
 }
 
 export function normalizeSettings(raw: unknown): DraftRecipeSettings {
   const record =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const uiLanguage: UiLanguage = UI_LANGUAGES.has(
-    record.uiLanguage as UiLanguage,
-  )
-    ? (record.uiLanguage as UiLanguage)
-    : "en";
-  const defaultParserLocale: ParserLocaleSetting =
-    record.defaultParserLocale === "auto" ||
-    isParserLocale(record.defaultParserLocale)
-      ? record.defaultParserLocale
-      : "auto";
-  const defaultMeasurementSystem = isMeasurementSystem(
-    record.defaultMeasurementSystem,
-  )
-    ? record.defaultMeasurementSystem
-    : "metric";
-
+  const { uiLanguage, defaultParserLocale, defaultMeasurementSystem } = record;
   return {
-    uiLanguage,
-    defaultParserLocale,
-    defaultMeasurementSystem,
+    uiLanguage: isUiLanguage(uiLanguage) ? uiLanguage : "auto",
+    defaultParserLocale: isRecipeLocale(defaultParserLocale)
+      ? defaultParserLocale
+      : "auto",
+    defaultMeasurementSystem: isMeasurementSystem(defaultMeasurementSystem)
+      ? defaultMeasurementSystem
+      : "metric",
   };
 }
 
@@ -104,12 +93,14 @@ export function readSettings(): DraftRecipeSettings {
   return normalizeSettings(logseq.settings);
 }
 
-function logseqLanguageToParserLocale(
-  value: string | undefined,
-): RecipeLocale | null {
-  if (!value) return null;
-  const candidate = value.toLocaleLowerCase().split(/[-_]/u)[0];
-  return isParserLocale(candidate) ? candidate : null;
+/** The interface language: the setting, or Logseq's own when "auto". */
+export function resolveUiLanguage(
+  setting: UiLanguageSetting,
+  logseqPreferredLanguage?: string,
+): UiLanguage {
+  if (setting !== "auto") return setting;
+  const code = languageCode(logseqPreferredLanguage);
+  return isUiLanguage(code) ? code : "en";
 }
 
 export function resolveParserLocale(
@@ -121,12 +112,6 @@ export function resolveParserLocale(
   if (settings.defaultParserLocale !== "auto") {
     return settings.defaultParserLocale;
   }
-  return logseqLanguageToParserLocale(logseqPreferredLanguage) ?? "en";
-}
-
-export function resolveMeasurementSystem(
-  recipeOverride: MeasurementSystem | undefined,
-  settings: DraftRecipeSettings,
-): MeasurementSystem {
-  return recipeOverride ?? settings.defaultMeasurementSystem ?? "metric";
+  const code = languageCode(logseqPreferredLanguage);
+  return isRecipeLocale(code) ? code : "en";
 }

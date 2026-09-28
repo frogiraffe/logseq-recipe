@@ -151,10 +151,28 @@ export function parseTemperatures(
     if (unit) found.push({ number, unitToken, unit });
   }
 
-  return found.map(({ number, unitToken, unit }, index) => {
+  // "350°F (175°C)": the bracketed one is the same heat in the other
+  // scale, not a second temperature.
+  const celsius = (entry: (typeof found)[number]) => {
+    const value = Number(entry.number.normalized);
+    return entry.unit === "celsius" ? value : ((value - 32) * 5) / 9;
+  };
+  const distinct = found.filter((entry, index) => {
+    const previous = found[index - 1];
+    return !(
+      previous &&
+      previous.unit !== entry.unit &&
+      /^\s*\(\s*$/u.test(
+        text.slice(previous.unitToken.endOffset, entry.number.startOffset),
+      ) &&
+      Math.abs(celsius(previous) - celsius(entry)) <= 10
+    );
+  });
+
+  return distinct.map(({ number, unitToken, unit }, index) => {
     const start = number.startOffset;
     const end = unitToken.endOffset;
-    const nextStart = found[index + 1]?.number.startOffset ?? text.length;
+    const nextStart = distinct[index + 1]?.number.startOffset ?? text.length;
     const nearbyMode = nearbySpan(
       text,
       ovenModes,

@@ -70,10 +70,10 @@ export const enMessages: UiMessages = {
   rangeMax: "Max",
   minutesUnit: "min",
   converting: "Converting",
-  alreadyRecipe: "This page is already a recipe.",
+  alreadyRecipe: "This is already a recipe:",
   openRecipe: "Open recipe",
   missingYieldPrompt:
-    "How many servings/pieces does this recipe make? This is required to continue.",
+    "How many servings or pieces does this recipe make? None were found, so it counts as 1 (the recipe as written) until you set it.",
   yieldUnitHelp: "servings, cookies, pieces...",
   useThisYield: "Use this yield",
   conversionRulesTitle: "Custom ingredient conversion",
@@ -128,29 +128,31 @@ export const enMessages: UiMessages = {
   archivedNotice: "Recipe archived",
   restoredNotice: "Recipe restored",
   deletedNotice: "Recipe deleted",
+  duplicatedNotice: "Copy created; you are now viewing the copy",
+  movedToLibraryNotice: "Moved to the Recipe Library",
   archivedOn: "Archived {date}",
   moreActions: "More actions",
   fewerServings: "Fewer servings",
   moreServings: "More servings",
+  resetServings: "Original servings: {count}",
   noRecipesHint:
-    'Create one here, or turn an existing page into a recipe with "Logseq Recipe: Convert to Recipe" in its block menu.',
+    'Create one here, paste one with Import from Text, or turn an existing page into a recipe with "Logseq Recipe: Convert to Recipe" in its block menu.',
   saveIncomplete:
     "The save was interrupted and only partly applied. The recipe was reloaded from Logseq; check it and redo the missing changes.",
   blankItemError: "Remove empty items or fill them in before saving.",
   cookingNoSteps: "This recipe has no steps to cook.",
   stepProgress: "Step",
   discardChangesConfirm: "Discard your unsaved changes?",
+  discardChanges: "Discard changes",
+  keepEditing: "Keep editing",
   refresh: "Refresh",
   loadingRecipes: "Loading recipes…",
   loadingRecipe: "Loading recipe…",
   newRecipeGuidance:
     "This recipe doesn't have any ingredients or steps yet. Add them from Edit recipe.",
   clearFilters: "Clear filters",
-  outlineNeedsSplitMessage:
-    "This looks like a whole recipe outline pasted into a single block, instead of separate Logseq blocks - there's nothing here yet for Convert to read as sections. Split it into real, nested blocks matching the indentation shown, then continue?",
-  splitOutlineAction: "Split into blocks and continue",
   issueMissingBaseYield:
-    "A positive serving/yield count is required before this recipe can be converted.",
+    "No serving count was found; the recipe counts as 1 serving until you set it.",
   issueNoIngredientsSection: "No ingredients section was found.",
   issueNoStepsSection: "No steps section was found.",
   issueDuplicateSectionRole:
@@ -164,4 +166,58 @@ export const enMessages: UiMessages = {
     'No amount was found in the ingredient "{detail}".',
   issueIngredientAmountAmbiguous:
     'The amount in "{detail}" is unclear (two amounts or an unreadable number). Enter it or keep the line as written.',
+  importRecipe: "Import from Text",
+  moreWaysToAdd: "More ways to add a recipe",
+  importRecipeHelp:
+    'Paste a whole recipe. The first line is the title; section headings such as "Ingredients", "Steps" and "Notes" split it into sections, and a line such as "For the dough:" starts an ingredient group; lines before the first heading ("Servings: 4", "Prep: 15 min") become recipe details. Nothing is written until you confirm the preview.',
+  recipeText: "Recipe text",
+  importNoSections:
+    'No section heading found. Put "Ingredients" and "Steps" (or their equivalent in the recipe\'s language) on lines of their own.',
+  importRecipeAction: "Preview",
+  localeAutoDetected: "auto-detected",
+  addIngredientGroup: "Add group",
+  ingredientGroup: "Ingredient group",
+  emptyIngredientGroup: "Every group needs at least one ingredient under it.",
+  moveToRecipeLibrary: "Move to Recipe Library",
+  moveToRecipeLibraryConfirm:
+    "Move this recipe from the page it is on into the Recipe Library page? Its content and links stay the same.",
+  recipeChangedElsewhere:
+    "This recipe changed in Logseq while you were editing. Saving writes only your changes; the other changes stay.",
+  loadCurrentVersion: "Load the current version",
+  rebuildNotice:
+    "These blocks aren't laid out as a recipe yet. Confirming replaces them with new blocks as shown under New block structure, then converts them. Only their text carries over: links to these blocks and properties set on them are not kept. Nothing changes until you confirm.",
+  importNotice:
+    "Confirming adds this recipe to the Recipe Library as shown under New block structure; nothing is written until you confirm.",
+  newStructure: "New block structure",
+  ingredientsAsRead: "How each ingredient was read",
+  errorTitleRequired: "A recipe needs a title.",
+  errorTitleTaken: 'A recipe named "{detail}" already exists.',
+  errorPageTitleTaken: 'A Logseq page named "{detail}" already exists.',
+  errorBaseYieldInvalid: "Servings must be a number greater than 0.",
+  errorTimeInvalid: "Times must be 0 minutes or more.",
+  errorRecipeNotFound: "This recipe is no longer in the graph.",
+  errorSectionMissing:
+    "This recipe has no {detail} section in Logseq; add it back to edit it.",
+  errorRecipeInvalid: "This recipe's data can't be shown safely: {detail}",
+  errorFutureSchema:
+    "This recipe was saved by a newer version of Logseq Recipe. Update the plugin to open it.",
+  errorUnexpected: "Logseq couldn't finish this: {detail}",
+  notDbGraph: "Logseq Recipe works with Logseq DB graphs only.",
+  unsupportedLogseqBuild:
+    "Logseq Recipe: this Logseq version is missing a feature the plugin needs. Update Logseq and try again.",
+  nothingToConvert:
+    "Logseq Recipe: open a page or right-click a block that holds a recipe first.",
+  insideRecipe: "This block is part of a recipe already:",
+  finishCookingConfirm:
+    "A timer is still running. Finish cooking and clear the timers, the current step, and the ticked ingredients?",
+  fixedAmountShort: "Fixed",
+  sourceMeasurementHelp:
+    'The units the recipe is written in: whether its "cup" or "tbsp" is a US, metric, or imperial one.',
+  displayMeasurementHelp:
+    "The units amounts are shown in on this recipe; the plugin setting applies when left as default.",
+  noAmountLinesNote:
+    "These lines have no amount, so they stay as written and don't scale with servings:",
+  enterAmount: "Enter an amount",
+  recipeCountOne: "{shown} / {total} recipe",
+  recipeCountOther: "{shown} / {total} recipes",
 };

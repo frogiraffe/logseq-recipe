@@ -8,18 +8,28 @@ import {
   classifyConversionSection,
   correctConversionIngredient,
   correctConversionYield,
+  type IngredientCorrection,
   isConversionCommittable,
   isIngredientAmountIssue,
 } from "../../application/convert-recipe";
-import type { RecipeSectionRole } from "../../application/types";
+import type { OutlineNode } from "../../application/split-outline";
+import {
+  RECIPE_SECTION_ROLES,
+  type RecipeSectionRole,
+} from "../../application/types";
 import type { RecipeLocale } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
+import { defaultParseContext } from "../../parsing/context";
+import { RECIPE_LOCALES } from "../../parsing/locales";
 import { COOKING_UNITS_BY_SYSTEM } from "../../units/definitions";
-import { confirmDiscardIfDirty, useDirtyReport } from "../dirty-guard";
+import { unitLabel } from "../../units/format";
+import { useConfirmDiscard, useDirtyReport } from "../dirty-guard";
 import type { UiMessages } from "../i18n";
-import { ingredientUnitOptionLabel } from "../ingredient-display";
-
-const PARSER_LOCALES: readonly RecipeLocale[] = ["en", "tr", "fr", "de", "es"];
+import { RECIPE_LOCALE_NAMES } from "../i18n";
+import {
+  formatQuantity,
+  ingredientUnitOptionLabel,
+} from "../ingredient-display";
 
 const FIXED_UNIT_OPTIONS: readonly CanonicalUnit[] = [
   "g",
@@ -34,7 +44,22 @@ const FIXED_UNIT_OPTIONS: readonly CanonicalUnit[] = [
   "clove",
   "slice",
   "pinch",
+  "can",
+  "package",
+  "bunch",
+  "jar",
+  "sprig",
+  "head",
+  "stick",
 ];
+
+// Shown in their own section above the warning list, so never listed twice.
+const ISSUES_WITH_THEIR_OWN_SECTION = new Set([
+  "ingredient-amount-unparsed",
+  "ingredient-amount-ambiguous",
+  "missing-base-yield",
+  "unrecognized-section",
+]);
 
 interface IngredientCorrectionDraft {
   amount: string;
@@ -42,9 +67,35 @@ interface IngredientCorrectionDraft {
   ingredientText: string;
 }
 
+// A typed-in correction ready to apply, or null while it is incomplete.
+function usableCorrection(
+  correction: IngredientCorrectionDraft,
+): IngredientCorrection | null {
+  const amount = Number(correction.amount);
+  if (
+    correction.amount.trim() === "" ||
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    !correction.ingredientText.trim()
+  ) {
+    return null;
+  }
+  return {
+    amount,
+    ...(correction.unit ? { unit: correction.unit } : {}),
+    ingredientText: correction.ingredientText,
+  };
+}
+
 export interface ConvertPreviewProps {
   source: ConversionSourceNode;
   draft: ConversionDraft;
+  // Set when the recipe's language was picked from its own headings/labels.
+  detectedLocale?: RecipeLocale;
+  // What confirming will write, when it is more than marking these blocks:
+  // a notice, and the outline the blocks become.
+  notice?: string;
+  outline?: OutlineNode;
   messages: UiMessages;
   pending?: boolean;
   onConfirm(draft: ConversionDraft): void;
@@ -78,25 +129,51 @@ function issueText(issue: ConversionIssue, messages: UiMessages): string {
   return String(messages[key]).replace("{detail}", () => detail ?? "");
 }
 
+function OutlineTree({ nodes }: { nodes: readonly OutlineNode[] }) {
+  return (
+    <ul>
+      {nodes.map((node, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a static outline - lines never move, and two lines may read the same.
+        <li key={index}>
+          {node.text}
+          {node.children.length > 0 && <OutlineTree nodes={node.children} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function ConvertPreview({
   source,
   draft,
+  detectedLocale,
+  notice,
+  outline,
   messages,
   pending = false,
   onConfirm,
   onCancel,
   onDirtyChange,
 }: ConvertPreviewProps) {
+  const confirmDiscard = useConfirmDiscard(messages);
   const [resolvedDraft, setResolvedDraft] = useState(draft);
   const [corrections, setCorrections] = useState<
     Record<string, IngredientCorrectionDraft>
   >({});
   const [yieldDraft, setYieldDraft] = useState({ amount: "", unit: "" });
+  const [openNoAmount, setOpenNoAmount] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Until the user picks a measurement system themselves, it follows the
+  // recipe language's default (TR -> metric) when the language changes.
+  const [sourceSystemChosen, setSourceSystemChosen] = useState(false);
 
   useEffect(() => {
     setResolvedDraft(draft);
     setCorrections({});
     setYieldDraft({ amount: "", unit: "" });
+    setSourceSystemChosen(false);
+    setOpenNoAmount(new Set());
   }, [draft]);
 
   // The Logseq UI's language isn't necessarily the recipe's language, and an
@@ -119,7 +196,6 @@ export function ConvertPreview({
     () => new Set(resolvedDraft.sections.map((section) => section.role)),
     [resolvedDraft.sections],
   );
-  const canConfirm = isConversionCommittable(resolvedDraft);
   const isDirty =
     resolvedDraft !== draft ||
     Object.keys(corrections).length > 0 ||
@@ -138,6 +214,17 @@ export function ConvertPreview({
   const pendingIngredientIssues = resolvedDraft.issues.filter(
     isIngredientAmountIssue,
   );
+  // An unreadable amount must be settled; a line with no amount at all
+  // ("a little salt") is fine as written - listed once, correctable on demand.
+  const ambiguousIssues = pendingIngredientIssues.filter(
+    (issue) => issue.code === "ingredient-amount-ambiguous",
+  );
+  const noAmountIssues = pendingIngredientIssues.filter(
+    (issue) => issue.code === "ingredient-amount-unparsed",
+  );
+  const listedIssues = resolvedDraft.issues.filter(
+    (issue) => !ISSUES_WITH_THEIR_OWN_SECTION.has(issue.code),
+  );
   const missingYield = resolvedDraft.issues.some(
     (issue) => issue.code === "missing-base-yield",
   );
@@ -146,6 +233,21 @@ export function ConvertPreview({
     yieldDraft.amount.trim() !== "" &&
     Number.isFinite(yieldAmountValue) &&
     yieldAmountValue > 0;
+
+  // What Confirm commits: a serving count or amount typed in but not yet
+  // applied with its own button counts too, never silently dropped.
+  let committed =
+    missingYield && canUseYield
+      ? correctConversionYield(resolvedDraft, yieldAmountValue, yieldDraft.unit)
+      : resolvedDraft;
+  for (const { blockId } of pendingIngredientIssues) {
+    const correction = blockId ? corrections[blockId] : undefined;
+    const usable = correction && usableCorrection(correction);
+    if (blockId && usable) {
+      committed = correctConversionIngredient(committed, blockId, usable);
+    }
+  }
+  const canConfirm = isConversionCommittable(committed);
 
   function correctionFor(
     blockId: string,
@@ -170,6 +272,88 @@ export function ConvertPreview({
       [blockId]: { ...correctionFor(blockId, fallbackText), ...patch },
     }));
   }
+  function reviewCard(issue: ConversionIssue) {
+    const blockId = issue.blockId;
+    if (!blockId) return null;
+    const ingredient = resolvedDraft.ingredients.find(
+      (candidate) => candidate.blockId === blockId,
+    );
+    if (!ingredient) return null;
+    const correction = correctionFor(blockId, ingredient.parsed.ingredientText);
+    const usable = usableCorrection(correction);
+
+    return (
+      <div className="draft-recipe-ingredient-review-row" key={blockId}>
+        <strong>{ingredient.parsed.rawText}</strong>
+        <div className="draft-recipe-ingredient-review-fields">
+          <input
+            type="number"
+            step="any"
+            min="0"
+            placeholder={messages.amount}
+            aria-label={`${messages.amount}: ${ingredient.parsed.rawText}`}
+            value={correction.amount}
+            onChange={(event) =>
+              updateCorrection(blockId, ingredient.parsed.ingredientText, {
+                amount: event.target.value,
+              })
+            }
+          />
+          <select
+            aria-label={`${messages.unit}: ${ingredient.parsed.rawText}`}
+            value={correction.unit}
+            onChange={(event) =>
+              updateCorrection(blockId, ingredient.parsed.ingredientText, {
+                unit: event.target.value as CanonicalUnit | "",
+              })
+            }
+          >
+            <option value="">{messages.noUnit}</option>
+            {unitOptions.map((unit) => (
+              <option key={unit} value={unit}>
+                {ingredientUnitOptionLabel(unit, messages.uiLocale)}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            aria-label={`${messages.ingredientKey}: ${ingredient.parsed.rawText}`}
+            value={correction.ingredientText}
+            onChange={(event) =>
+              updateCorrection(blockId, ingredient.parsed.ingredientText, {
+                ingredientText: event.target.value,
+              })
+            }
+          />
+        </div>
+        <div className="draft-recipe-actions">
+          <button
+            type="button"
+            onClick={() =>
+              setResolvedDraft((current) =>
+                acceptConversionIngredientAsRaw(current, blockId),
+              )
+            }
+          >
+            {messages.keepAsWritten}
+          </button>
+          <button
+            type="button"
+            disabled={!usable}
+            onClick={() =>
+              usable &&
+              setResolvedDraft((current) =>
+                correctConversionIngredient(current, blockId, usable),
+              )
+            }
+          >
+            {messages.useStructuredAmount}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const roleLabels: Record<RecipeSectionRole, string> = {
     ingredients: messages.ingredients,
     steps: messages.steps,
@@ -183,35 +367,47 @@ export function ConvertPreview({
         {`${messages.converting}: `}
         <strong>{resolvedDraft.title}</strong>
       </p>
+      {notice && (
+        <div className="draft-recipe-banner" role="note">
+          <p>{notice}</p>
+        </div>
+      )}
       <div className="draft-recipe-meta-row">
         <label>
           {messages.parserLanguage}
           <select
             value={resolvedDraft.locale}
-            onChange={(event) =>
+            onChange={(event) => {
+              const locale = event.currentTarget.value as RecipeLocale;
               reanalyze(
-                event.currentTarget.value as RecipeLocale,
-                resolvedDraft.sourceMeasurementSystem,
-              )
-            }
+                locale,
+                sourceSystemChosen
+                  ? resolvedDraft.sourceMeasurementSystem
+                  : defaultParseContext(locale).sourceMeasurementSystem,
+              );
+            }}
           >
-            {PARSER_LOCALES.map((locale) => (
+            {RECIPE_LOCALES.map((locale) => (
               <option key={locale} value={locale}>
-                {locale.toUpperCase()}
+                {RECIPE_LOCALE_NAMES[locale]}
               </option>
             ))}
           </select>
         </label>
-        <label>
+        {detectedLocale === resolvedDraft.locale && (
+          <small>{messages.localeAutoDetected}</small>
+        )}
+        <label title={messages.sourceMeasurementHelp}>
           {messages.sourceMeasurementSystem}
           <select
             value={resolvedDraft.sourceMeasurementSystem}
-            onChange={(event) =>
+            onChange={(event) => {
+              setSourceSystemChosen(true);
               reanalyze(
                 resolvedDraft.locale,
                 event.currentTarget.value as MeasurementSystem,
-              )
-            }
+              );
+            }}
           >
             <option value="metric">{messages.metric}</option>
             <option value="us">{messages.usCustomary}</option>
@@ -235,6 +431,52 @@ export function ConvertPreview({
           </div>
         )}
       </dl>
+      {resolvedDraft.ingredients.length > 0 && (
+        <details className="draft-recipe-read-lines">
+          <summary>{messages.ingredientsAsRead}</summary>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{messages.amount}</th>
+                <th scope="col">{messages.unit}</th>
+                <th scope="col">{messages.ingredientKey}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resolvedDraft.ingredients.map(({ blockId, parsed }) => (
+                <tr key={blockId}>
+                  <td>
+                    {parsed.amount
+                      ? formatQuantity(
+                          parsed.amount,
+                          messages.uiLocale,
+                          parsed.unit,
+                        )
+                      : "—"}
+                  </td>
+                  <td>
+                    {parsed.unit
+                      ? unitLabel(parsed.unit, messages.uiLocale)
+                      : "—"}
+                  </td>
+                  <td>
+                    {parsed.ingredientText}
+                    {parsed.note && <small>{` (${parsed.note})`}</small>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+      {outline && (
+        <details className="draft-recipe-outline-preview">
+          <summary>{messages.newStructure}</summary>
+          <div className="draft-recipe-outline-scroll">
+            <OutlineTree nodes={[outline]} />
+          </div>
+        </details>
+      )}
 
       {resolvedDraft.unknownSections.length > 0 && (
         <section className="draft-recipe-conversion-classification">
@@ -246,25 +488,25 @@ export function ConvertPreview({
             >
               <strong>{section.title}</strong>
               <div className="draft-recipe-actions">
-                {(["ingredients", "steps", "notes"] as const)
-                  .filter((role) => !usedRoles.has(role))
-                  .map((role) => (
-                    <button
-                      type="button"
-                      key={role}
-                      onClick={() =>
-                        setResolvedDraft((current) =>
-                          classifyConversionSection(
-                            current,
-                            section.blockId,
-                            role,
-                          ),
-                        )
-                      }
-                    >
-                      {roleLabels[role]}
-                    </button>
-                  ))}
+                {RECIPE_SECTION_ROLES.filter(
+                  (role) => !usedRoles.has(role),
+                ).map((role) => (
+                  <button
+                    type="button"
+                    key={role}
+                    onClick={() =>
+                      setResolvedDraft((current) =>
+                        classifyConversionSection(
+                          current,
+                          section.blockId,
+                          role,
+                        ),
+                      )
+                    }
+                  >
+                    {roleLabels[role]}
+                  </button>
+                ))}
                 <button
                   type="button"
                   onClick={() =>
@@ -285,107 +527,37 @@ export function ConvertPreview({
         </section>
       )}
 
-      {pendingIngredientIssues.length > 0 && (
+      {ambiguousIssues.length > 0 && (
         <section className="draft-recipe-conversion-classification">
           <h2>{messages.reviewIngredient}</h2>
-          {pendingIngredientIssues.map((issue) => {
-            const blockId = issue.blockId;
-            if (!blockId) return null;
-            const ingredient = resolvedDraft.ingredients.find(
-              (candidate) => candidate.blockId === blockId,
-            );
-            if (!ingredient) return null;
-            const correction = correctionFor(
-              blockId,
-              ingredient.parsed.ingredientText,
-            );
-            const amountValue = Number(correction.amount);
-            const canUseAmount =
-              correction.amount.trim() !== "" &&
-              Number.isFinite(amountValue) &&
-              amountValue > 0 &&
-              correction.ingredientText.trim() !== "";
+          {ambiguousIssues.map(reviewCard)}
+        </section>
+      )}
 
-            return (
-              <div className="draft-recipe-ingredient-review-row" key={blockId}>
-                <strong>{ingredient.parsed.rawText}</strong>
-                <div className="draft-recipe-ingredient-review-fields">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder={messages.amount}
-                    aria-label={`${messages.amount}: ${ingredient.parsed.rawText}`}
-                    value={correction.amount}
-                    onChange={(event) =>
-                      updateCorrection(
-                        blockId,
-                        ingredient.parsed.ingredientText,
-                        { amount: event.target.value },
-                      )
-                    }
-                  />
-                  <select
-                    aria-label={`${messages.unit}: ${ingredient.parsed.rawText}`}
-                    value={correction.unit}
-                    onChange={(event) =>
-                      updateCorrection(
-                        blockId,
-                        ingredient.parsed.ingredientText,
-                        { unit: event.target.value as CanonicalUnit | "" },
-                      )
-                    }
-                  >
-                    <option value="">{messages.noUnit}</option>
-                    {unitOptions.map((unit) => (
-                      <option key={unit} value={unit}>
-                        {ingredientUnitOptionLabel(unit, messages.uiLocale)}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    aria-label={`${messages.ingredientKey}: ${ingredient.parsed.rawText}`}
-                    value={correction.ingredientText}
-                    onChange={(event) =>
-                      updateCorrection(
-                        blockId,
-                        ingredient.parsed.ingredientText,
-                        { ingredientText: event.target.value },
-                      )
-                    }
-                  />
-                </div>
-                <div className="draft-recipe-actions">
+      {noAmountIssues.length > 0 && (
+        <section className="draft-recipe-conversion-classification">
+          <p>{messages.noAmountLinesNote}</p>
+          <ul className="draft-recipe-no-amount-lines">
+            {noAmountIssues.map((issue) =>
+              issue.blockId && openNoAmount.has(issue.blockId) ? (
+                <li key={issue.blockId}>{reviewCard(issue)}</li>
+              ) : (
+                <li key={issue.blockId ?? issue.message}>
+                  <span>{issue.detail}</span>
                   <button
                     type="button"
                     onClick={() =>
-                      setResolvedDraft((current) =>
-                        acceptConversionIngredientAsRaw(current, blockId),
+                      setOpenNoAmount(
+                        (current) => new Set([...current, issue.blockId ?? ""]),
                       )
                     }
                   >
-                    {messages.keepAsWritten}
+                    {messages.enterAmount}
                   </button>
-                  <button
-                    type="button"
-                    disabled={!canUseAmount}
-                    onClick={() =>
-                      setResolvedDraft((current) =>
-                        correctConversionIngredient(current, blockId, {
-                          amount: amountValue,
-                          ...(correction.unit ? { unit: correction.unit } : {}),
-                          ingredientText: correction.ingredientText,
-                        }),
-                      )
-                    }
-                  >
-                    {messages.useStructuredAmount}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                </li>
+              ),
+            )}
+          </ul>
         </section>
       )}
 
@@ -439,9 +611,9 @@ export function ConvertPreview({
         </section>
       )}
 
-      {resolvedDraft.issues.length > 0 && (
+      {listedIssues.length > 0 && (
         <ul className="draft-recipe-warning-list">
-          {resolvedDraft.issues.map((issue) => (
+          {listedIssues.map((issue) => (
             <li key={`${issue.code}-${issue.blockId ?? issue.message}`}>
               {issueText(issue, messages)}
             </li>
@@ -450,22 +622,13 @@ export function ConvertPreview({
       )}
 
       <div className="draft-recipe-actions draft-recipe-sticky-actions">
-        <button
-          type="button"
-          onClick={() =>
-            confirmDiscardIfDirty(
-              isDirty,
-              messages.discardChangesConfirm,
-              onCancel,
-            )
-          }
-        >
+        <button type="button" onClick={() => confirmDiscard(isDirty, onCancel)}>
           {messages.cancel}
         </button>
         <button
           type="button"
           className="draft-recipe-primary-action"
-          onClick={() => onConfirm(resolvedDraft)}
+          onClick={() => onConfirm(committed)}
           disabled={!canConfirm || pending}
         >
           {messages.confirm}

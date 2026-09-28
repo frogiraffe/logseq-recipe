@@ -42,7 +42,8 @@ export interface ValidationResult {
   issues: ValidationIssue[];
 }
 
-export type RecipeSectionRole = "ingredients" | "steps" | "notes";
+export const RECIPE_SECTION_ROLES = ["ingredients", "steps", "notes"] as const;
+export type RecipeSectionRole = (typeof RECIPE_SECTION_ROLES)[number];
 
 export interface ExistingRecipeStructure {
   rootId: string;
@@ -62,4 +63,13 @@ export interface ExistingRecipeStructure {
     blockId: string;
     parsed: ParsedIngredient;
   }>;
+}
+
+/**
+ * One top-level line of an Ingredients section: an ingredient, or a group
+ * heading (`items` set) with its ingredients nested under it, in order.
+ */
+export interface IngredientLayoutEntry {
+  id: string;
+  items?: string[];
 }

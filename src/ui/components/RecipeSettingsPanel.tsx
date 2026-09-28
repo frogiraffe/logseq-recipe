@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { FacetSuggestion } from "../../application/list-recipes";
 import type {
   IngredientConversionOverride,
@@ -9,10 +9,11 @@ import type {
 } from "../../domain/recipe";
 import { coverImagePath } from "../../domain/step-media";
 import type { MeasurementSystem } from "../../domain/unit";
+import { RECIPE_LOCALES } from "../../parsing/locales";
 import { COOKING_UNITS_BY_SYSTEM } from "../../units/definitions";
 import { normalizeIngredientText } from "../../units/ingredient-registry";
-import { confirmDiscardIfDirty, useDirtyReport } from "../dirty-guard";
-import type { UiMessages } from "../i18n";
+import { useConfirmDiscard, useDirtyReport } from "../dirty-guard";
+import { RECIPE_LOCALE_NAMES, type UiMessages } from "../i18n";
 import { ingredientUnitOptionLabel } from "../ingredient-display";
 import { ChipInput } from "./ChipInput";
 
@@ -62,6 +63,8 @@ export function RecipeSettingsPanel({
   onCancel,
   onDirtyChange,
 }: RecipeSettingsPanelProps) {
+  const confirmDiscard = useConfirmDiscard(messages);
+  const helpId = useId();
   const [categories, setCategories] = useState<string[]>(recipe.categories);
   const [tags, setTags] = useState<string[]>(recipe.tags);
   const [parserLocale, setParserLocale] = useState<RecipeLocale | "">(
@@ -207,9 +210,9 @@ export function RecipeSettingsPanel({
           }
         >
           <option value="">{messages.inheritDefault}</option>
-          {(["en", "tr", "fr", "de", "es"] as const).map((locale) => (
+          {RECIPE_LOCALES.map((locale) => (
             <option key={locale} value={locale}>
-              {locale.toUpperCase()}
+              {RECIPE_LOCALE_NAMES[locale]}
             </option>
           ))}
         </select>
@@ -218,6 +221,7 @@ export function RecipeSettingsPanel({
       <label>
         {messages.sourceMeasurementSystem}
         <select
+          aria-describedby={`${helpId}-source`}
           value={sourceSystem}
           onChange={(event) =>
             setSourceSystem(event.currentTarget.value as MeasurementSystem)
@@ -227,11 +231,15 @@ export function RecipeSettingsPanel({
           <option value="us">{messages.usCustomary}</option>
           <option value="imperial">{messages.imperial}</option>
         </select>
+        <small id={`${helpId}-source`} className="draft-recipe-field-help">
+          {messages.sourceMeasurementHelp}
+        </small>
       </label>
 
       <label>
         {messages.measurementSystem}
         <select
+          aria-describedby={`${helpId}-display`}
           value={displaySystem}
           onChange={(event) =>
             setDisplaySystem(
@@ -244,6 +252,9 @@ export function RecipeSettingsPanel({
           <option value="us">{messages.usCustomary}</option>
           <option value="imperial">{messages.imperial}</option>
         </select>
+        <small id={`${helpId}-display`} className="draft-recipe-field-help">
+          {messages.displayMeasurementHelp}
+        </small>
       </label>
 
       <label>
@@ -353,16 +364,7 @@ export function RecipeSettingsPanel({
       </details>
 
       <div className="draft-recipe-actions draft-recipe-sticky-actions">
-        <button
-          type="button"
-          onClick={() =>
-            confirmDiscardIfDirty(
-              isDirty,
-              messages.discardChangesConfirm,
-              onCancel,
-            )
-          }
-        >
+        <button type="button" onClick={() => confirmDiscard(isDirty, onCancel)}>
           {messages.cancel}
         </button>
         <button

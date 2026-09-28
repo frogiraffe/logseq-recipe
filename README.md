@@ -45,7 +45,16 @@ folder containing `package.json`.
 Run **Logseq Recipe: Create Recipe** from the command palette for a blank
 recipe, or select an existing outline and run **Logseq Recipe: Convert to
 Recipe**. Convert previews every change and asks you to resolve ambiguous
-sections or ingredients before it writes anything.
+sections or ingredients before it writes anything; when Logseq split a paste
+along the wrong lines, the preview also shows the block structure it will be
+rebuilt into.
+
+To bring in a recipe from elsewhere, use **Logseq Recipe: Import Recipe from
+Text** (or **Create Recipe ▾ → Import from Text** on the Recipes screen) and
+paste the whole recipe. It is split by its section headings, previewed like
+Convert, and added to the Recipe Library only when you confirm. Convert and
+Import pick the recipe's language from its headings and labels ("Malzemeler",
+"Porsiyon:").
 
 A recipe remains a plain outline:
 
@@ -76,6 +85,13 @@ image or audio file from the graph's `assets` folder is shown as a photo or
 player. See [the banana bread example](examples/banana-bread.md) for a complete
 outline you can paste into Logseq.
 
+Ingredients can be grouped: a line in `Ingredients` with ingredients nested
+under it ("For the dough", "Hamur için:") is a group heading, shown above its
+ingredients on the card and in Cooking Mode. When importing or converting, a
+line ending in a colon with ingredients listed after it becomes a group too,
+and a recipe written in parts ("Ingredients for the cake", "Ingredients for
+the frosting") becomes one section with a group per part.
+
 An ingredient line keeps its own words. A line with two amounts ("1 cup plus
 2 tbsp flour") or a number that can't be read asks you to settle it in the
 Convert preview; a line with no amount ("salt to taste", "a little olive oil")
@@ -86,7 +102,9 @@ is kept as written and doesn't scale.
 - Open **Logseq Recipe: Recipes** to search, filter, sort, and open recipes.
   Every word you type in the search box must appear somewhere in the recipe.
 - On a recipe, **Start cooking** and **Edit recipe** are up front; duplicate,
-  settings, **Open in Logseq**, and archive are under **More actions** (⋯).
+  settings, **Open in Logseq**, and archive are under **More actions** (⋯),
+  along with **Move to Recipe Library** for a recipe converted somewhere else
+  (a journal, say).
 - In the editor, drag the handle to reorder ingredients, steps, notes, and
   step notes — with a mouse, touch, or the keyboard (focus the handle, press
   Space, use the arrow keys, Space to drop, Escape to cancel). Nothing is
@@ -126,7 +144,8 @@ outside `assets` are refused, and missing files show a placeholder.
 
 ## Languages
 
-Choose the interface language in the plugin settings. Recipe text is read in
+The interface follows Logseq's language unless you choose one in the
+plugin settings. Recipe text is read in
 the recipe's language, and each line falls back to whichever supported
 language understands it — a Turkish step is still understood when Logseq runs
 in English.

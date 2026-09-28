@@ -138,3 +138,47 @@ describe("ingredient display-unit selector", () => {
     expect(select.value).toBe("");
   });
 });
+
+describe("IngredientList groups", () => {
+  it("shows each group's heading once, above its ingredients", () => {
+    const dough = { id: "dough", title: "For the dough:" };
+    render(
+      <Harness
+        recipe={{
+          ...recipe,
+          ingredients: [
+            { ...recipe.ingredients[0], id: "a", group: dough },
+            { ...recipe.ingredients[0], id: "b", group: dough },
+            {
+              ...recipe.ingredients[0],
+              id: "c",
+              group: { id: "top", title: "Topping" },
+            },
+          ],
+        }}
+        targetYield={1}
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
+    ).toEqual(["For the dough", "Topping"]);
+  });
+});
+
+describe("IngredientList details", () => {
+  it("shows lines written under an ingredient below its name", () => {
+    render(
+      <Harness
+        recipe={{
+          ...recipe,
+          ingredients: [
+            { ...recipe.ingredients[0], details: ["softened", "unsalted"] },
+          ],
+        }}
+        targetYield={1}
+      />,
+    );
+    expect(screen.getByText(/softened/).textContent).toBe("softened\nunsalted");
+  });
+});

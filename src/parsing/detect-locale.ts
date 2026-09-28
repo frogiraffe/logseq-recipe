@@ -1,22 +1,8 @@
-import type { RecipeLocale } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
 import { defaultParseContext, type ParseContext } from "./context";
 import { parseIngredient } from "./ingredient";
+import { RECIPE_LOCALES } from "./locales";
 import { parseStep } from "./step";
-
-const LOCALES: readonly RecipeLocale[] = ["en", "tr", "fr", "de", "es"];
-
-function contextFor(
-  locale: RecipeLocale,
-  primary: ParseContext,
-  sourceOverride: MeasurementSystem | undefined,
-): ParseContext {
-  if (locale === primary.locale) return primary;
-  const context = defaultParseContext(locale);
-  return sourceOverride
-    ? { ...context, sourceMeasurementSystem: sourceOverride }
-    : context;
-}
 
 /**
  * The context to read one line in: whichever language understands the most
@@ -34,9 +20,9 @@ function bestContext(
 ): ParseContext {
   let best = primary;
   let bestScore = score(primary);
-  for (const locale of LOCALES) {
+  for (const locale of RECIPE_LOCALES) {
     if (locale === primary.locale) continue;
-    const context = contextFor(locale, primary, sourceOverride);
+    const context = defaultParseContext(locale, sourceOverride);
     const candidate = score(context);
     if (candidate > bestScore) {
       best = context;

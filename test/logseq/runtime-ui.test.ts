@@ -43,7 +43,10 @@ describe("startTimerAlarms", () => {
     const showMsg = vi.fn().mockResolvedValue(undefined);
     globalThis.logseq = {
       settings: { uiLanguage: "en" },
-      App: { getCurrentGraph: async () => ({ path: "/graphs/kitchen" }) },
+      App: {
+        getCurrentGraph: async () => ({ path: "/graphs/kitchen" }),
+        getUserConfigs: async () => ({ preferredLanguage: "en" }),
+      },
       UI: { showMsg },
     } as unknown as typeof globalThis.logseq;
 

@@ -177,7 +177,7 @@ describe("duplicateRecipe", () => {
     const fake = fakeHost();
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     const duplicated = await repository.duplicateRecipe(fake.root.uuid);
@@ -240,6 +240,133 @@ describe("duplicateRecipe", () => {
     expect(fake.root.children).toHaveLength(3);
   });
 
+  it("keeps ingredient groups and step notes", async () => {
+    const fake = fakeHost();
+    const ingredients = fake.root.children[0];
+    const steps = fake.root.children[1];
+    const group = {
+      id: 500,
+      uuid: "group-dough",
+      title: "For the dough:",
+      children: [
+        { id: 501, uuid: "dough-flour", title: "200 g flour", children: [] },
+      ],
+    };
+    ingredients.children.unshift(group);
+    steps.children[0].children.push({
+      id: 502,
+      uuid: "step-note",
+      title: "Until golden.",
+      children: [],
+    });
+    // Moves blocks for real, so the copy's structure can be read back.
+    const blocks = () => {
+      const all: Array<{ uuid: string; children: unknown[] }> = [];
+      const walk = (block: { uuid: string; children: unknown[] }) => {
+        all.push(block);
+        for (const child of block.children) walk(child as typeof block);
+      };
+      for (const page of fake.pagesByTitle.values()) walk(page);
+      return all;
+    };
+    fake.host.editor.moveBlock = async (src, target, options) => {
+      const all = blocks();
+      const parent = all.find((block) =>
+        block.children.some(
+          (child) => (child as { uuid: string }).uuid === src,
+        ),
+      );
+      if (!parent) return undefined;
+      const index = parent.children.findIndex(
+        (child) => (child as { uuid: string }).uuid === src,
+      );
+      const [moved] = parent.children.splice(index, 1);
+      if (options?.children) {
+        all.find((block) => block.uuid === target)?.children.push(moved);
+        return undefined;
+      }
+      const targetParent = all.find((block) =>
+        block.children.some(
+          (child) => (child as { uuid: string }).uuid === target,
+        ),
+      );
+      const at = targetParent?.children.findIndex(
+        (child) => (child as { uuid: string }).uuid === target,
+      );
+      if (targetParent && at !== undefined) {
+        targetParent.children.splice(at + 1, 0, moved);
+      }
+      return undefined;
+    };
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { coverReference: "asset-path" },
+    });
+
+    const duplicated = await repository.duplicateRecipe(fake.root.uuid);
+
+    expect(
+      duplicated.ingredients.map((i) => [i.rawText, i.group?.title ?? null]),
+    ).toEqual([
+      ["200 g flour", "For the dough:"],
+      ["2 eggs", null],
+      ["1 cup flour", null],
+    ]);
+    expect(duplicated.steps[0].children?.map((child) => child.text)).toEqual([
+      "Until golden.",
+    ]);
+  });
+
+  it("keeps the lines under an ingredient and a step note nested as written", async () => {
+    const fake = fakeHost();
+    // Unmeasured, with a note under its note: copied flat, it would read
+    // back as a group heading over two ingredients.
+    fake.ingredient1.title = "Salt to taste";
+    fake.ingredient1.children.push({
+      id: 510,
+      uuid: "salt-note",
+      title: "preferably flaky",
+      children: [
+        { id: 511, uuid: "salt-subnote", title: "or kosher", children: [] },
+      ],
+    });
+    fake.root.children[1].children[0].children.push({
+      id: 512,
+      uuid: "step-note",
+      title: "Until golden.",
+      children: [
+        {
+          id: 513,
+          uuid: "step-subnote",
+          title: "About 12 minutes in a small oven.",
+          children: [],
+        },
+      ],
+    });
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { coverReference: "asset-path" },
+    });
+
+    const duplicated = await repository.duplicateRecipe(fake.root.uuid);
+
+    expect(
+      duplicated.ingredients.map((i) => [i.rawText, i.group, i.details]),
+    ).toEqual([
+      ["Salt to taste", undefined, ["preferably flaky", "or kosher"]],
+      ["1 cup flour", undefined, undefined],
+    ]);
+    const step = (await fake.host.editor.getBlock(
+      duplicated.steps[0].id,
+    )) as FakeBlock;
+    expect(
+      step.children.map((note) => [
+        note.title,
+        note.children.map((line) => line.title),
+      ]),
+    ).toEqual([["Until golden.", ["About 12 minutes in a small oven."]]]);
+  });
+
   it("preserves a manually corrected ingredient's canonical structure instead of reparsing raw text", async () => {
     const fake = fakeHost();
     // The parser alone could never derive this from "a pinch of salt" - it's
@@ -261,7 +388,7 @@ describe("duplicateRecipe", () => {
     );
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     const duplicated = await repository.duplicateRecipe(fake.root.uuid);
@@ -281,7 +408,7 @@ describe("duplicateRecipe", () => {
     fake.addActiveRecipe("COOKIE (copy)");
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     const duplicated = await repository.duplicateRecipe(fake.root.uuid);
@@ -294,7 +421,7 @@ describe("duplicateRecipe", () => {
     fake.addArchivedRecipe("Cookie (copy)");
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     expect((await repository.duplicateRecipe(fake.root.uuid)).title).toBe(
@@ -312,7 +439,7 @@ describe("duplicateRecipe", () => {
     });
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     expect((await repository.duplicateRecipe(fake.root.uuid)).title).toBe(
@@ -320,11 +447,31 @@ describe("duplicateRecipe", () => {
     );
   });
 
+  it("refuses renaming a recipe to another recipe's title, but keeps its own", async () => {
+    const fake = fakeHost();
+    fake.addActiveRecipe("Pasta");
+    fake.addArchivedRecipe("Old Pie");
+    const repository = createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { coverReference: "asset-path" },
+    });
+
+    await expect(
+      repository.validateRename(fake.root.uuid, "pasta"),
+    ).rejects.toMatchObject({ code: "title-taken", detail: "pasta" });
+    await expect(
+      repository.validateRename(fake.root.uuid, "OLD PIE"),
+    ).rejects.toMatchObject({ code: "title-taken" });
+    await expect(
+      repository.validateRename(fake.root.uuid, "cookie"),
+    ).resolves.toBeUndefined();
+  });
+
   it("rejects creating another active recipe with the same title", async () => {
     const fake = fakeHost();
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     await expect(
@@ -342,7 +489,7 @@ describe("duplicateRecipe", () => {
     fake.addArchivedRecipe("Soup");
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     await expect(
@@ -361,7 +508,7 @@ describe("duplicateRecipe", () => {
     };
     const repository = createDraftRecipeRepository(fake.host, {
       settings,
-      schemaCapabilities: { jsonProperty: false, coverReference: "asset-path" },
+      schemaCapabilities: { coverReference: "asset-path" },
     });
 
     await expect(repository.duplicateRecipe(fake.root.uuid)).rejects.toBe(

@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { applyOutlineSplit } from "../../src/logseq/split-outline-writer";
+import {
+  applyOutlineSplit,
+  writeImportedRecipe,
+} from "../../src/logseq/split-outline-writer";
 
 const originalLogseq = globalThis.logseq;
 
@@ -42,7 +45,7 @@ describe("applyOutlineSplit", () => {
       },
     } as unknown as typeof globalThis.logseq;
 
-    await applyOutlineSplit("root-uuid", {
+    const ids = await applyOutlineSplit("root-uuid", {
       text: "Classic Banana Bread",
       children: [
         { text: "Yield: 10 slices", children: [] },
@@ -59,6 +62,15 @@ describe("applyOutlineSplit", () => {
     expect(updates).toEqual([
       { id: "root-uuid", content: "Classic Banana Bread" },
     ]);
+    // Each written block by the preview id outlineToSource(outline,
+    // "root-uuid") gave its line, so the previewed conversion can land.
+    expect(Object.fromEntries(ids)).toEqual({
+      "root-uuid": "root-uuid",
+      "root-uuid.0": "new-1",
+      "root-uuid.1": "new-2",
+      "root-uuid.1.0": "new-3",
+      "root-uuid.1.1": "new-4",
+    });
 
     // Yield is the first child of the root; Ingredients is a sibling
     // chained off Yield (not another child of the root), guaranteeing
@@ -165,5 +177,74 @@ describe("applyOutlineSplit", () => {
     ).rejects.toThrow("insert failed");
     expect(removed).toEqual([]);
     expect(updates).toEqual([]);
+  });
+});
+
+describe("writeImportedRecipe", () => {
+  it("adds the recipe at the end of the library's Recipes section and reports each block's preview id", async () => {
+    const writes: string[] = [];
+    let nextId = 0;
+    globalThis.logseq = {
+      Editor: {
+        getPage: async () => ({ uuid: "library-page" }),
+        getPageBlocksTree: async () => [
+          { uuid: "recipes-section", id: 1, title: "Recipes" },
+          { uuid: "archived-section", id: 2, title: "Archived" },
+        ],
+        getBlockProperty: async (id: string) =>
+          id === "recipes-section" ? "recipes" : "archived",
+        insertBlock: async (
+          anchor: string,
+          content: string,
+          opts?: { sibling?: boolean; end?: boolean },
+        ) => {
+          const where = opts?.sibling
+            ? "after"
+            : opts?.end
+              ? "end of"
+              : "under";
+          writes.push(`${where} ${anchor} > ${content}`);
+          nextId += 1;
+          return { uuid: `new-${nextId}` };
+        },
+        exitEditingMode: async () => {
+          writes.push("exit");
+        },
+      },
+    } as unknown as typeof globalThis.logseq;
+
+    const ids = await writeImportedRecipe(
+      {
+        text: "Pancakes",
+        children: [
+          { text: "Servings: 4", children: [] },
+          {
+            text: "Ingredients",
+            children: [
+              { text: "200 g flour", children: [] },
+              { text: "1 egg", children: [] },
+            ],
+          },
+        ],
+      },
+      "import",
+    );
+
+    // Each written block by the preview id outlineToSource gave its line.
+    expect(Object.fromEntries(ids)).toEqual({
+      import: "new-1",
+      "import.0": "new-2",
+      "import.1": "new-3",
+      "import.1.0": "new-4",
+      "import.1.1": "new-5",
+    });
+    expect(writes).toEqual([
+      "end of recipes-section > Pancakes",
+      "under new-1 > Servings: 4",
+      "after new-2 > Ingredients",
+      "under new-3 > 200 g flour",
+      "after new-4 > 1 egg",
+      "exit",
+    ]);
   });
 });

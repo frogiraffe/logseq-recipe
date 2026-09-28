@@ -12,6 +12,7 @@ import { ListenerBag } from "./logseq/events";
 import { clearRecipeReadCaches } from "./logseq/logseq-recipe-repository";
 import {
   createConversionInitialView,
+  currentUiMessages,
   openDraftRecipeUi,
   startTimerAlarms,
   stopTimerAlarms,
@@ -19,6 +20,8 @@ import {
   unmountDraftRecipeUi,
 } from "./logseq/runtime-ui";
 import { registerSettings } from "./logseq/settings";
+import { errorMessage } from "./ui/error-message";
+import type { DraftRecipeInitialView } from "./ui/state";
 
 const listeners = new ListenerBag();
 let runtimeCapabilitiesPromise: Promise<RuntimeCapabilities> | null = null;
@@ -31,15 +34,12 @@ function runtimeCapabilities(): Promise<RuntimeCapabilities> {
 async function requireSupportedRuntime(): Promise<RuntimeCapabilities | null> {
   const capabilities = await runtimeCapabilities();
   if (!capabilities.dbGraph) {
-    logseq.UI.showMsg(
-      "Logseq Recipe currently targets Logseq DB graphs only.",
-      "warning",
-    );
+    logseq.UI.showMsg((await currentUiMessages()).notDbGraph, "warning");
     return null;
   }
   if (!requiredCapabilitiesSatisfied(capabilities)) {
     logseq.UI.showMsg(
-      "Logseq Recipe: this Logseq build is missing a required stable capability.",
+      (await currentUiMessages()).unsupportedLogseqBuild,
       "warning",
     );
     return null;
@@ -56,28 +56,28 @@ function ownCommand(
   if (typeof unregister === "function") listeners.add(unregister);
 }
 
-async function openRecipes(): Promise<void> {
+async function openView(view: DraftRecipeInitialView): Promise<void> {
   const capabilities = await requireSupportedRuntime();
-  if (!capabilities) return;
-  await openDraftRecipeUi({ kind: "recipes" }, capabilities);
-}
-
-async function openCreateRecipe(): Promise<void> {
-  const capabilities = await requireSupportedRuntime();
-  if (!capabilities) return;
-  await openDraftRecipeUi({ kind: "create" }, capabilities);
+  if (capabilities) await openDraftRecipeUi(view, capabilities);
 }
 
 async function openConvertRecipe(uuid?: string): Promise<void> {
   const capabilities = await requireSupportedRuntime();
   if (!capabilities) return;
 
-  const initialView = await createConversionInitialView(capabilities, uuid);
-  if (!initialView) {
+  let initialView: Awaited<ReturnType<typeof createConversionInitialView>>;
+  try {
+    initialView = await createConversionInitialView(capabilities, uuid);
+  } catch (cause) {
+    const messages = await currentUiMessages();
     logseq.UI.showMsg(
-      "Logseq Recipe: select a recipe root block/page with child sections first.",
-      "warning",
+      `Logseq Recipe: ${errorMessage(cause, messages)}`,
+      "error",
     );
+    return;
+  }
+  if (!initialView) {
+    logseq.UI.showMsg((await currentUiMessages()).nothingToConvert, "warning");
     return;
   }
   await openDraftRecipeUi(initialView, capabilities);
@@ -90,12 +90,17 @@ async function main(): Promise<void> {
   ownCommand(
     "draft-recipe-recipes",
     { title: "Logseq Recipe: Recipes", placement: "palette" },
-    openRecipes,
+    () => openView({ kind: "recipes" }),
   );
   ownCommand(
     "draft-recipe-create",
     { title: "Logseq Recipe: Create Recipe", placement: "palette" },
-    openCreateRecipe,
+    () => openView({ kind: "create" }),
+  );
+  ownCommand(
+    "draft-recipe-import-text",
+    { title: "Logseq Recipe: Import Recipe from Text", placement: "palette" },
+    () => openView({ kind: "import-text" }),
   );
   ownCommand(
     "draft-recipe-convert-current",

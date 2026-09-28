@@ -282,6 +282,115 @@ describe("Logseq recipe repository", () => {
     ]);
   });
 
+  it("rewrites a visible time line in hours without turning minutes into hours", async () => {
+    const host = fakeHost();
+    host.tree.children.push({
+      id: 40,
+      uuid: "cook-line",
+      title: "Pişirme: 1 saat",
+      children: [],
+    });
+
+    await repositoryFor(host).updateRecipeFields("recipe-1", {
+      cookMinutes: 90,
+    });
+
+    expect(host.blockUpdates).toContainEqual({
+      id: "cook-line",
+      content: "Pişirme: 1 saat 30 dk",
+    });
+  });
+
+  it("reads a heading with ingredients nested under it as an ingredient group", async () => {
+    const host = fakeHost();
+    const ingredients = host.tree.children.find(
+      (child) => child.uuid === "ingredients-section",
+    ) as { children: unknown[] };
+    ingredients.children = [
+      {
+        id: 30,
+        uuid: "group-dough",
+        title: "Hamur için",
+        children: [
+          { id: 31, uuid: "flour", title: "200 g un", children: [] },
+          { id: 32, uuid: "egg", title: "1 yumurta", children: [] },
+        ],
+      },
+      { id: 33, uuid: "salt", title: "Tuz", children: [] },
+    ];
+
+    const recipe = await repositoryFor(host).getRecipe("recipe-1");
+    const summary = (await repositoryFor(host).listRecipeSummaries())[0];
+
+    expect(
+      recipe?.ingredients.map((i) => [i.id, i.rawText, i.group?.title ?? null]),
+    ).toEqual([
+      ["flour", "200 g un", "Hamur için"],
+      ["egg", "1 yumurta", "Hamur için"],
+      ["salt", "Tuz", null],
+    ]);
+    expect(recipe?.ingredients[0].group?.id).toBe("group-dough");
+    // Search and filters see the grouped ingredients and group titles too.
+    expect(summary.ingredientTexts).toEqual(["un", "yumurta", "Tuz"]);
+    expect(summary.noteTexts).toContain("Hamur için");
+  });
+
+  it("shows lines written under an ingredient as its details, and searches them", async () => {
+    const host = fakeHost();
+    const ingredients = host.tree.children.find(
+      (child) => child.uuid === "ingredients-section",
+    ) as { children: Array<{ children: unknown[] }> };
+    ingredients.children[0].children = [
+      { id: 50, uuid: "detail", title: "oda sıcaklığında", children: [] },
+    ];
+
+    const recipe = await repositoryFor(host).getRecipe("recipe-1");
+    const summary = (await repositoryFor(host).listRecipeSummaries())[0];
+
+    expect(recipe?.ingredients[0]).toMatchObject({
+      rawText: "120 g tereyağı",
+      details: ["oda sıcaklığında"],
+    });
+    expect(summary.noteTexts).toContain("oda sıcaklığında");
+  });
+
+  it("arranges ingredients: moves a line into its group only when it lives elsewhere", async () => {
+    const host = fakeHost();
+    const parents: Record<string, number> = {
+      salt: 2,
+      "group-dough": 2,
+      flour: 2,
+      egg: 30,
+    };
+    const ids: Record<string, number> = {
+      "ingredients-section": 2,
+      "group-dough": 30,
+    };
+    host.editor.getBlock = async (id: string) =>
+      id === "recipe-1"
+        ? host.tree
+        : ({
+            id: ids[id] ?? 0,
+            uuid: id,
+            parent: { id: parents[id] },
+          } as never);
+
+    await repositoryFor(host).arrangeIngredients("recipe-1", [
+      { id: "salt" },
+      { id: "group-dough", items: ["flour", "egg"] },
+    ]);
+
+    // salt is already under the section and leads it; flour moves into the
+    // group, and egg (already there) just follows it.
+    expect(host.libraryMoves).toEqual([
+      ["flour", "group-dough", { children: true }],
+    ]);
+    expect(host.movedBlocks).toEqual([
+      { srcBlock: "group-dough", targetBlock: "salt", before: false },
+      { srcBlock: "egg", targetBlock: "flour", before: false },
+    ]);
+  });
+
   it("loads readable block text and persists canonical ingredient metadata", async () => {
     const host = fakeHost();
     const repository = repositoryFor(host);
@@ -590,6 +699,57 @@ describe("Logseq recipe repository", () => {
     expect(
       (await repository.listRecipeSummaries()).map((recipe) => recipe.id),
     ).toEqual(["recipe-1"]);
+  });
+
+  describe("moving a recipe into the Recipe Library", () => {
+    function hostOnPage(pageId: number) {
+      const host = fakeHost();
+      host.tree.page = { id: pageId };
+      host.values.set("recipes-section:recipe_library_section", "recipes");
+      host.values.set("archived-section:recipe_library_section", "archived");
+      return host;
+    }
+
+    it("moves a recipe block kept on another page, like a journal", async () => {
+      const host = hostOnPage(12);
+      const repository = repositoryFor(host);
+
+      expect(await repository.canMoveToRecipeLibrary("recipe-1")).toBe(true);
+      await repository.moveToRecipeLibrary("recipe-1");
+
+      expect(host.libraryMoves).toEqual([
+        ["recipe-1", "recipes-section", { children: true }],
+      ]);
+    });
+
+    it("moves an archived one into the Archived section", async () => {
+      const host = hostOnPage(12);
+      host.values.delete("recipe-1:recipe_marker");
+      host.values.set("recipe-1:recipe_archived", true);
+
+      await repositoryFor(host).moveToRecipeLibrary("recipe-1");
+
+      expect(host.libraryMoves).toEqual([
+        ["recipe-1", "archived-section", { children: true }],
+      ]);
+    });
+
+    it("refuses a recipe already in the library, and a page recipe", async () => {
+      const inLibrary = hostOnPage(80);
+      expect(
+        await repositoryFor(inLibrary).canMoveToRecipeLibrary("recipe-1"),
+      ).toBe(false);
+      await expect(
+        repositoryFor(inLibrary).moveToRecipeLibrary("recipe-1"),
+      ).rejects.toThrow("Only a recipe block outside the Recipe Library");
+
+      const page = hostOnPage(12);
+      page.setPageEntity({ id: 1, uuid: "recipe-1", name: "Cookie" });
+      expect(await repositoryFor(page).canMoveToRecipeLibrary("recipe-1")).toBe(
+        false,
+      );
+      expect(inLibrary.libraryMoves).toEqual([]);
+    });
   });
 
   describe("summary cache", () => {

@@ -1,20 +1,32 @@
 import { useEffect, useState } from "react";
+import { foldLabel } from "../../parsing/normalize";
 import type { UiMessages } from "../i18n";
 
 export interface ServingControlProps {
   value: number;
   messages: UiMessages;
   yieldUnit?: string;
+  /** The recipe's own servings; a changed value offers a way back to it. */
+  baseValue?: number;
   onChange(value: number): void;
+}
+
+// "Servings 4 servings" says it twice: a unit that only repeats the label
+// (in either number) is left out.
+function repeatsLabel(unit: string, label: string): boolean {
+  const stem = (word: string) => foldLabel(word).replace(/s$/u, "");
+  return stem(unit) === stem(label);
 }
 
 export function ServingControl({
   value,
   messages,
   yieldUnit,
+  baseValue,
   onChange,
 }: ServingControlProps) {
   const [text, setText] = useState(String(value));
+  const unit = yieldUnit?.trim();
 
   useEffect(() => {
     setText(String(value));
@@ -66,9 +78,25 @@ export function ServingControl({
       >
         +
       </button>
-      {yieldUnit?.trim() && (
-        <span className="draft-recipe-yield-unit">{yieldUnit.trim()}</span>
+      {unit && !repeatsLabel(unit, messages.servings) && (
+        <span className="draft-recipe-yield-unit">{unit}</span>
       )}
+      {baseValue !== undefined &&
+        Number.isFinite(baseValue) &&
+        value !== baseValue && (
+          <button
+            type="button"
+            className="draft-recipe-quiet-button"
+            aria-label={messages.resetServings.replace(
+              "{count}",
+              String(baseValue),
+            )}
+            title={messages.resetServings.replace("{count}", String(baseValue))}
+            onClick={() => onChange(baseValue)}
+          >
+            <span aria-hidden="true">↺ {baseValue}</span>
+          </button>
+        )}
     </div>
   );
 }

@@ -49,9 +49,8 @@ export function foldLabel(value: string): string {
     .trim();
 }
 
-export function normalizeDash(value: string): "-" {
-  void value;
-  return "-";
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 export function parseSlashFraction(raw: string): number | null {

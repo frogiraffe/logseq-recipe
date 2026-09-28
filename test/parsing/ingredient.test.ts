@@ -471,7 +471,7 @@ describe("parseIngredient", () => {
       undefined,
     ],
     ["en", "1 lb 90/10 ground beef", 1, "lb", "90/10 ground beef", undefined],
-    ["tr", "2 paket (200 g) un", 2, undefined, "paket (200 g) un", undefined],
+    ["tr", "2 paket (200 g) un", 2, "package", "un", "200 g"],
     [
       "tr",
       "1 su bardağı un (yaklaşık 120 g)",
@@ -501,7 +501,7 @@ describe("parseIngredient", () => {
 
   it.each([
     ["en", "1/2 cup (1 stick) butter", 0.5, "cup_us", "butter", "1 stick"],
-    ["en", "1 (14 oz) can tomatoes", 1, undefined, "can tomatoes", "14 oz"],
+    ["en", "1 (14 oz) can tomatoes", 1, "can", "tomatoes", "14 oz"],
     ["en", "1 cup (240 ml) of milk", 1, "cup_us", "milk", "240 ml"],
   ] as const)(
     "moves a parenthetical right after the amount into the note: %s %s",
@@ -642,6 +642,45 @@ describe("parseIngredient", () => {
     });
   });
 
+  it.each([
+    ["en", "1 (400 g) can tomatoes", 1, "can", "tomatoes", "400 g"],
+    ["en", "2 (15 oz) cans chickpeas", 2, "can", "chickpeas", "15 oz"],
+    [
+      "en",
+      "1 (8 oz) package cream cheese",
+      1,
+      "package",
+      "cream cheese",
+      "8 oz",
+    ],
+    ["tr", "1 bağ maydanoz", 1, "bunch", "maydanoz", undefined],
+    ["tr", "1 yemek kaşığı dolusu un", 1, "tbsp_metric", "un", "dolusu"],
+  ] as const)(
+    "reads the counted unit and its size: %s %s",
+    (locale, text, value, unit, ingredientText, note) => {
+      const parsed = parseIngredient(text, defaultParseContext(locale));
+      expect(parsed).toMatchObject({
+        amount: { kind: "exact", value },
+        unit,
+        ingredientText,
+      });
+      expect(parsed.note).toBe(note);
+    },
+  );
+
+  it("keeps a bracketed note before an ingredient that has no counted unit", () => {
+    expect(
+      parseIngredient("½ cup (1 stick) butter", defaultParseContext("en")),
+    ).toMatchObject({
+      unit: "cup_us",
+      ingredientText: "butter",
+      note: "1 stick",
+    });
+    expect(
+      parseIngredient("2 (large) eggs", defaultParseContext("en")),
+    ).toMatchObject({ amount: { kind: "exact", value: 2 }, note: "large" });
+  });
+
   it("extracts only an explicit trailing parenthetical note", () => {
     expect(
       parseIngredient(
@@ -751,4 +790,25 @@ describe("parseIngredient", () => {
       });
     });
   });
+
+  it.each([
+    ["en", "2 cans tomatoes", "can", "tomatoes"],
+    ["en", "1 tin chickpeas", "can", "chickpeas"],
+    ["en", "1 stick butter", "stick", "butter"],
+    ["en", "1 bunch parsley", "bunch", "parsley"],
+    ["en", "3 sprigs thyme", "sprig", "thyme"],
+    ["tr", "1 paket vanilin", "package", "vanilin"],
+    ["tr", "1 baş sarımsak", "head", "sarımsak"],
+    ["tr", "2 kavanoz turşu", "jar", "turşu"],
+    ["fr", "1 boîte de tomates", "can", "tomates"],
+    ["de", "1 Dose Tomaten", "can", "Tomaten"],
+    ["es", "1 cabeza de ajo", "head", "ajo"],
+  ] as const)(
+    "reads a container or bunch as a count unit: %s %s",
+    (locale, text, unit, name) => {
+      const parsed = parseIngredient(text, defaultParseContext(locale));
+      expect(parsed.unit).toBe(unit);
+      expect(parsed.ingredientText).toBe(name);
+    },
+  );
 });

@@ -112,12 +112,8 @@ export function watchTimerAlarms(
 // unavailable (tests, locked-down webviews).
 export function playTimerCue(): void {
   try {
-    const AudioCtor =
-      globalThis.AudioContext ??
-      (globalThis as { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
-    if (!AudioCtor) return;
-    const context = new AudioCtor();
+    if (typeof AudioContext === "undefined") return;
+    const context = new AudioContext();
     const start = context.currentTime;
     for (const offset of [0, 0.35, 0.7, 1.4, 1.75, 2.1]) {
       const oscillator = context.createOscillator();

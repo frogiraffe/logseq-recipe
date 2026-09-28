@@ -15,13 +15,49 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { type ReactNode, useRef, useState } from "react";
 import type { UiMessages } from "../i18n";
 
 export interface EditableItem {
   id: string;
   text: string;
+  // A group heading row: the items after it, up to the next heading, are
+  // its members (ingredient groups).
+  heading?: boolean;
+}
+
+/**
+ * Moves the row at `from` to where the row at `to` was. A heading row takes
+ * its whole group along and lands between groups: before the target's group
+ * when moving up, after it when moving down - never above the ungrouped
+ * rows at the top, which would then fall into the moved group.
+ */
+export function moveRow(
+  items: readonly EditableItem[],
+  from: number,
+  to: number,
+): EditableItem[] {
+  if (!items[from]?.heading) return arrayMove([...items], from, to);
+  const blocks: EditableItem[][] = [];
+  for (const item of items) {
+    if (item.heading || blocks.length === 0) blocks.push([item]);
+    else blocks[blocks.length - 1].push(item);
+  }
+  const blockOf = (index: number) => {
+    let seen = 0;
+    return blocks.findIndex((block) => {
+      seen += block.length;
+      return index < seen;
+    });
+  };
+  const source = blockOf(from);
+  const target = blockOf(to);
+  const firstGroup = blocks[0][0].heading ? 0 : 1;
+  const place = Math.max(firstGroup, target);
+  if (place === source) return [...items];
+  const moved = blocks.splice(source, 1)[0];
+  blocks.splice(place, 0, moved);
+  return blocks.flat();
 }
 
 function fill(template: string, text: string, position = 0): string {
@@ -37,10 +73,12 @@ function fill(template: string, text: string, position = 0): string {
 function SortableRow({
   id,
   handleLabel,
+  heading = false,
   children,
 }: {
   id: string;
   handleLabel: string;
+  heading?: boolean;
   children: ReactNode;
 }) {
   const {
@@ -55,12 +93,19 @@ function SortableRow({
   return (
     <li
       ref={setNodeRef}
-      className={
-        isDragging
-          ? "draft-recipe-editor-item draft-recipe-editor-item-dragging"
-          : "draft-recipe-editor-item"
-      }
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={[
+        "draft-recipe-editor-item",
+        heading ? "draft-recipe-editor-heading" : "",
+        isDragging ? "draft-recipe-editor-item-dragging" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{
+        transform: transform
+          ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0) scaleX(${transform.scaleX}) scaleY(${transform.scaleY})`
+          : undefined,
+        transition,
+      }}
     >
       <button
         type="button"
@@ -87,9 +132,12 @@ export function SortableList({
   addLabel,
   messages,
   onChange,
+  renderItemContent,
   renderItemExtra,
   renderItemBelow,
   renderAddExtra,
+  addHeadingLabel,
+  headingLabel = title,
   nested = false,
 }: {
   title: string;
@@ -97,11 +145,18 @@ export function SortableList({
   addLabel: string;
   messages: UiMessages;
   onChange(items: EditableItem[]): void;
+  // Shown instead of the text field when it returns something (a photo or
+  // audio note shows as the file, not as its markup).
+  renderItemContent?(item: EditableItem): ReactNode;
   renderItemExtra?(item: EditableItem): ReactNode;
   // Full-width content on its own line under the row (step notes).
   renderItemBelow?(item: EditableItem): ReactNode;
   // Extra controls beside the add row; receives an adder for new items.
   renderAddExtra?(add: (text: string) => void): ReactNode;
+  // Offers adding the typed text as a group heading row.
+  addHeadingLabel?: string;
+  // Names heading rows for screen readers ("Group 3").
+  headingLabel?: string;
   // A list inside another list's item (step notes).
   nested?: boolean;
 }) {
@@ -126,18 +181,21 @@ export function SortableList({
     const from = items.findIndex((item) => item.id === active.id);
     const to = items.findIndex((item) => item.id === over.id);
     if (from < 0 || to < 0) return;
-    onChange(arrayMove(items, from, to));
+    onChange(moveRow(items, from, to));
   }
 
-  function appendItem(text: string) {
+  function appendItem(text: string, heading = false) {
     counter.current += 1;
-    onChange([...items, { id: `new:${counter.current}`, text }]);
+    onChange([
+      ...items,
+      { id: `new:${counter.current}`, text, ...(heading ? { heading } : {}) },
+    ]);
   }
 
-  function addItem() {
+  function addItem(heading = false) {
     const text = draft.trim();
     if (!text) return;
-    appendItem(text);
+    appendItem(text, heading);
     setDraft("");
   }
 
@@ -200,23 +258,26 @@ export function SortableList({
                 key={item.id}
                 id={item.id}
                 handleLabel={`${messages.dragToReorder}: ${item.text}`}
+                heading={item.heading}
               >
-                {/* A textarea, not an input: an input silently strips the
-                    line breaks of a multi-line step or note on first edit. */}
-                <textarea
-                  aria-label={`${title} ${index + 1}`}
-                  rows={item.text.split("\n").length}
-                  value={item.text}
-                  onChange={(event) =>
-                    onChange(
-                      items.map((candidate) =>
-                        candidate.id === item.id
-                          ? { ...candidate, text: event.currentTarget.value }
-                          : candidate,
-                      ),
-                    )
-                  }
-                />
+                {renderItemContent?.(item) ?? (
+                  // A textarea, not an input: an input silently strips the
+                  // line breaks of a multi-line step or note on first edit.
+                  <textarea
+                    aria-label={`${item.heading ? headingLabel : title} ${index + 1}`}
+                    rows={item.text.split("\n").length}
+                    value={item.text}
+                    onChange={(event) =>
+                      onChange(
+                        items.map((candidate) =>
+                          candidate.id === item.id
+                            ? { ...candidate, text: event.currentTarget.value }
+                            : candidate,
+                        ),
+                      )
+                    }
+                  />
+                )}
                 {renderItemExtra?.(item)}
                 <button
                   type="button"
@@ -254,10 +315,23 @@ export function SortableList({
             }
           }}
         />
-        <button type="button" onClick={addItem} disabled={!draft.trim()}>
+        <button
+          type="button"
+          onClick={() => addItem()}
+          disabled={!draft.trim()}
+        >
           {addLabel}
         </button>
-        {renderAddExtra?.(appendItem)}
+        {addHeadingLabel && (
+          <button
+            type="button"
+            onClick={() => addItem(true)}
+            disabled={!draft.trim()}
+          >
+            {addHeadingLabel}
+          </button>
+        )}
+        {renderAddExtra?.((text) => appendItem(text))}
       </div>
     </section>
   );

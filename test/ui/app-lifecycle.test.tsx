@@ -4,11 +4,12 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RecipeSummary } from "../../src/application/types";
 import type { Recipe } from "../../src/domain/recipe";
-import { DraftRecipeApp } from "../../src/ui/app";
+import { DraftRecipeApp, type DraftRecipeAppProps } from "../../src/ui/app";
 import { enMessages } from "../../src/ui/i18n";
 import type {
   DraftRecipeAppConfig,
@@ -62,7 +63,10 @@ function controllerHarness() {
     createRecipe: async () => recipe("Mix."),
     duplicateRecipe: async () => recipe("Mix."),
     commitConversion: async () => undefined,
-    splitOutlineAndConvert: async () => {
+    commitRebuiltConversion: async () => {
+      throw new Error("not used in this test");
+    },
+    commitImportedRecipe: async () => {
       throw new Error("not used in this test");
     },
     resolveCover: async () => null,
@@ -71,6 +75,8 @@ function controllerHarness() {
     setCoverPath: async () => undefined,
     clearCover: async () => undefined,
     saveRecipeEdit: async () => undefined,
+    canMoveToRecipeLibrary: async () => false,
+    moveToRecipeLibrary: async () => undefined,
     archiveRecipe: async () => undefined,
     restoreRecipe: async () => undefined,
     deleteArchivedRecipe: async () => undefined,
@@ -417,7 +423,11 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
         await screen.findByRole("button", { name: enMessages.save }),
       );
 
-      expect(await screen.findByText("Write failed")).toBeTruthy();
+      expect(
+        await screen.findByText(
+          enMessages.errorUnexpected.replace("{detail}", "Write failed"),
+        ),
+      ).toBeTruthy();
       expect(
         screen.getByRole("button", { name: enMessages.save }),
       ).toBeTruthy();
@@ -487,6 +497,9 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
       expect(await screen.findByText("Copy")).toBeTruthy();
       expect(screen.getByText("Copied.")).toBeTruthy();
       expect(screen.queryByText("Saved.")).toBeNull();
+      expect(screen.getByRole("status").textContent).toBe(
+        enMessages.duplicatedNotice,
+      );
     },
   );
 
@@ -625,7 +638,6 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     const harness = controllerHarness();
     const closeSpy = vi.fn();
     harness.controller.close = closeSpy;
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
     render(
       <DraftRecipeApp
@@ -651,18 +663,26 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     // Close button, which has no direct view into the form's state.
     fireEvent.click(screen.getByRole("button", { name: enMessages.close }));
 
-    expect(confirmSpy).toHaveBeenCalledWith(enMessages.discardChangesConfirm);
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.textContent).toContain(enMessages.discardChangesConfirm);
+    // The safe choice has focus.
+    expect(document.activeElement?.textContent).toBe(enMessages.keepEditing);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: enMessages.keepEditing }),
+    );
     expect(closeSpy).not.toHaveBeenCalled();
     // Declining the confirmation must leave the edit in place, not discard it.
     expect(
       (screen.getByLabelText(enMessages.title) as HTMLInputElement).value,
     ).toBe("Changed title");
 
-    confirmSpy.mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: enMessages.close }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: enMessages.discardChanges,
+      }),
+    );
     expect(closeSpy).toHaveBeenCalledTimes(1);
-
-    confirmSpy.mockRestore();
   });
 
   it("closes immediately with no confirmation when the open form has no unsaved changes", async () => {
@@ -799,5 +819,97 @@ describe("DraftRecipeApp recipe refresh lifecycle", () => {
     });
 
     expect(screen.getByLabelText(enMessages.category)).toBeTruthy();
+  });
+});
+
+describe("DraftRecipeApp Escape", () => {
+  function renderAt(
+    initialView: DraftRecipeAppProps["config"]["initialView"],
+    close = vi.fn(),
+  ) {
+    const harness = controllerHarness();
+    harness.controller.close = close;
+    render(
+      <DraftRecipeApp
+        controller={harness.controller}
+        messages={enMessages}
+        config={{
+          initialView,
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+    return close;
+  }
+  const pressEscape = () => fireEvent.keyDown(document.body, { key: "Escape" });
+
+  it("goes back from a recipe to the list, and closes from the list", async () => {
+    const close = renderAt({ kind: "recipe", recipeId: "recipe-1" });
+    await screen.findByText("Lifecycle Recipe");
+
+    pressEscape();
+    expect(
+      await screen.findByRole("heading", { name: enMessages.recipes }),
+    ).toBeTruthy();
+    expect(close).not.toHaveBeenCalled();
+
+    pressEscape();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before leaving an edited form, and a second Escape only closes the question", async () => {
+    renderAt({ kind: "recipe", recipeId: "recipe-1" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "Changed title" },
+    });
+
+    pressEscape();
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(
+      (screen.getByLabelText(enMessages.title) as HTMLInputElement).value,
+    ).toBe("Changed title");
+
+    pressEscape();
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: enMessages.discardChanges,
+      }),
+    );
+    expect(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    ).toBeTruthy();
+  });
+
+  it("clears a search before closing the plugin", async () => {
+    const close = renderAt({ kind: "recipes" });
+    const search = (await screen.findByLabelText(
+      enMessages.searchRecipes,
+    )) as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "cake" } });
+
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(search.value).toBe("");
+    expect(close).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an open menu without leaving the recipe", async () => {
+    renderAt({ kind: "recipe", recipeId: "recipe-1" });
+    await screen.findByText("Lifecycle Recipe");
+    const menu = document.querySelector("details.draft-recipe-menu");
+    (menu as HTMLDetailsElement).open = true;
+
+    pressEscape();
+    expect((menu as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByText("Lifecycle Recipe")).toBeTruthy();
   });
 });
