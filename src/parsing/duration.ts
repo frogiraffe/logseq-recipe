@@ -5,8 +5,8 @@ import type { TimeUnit } from "../domain/unit";
 import { convertUnit } from "../units/convert";
 import type { ParseContext } from "./context";
 import { andAHalfAt, isAndWord, lexRecipeText, parseAmountAtom } from "./lexer";
-import { getLocalePack } from "./locales";
-import { escapeRegExp } from "./normalize";
+import { getLocalePack, type RecipeLocalePack } from "./locales";
+import { escapeRegExp, normalizeLookup } from "./normalize";
 import { findPhraseSpans } from "./phrases";
 import type { Token } from "./token";
 
@@ -181,16 +181,57 @@ function rangeUpperAt(
   };
 }
 
+function postposition(
+  modifier: Token,
+  pack: RecipeLocalePack,
+): string | undefined {
+  const word = normalizeLookup(modifier.raw, pack.code);
+  return Object.hasOwn(pack.postpositionalModifiers, word)
+    ? pack.postpositionalModifiers[word]
+    : undefined;
+}
+
+// A time word in the dative: another form of the same unit with the ending
+// glued on ("dakika" + "ya"), or the ending after an apostrophe ("dk'ya").
+function isDative(word: Token, pack: RecipeLocalePack): boolean {
+  if (word.kind !== "unit") return false;
+  const [stem, ending] = normalizeLookup(word.raw, pack.code).split(/['’]/u);
+  return pack.dativeEndings.some((dative) =>
+    ending === undefined
+      ? stem.endsWith(dative) &&
+        pack.unitAliases[stem.slice(0, -dative.length)] === word.normalized
+      : ending === dative,
+  );
+}
+
+// What a modifier after a time means: a postposition has its own meaning
+// after the time word as is ("10 dakika kadar", about ten minutes) and its
+// modifier one after the dative ("10 dakikaya kadar", up to ten).
+function suffixModifierMeaning(
+  modifier: Token,
+  timeWord: Token,
+  pack: RecipeLocalePack,
+): string {
+  const bare = postposition(modifier, pack);
+  return bare === undefined || isDative(timeWord, pack)
+    ? String(modifier.normalized)
+    : bare;
+}
+
 function parseDurationAt(
   text: string,
   tokens: readonly Token[],
   startIndex: number,
   locale: RecipeLocale,
 ): DurationCandidate | null {
+  const pack = getLocalePack(locale);
   let index = startIndex;
   let prefixModifier: string | undefined;
 
   if (tokens[index]?.kind === "modifier") {
+    // "köpük kıvamına gelene kadar 5 dakika": the postposition closes the
+    // clause before it; the time starts at its number.
+    if (postposition(tokens[index], pack) !== undefined) return null;
     prefixModifier = String(tokens[index].normalized);
     index += 1;
   }
@@ -243,7 +284,7 @@ function parseDurationAt(
   const suffixModifier = tokens[nextIndex];
   if (suffixModifier?.kind === "modifier" && quantity.kind === "exact") {
     quantity = modifiedQuantity(
-      String(suffixModifier.normalized),
+      suffixModifierMeaning(suffixModifier, tokens[nextIndex - 1], pack),
       quantity.value,
     );
     endOffset = suffixModifier.endOffset;

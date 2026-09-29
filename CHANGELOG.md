@@ -2,6 +2,23 @@
 
 Only user-visible changes are listed here.
 
+## 1.4.1 — 2026-09-29
+
+### Fixes
+
+- Turkish times with "kadar" are read as written: "10 dakika kadar" is
+  about 10 minutes, "10 dakikaya kadar" stays up to 10 minutes, and the
+  "kadar" ending a condition ("köpük kıvamına gelene kadar 5 dakika") no
+  longer turns the time after it into a maximum.
+- When a recipe's headings fit both English and French ("Ingredients",
+  "Préparation", "Notes"), Convert and Import pick the language from
+  measuring words only one language uses ("c. à soupe", "EL", "yemek
+  kaşığı"). Container words such as "pot" or "sachet" never decide it;
+  without such words the choice is the same as before.
+- Built-in ingredient conversions also apply when the ingredient ends with
+  a preparation such as "flour, sifted" or "butter, softened". The
+  ingredient text saved in the recipe is unchanged.
+
 ## 1.4.0 — 2026-09-29
 
 ### Import and Convert

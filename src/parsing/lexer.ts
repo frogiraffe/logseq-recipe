@@ -25,7 +25,7 @@ interface AliasCandidate {
   parts: string[];
   kind: Extract<
     TokenKind,
-    "unit" | "quantity_word" | "modifier" | "sequence" | "heat" | "range"
+    "unit" | "quantity_word" | "modifier" | "heat" | "range"
   >;
   normalized: string | number;
 }
@@ -550,9 +550,6 @@ function buildAliasCandidates(pack: RecipeLocalePack): AliasCandidate[] {
   }
   for (const [alias, value] of Object.entries(pack.temporalModifiers)) {
     add("modifier", alias, value);
-  }
-  for (const [alias, value] of Object.entries(pack.sequenceConnectors)) {
-    add("sequence", alias, value);
   }
   for (const alias of Object.keys(pack.heatAliases)) {
     add("heat", alias, normalizeLookup(alias, pack.code));

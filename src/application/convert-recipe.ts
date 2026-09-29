@@ -2,6 +2,7 @@ import type { RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
 import { defaultParseContext, type ParseContext } from "../parsing/context";
 import {
+  exclusiveUnitLocales,
   ingredientParseContext,
   stepParseContext,
 } from "../parsing/detect-locale";
@@ -718,13 +719,19 @@ export function isSectionHeadingInAnyLocale(text: string): boolean {
   return RECIPE_LOCALES.some((locale) => sectionRoleIn(heading, locale));
 }
 
+function linesBelow(node: ConversionSourceNode): string[] {
+  return node.children.flatMap((child) => [child.title, ...linesBelow(child)]);
+}
+
 /**
  * The recipe's language, from exact alias hits only: each top-level line
  * that is a section heading ("Malzemeler") or a metadata label ("Porsiyon:
  * 8") in a language scores a point for it. Lines are read in any language
  * regardless; this picks what the recipe is stored as and its default
- * measurement system. Null when nothing matches, or when a tie (en/fr share
- * "Ingredients", "Notes", ...) doesn't include `preferred`.
+ * measurement system. A tie (en/fr share "Ingredients", "Préparation",
+ * "Notes", ...) goes to the one tied language whose own unit words ("2 c. à
+ * soupe") the recipe uses, when no other language's appear; else to
+ * `preferred` if tied, else null. Null too when nothing matches.
  */
 export function detectRecipeLocale(
   root: ConversionSourceNode,
@@ -745,6 +752,9 @@ export function detectRecipeLocale(
   if (best === 0) return null;
   const winners = RECIPE_LOCALES.filter((_, index) => scores[index] === best);
   if (winners.length === 1) return winners[0];
+  const units = new Set(linesBelow(root).flatMap(exclusiveUnitLocales));
+  const [only] = units;
+  if (units.size === 1 && winners.includes(only)) return only;
   return winners.includes(preferred) ? preferred : null;
 }
 

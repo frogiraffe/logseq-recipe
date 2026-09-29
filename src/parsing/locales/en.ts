@@ -152,6 +152,8 @@ export const enLocale: RecipeLocalePack = {
     approx: "approximate",
     "approx.": "approximate",
   },
+  postpositionalModifiers: {},
+  dativeEndings: [],
   heatAliases: {
     "low heat": { level: "low" },
     "medium-low heat": { level: "medium_low" },
@@ -162,12 +164,6 @@ export const enLocale: RecipeLocalePack = {
     "very hot pan": { surface: "pan", surfaceState: "very_hot" },
     "medium low heat": { level: "medium_low" },
     "medium high heat": { level: "medium_high" },
-  },
-  sequenceConnectors: {
-    // biome-ignore lint/suspicious/noThenProperty: This is literal parser vocabulary, not a thenable API.
-    then: "then",
-    afterwards: "afterwards",
-    afterward: "afterwards",
   },
   relationConnectors: {
     or: "or",

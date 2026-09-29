@@ -11,8 +11,7 @@ export interface DurationAnnotation extends SourceSpan {
   kind: "duration";
   value: Quantity;
   unit?: TimeUnit;
-  qualifier?: "per-side" | "interval";
-  relation?: "and" | "or" | "then";
+  relation?: "and" | "or";
   conditionText?: string;
   // Inside an instruction not to do something ("don't bake past 15 min"):
   // shown as written, but never offered as a timer.

@@ -10,7 +10,6 @@ export type TokenKind =
   | "rparen"
   | "comma"
   | "modifier"
-  | "sequence"
   | "heat"
   | "symbol";
 

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { defaultParseContext } from "../../src/parsing/context";
+import { parseIngredient } from "../../src/parsing/ingredient";
 import { convertIngredientMassVolume } from "../../src/units/convert";
 import {
   BUILTIN_INGREDIENT_RULES,
@@ -245,5 +247,93 @@ describe("ingredient conversion registry", () => {
         "butter",
       );
     }
+  });
+
+  describe("a comma tail that only says how the ingredient is prepared", () => {
+    const gramsPerUsCup = (ingredientText: string) =>
+      convertIngredientMassVolume(
+        1,
+        "cup_us",
+        "g",
+        ingredientText,
+        builtInIngredientConversionProvider,
+      );
+
+    it.each([
+      ["flour, sifted", "flour"],
+      ["butter, softened", "butter"],
+      ["butter, melted", "butter"],
+      ["butter, at room temperature", "butter"],
+      ["butter, softened, divided", "butter"],
+      ["sugar, divided", "sugar"],
+      ["bread flour, sifted", "bread flour"],
+      ["un, elenmiş", "un"],
+      ["tereyağı, oda sıcaklığında", "tereyağı"],
+      ["farine, tamisée", "farine"],
+      ["beurre, ramolli", "beurre"],
+      ["Mehl, gesiebt", "Mehl"],
+      ["Butter, zimmerwarm", "Butter"],
+      ["harina, tamizada", "harina"],
+      ["mantequilla, derretida", "mantequilla"],
+    ])("converts %s like %s", (prepared, plain) => {
+      const rule = builtInIngredientConversionProvider.find(plain);
+      expect(rule).not.toBeNull();
+      expect(builtInIngredientConversionProvider.find(prepared)?.key).toBe(
+        rule?.key,
+      );
+      expect(gramsPerUsCup(prepared)).not.toBeNull();
+      expect(gramsPerUsCup(prepared)).toBeCloseTo(gramsPerUsCup(plain) ?? 0);
+    });
+
+    it.each([
+      // The tail names a different ingredient, not a preparation.
+      "sugar, powdered",
+      "milk, condensed",
+      "flour, almond",
+      "butter, peanut",
+      // Two ingredients, or a preparation mixed with something else.
+      "salt, pepper",
+      "flour, sifted bread",
+      "butter, softened or melted",
+    ])("does not convert %s", (ingredientText) => {
+      expect(
+        builtInIngredientConversionProvider.find(ingredientText),
+      ).toBeNull();
+      expect(gramsPerUsCup(ingredientText)).toBeNull();
+    });
+
+    it("gives a recipe override for the plain name to its prepared form", () => {
+      const provider = createIngredientConversionProvider([
+        {
+          ingredientKey: "butter",
+          massUnit: "g",
+          volumeUnit: "cup_us",
+          gramsPerVolumeUnit: 230,
+        },
+      ]);
+      expect(provider.find("butter, softened")?.sourceNote).toContain(
+        "Recipe override",
+      );
+    });
+
+    it("leaves the parsed ingredient text as written", () => {
+      const text = "2 cups flour, sifted";
+      const parsed = parseIngredient(text, defaultParseContext("en"));
+      expect(parsed).toMatchObject({
+        rawText: text,
+        ingredientText: "flour, sifted",
+        unit: "cup_us",
+      });
+      expect(
+        convertIngredientMassVolume(
+          2,
+          "cup_us",
+          "g",
+          parsed.ingredientText,
+          builtInIngredientConversionProvider,
+        ),
+      ).toBeCloseTo(240);
+      expect(parsed.ingredientText).toBe("flour, sifted");
+    });
   });
 });

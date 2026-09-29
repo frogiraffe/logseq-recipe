@@ -137,6 +137,93 @@ describe("duration annotations", () => {
   });
 });
 
+// "kadar" follows the time it modifies: after the dative it is "up to",
+// after the bare word "about", and before a number it ends the clause
+// before it.
+describe("Turkish kadar", () => {
+  it.each([
+    ["10 dakikaya kadar pişir", "10 dakikaya kadar", "maximum", 10, "minute"],
+    ["1 saate kadar mayalandır", "1 saate kadar", "maximum", 1, "hour"],
+    ["2 güne kadar sakla", "2 güne kadar", "maximum", 2, "day"],
+    ["10 dk'ya kadar pişir", "10 dk'ya kadar", "maximum", 10, "minute"],
+    [
+      "10 dakika kadar dinlendir",
+      "10 dakika kadar",
+      "approximate",
+      10,
+      "minute",
+    ],
+    ["10 dk kadar pişir", "10 dk kadar", "approximate", 10, "minute"],
+    ["30 saniye kadar çırp", "30 saniye kadar", "approximate", 30, "second"],
+    [
+      "Yarım saat kadar bekletin",
+      "Yarım saat kadar",
+      "approximate",
+      0.5,
+      "hour",
+    ],
+    ["2 gün kadar sakla", "2 gün kadar", "approximate", 2, "day"],
+  ] as const)("reads %s", (text, rawText, kind, value, unit) => {
+    const { durations } = parseStep(text, defaultParseContext("tr"));
+    expect(durations).toHaveLength(1);
+    expect(durations[0]).toMatchObject({
+      value: { kind, value },
+      unit,
+      rawText,
+    });
+    expect(text.slice(durations[0].startOffset, durations[0].endOffset)).toBe(
+      rawText,
+    );
+  });
+
+  it.each([
+    [
+      "Yumurta ve şekeri köpük kıvamına gelene kadar 5 dakika çırpın.",
+      "5 dakika",
+      { kind: "exact", value: 5 },
+    ],
+    [
+      "Köpük kıvamına gelene kadar, yaklaşık 5 dakika çırpın.",
+      "yaklaşık 5 dakika",
+      { kind: "approximate", value: 5 },
+    ],
+    [
+      "Köpürene kadar 5-6 dakika çırpın.",
+      "5-6 dakika",
+      { kind: "range", min: 5, max: 6 },
+    ],
+  ])(
+    "leaves a time after a clause's kadar alone: %s",
+    (text, rawText, value) => {
+      const { durations } = parseStep(text, defaultParseContext("tr"));
+      expect(durations).toHaveLength(1);
+      expect(durations[0]).toMatchObject({ value, rawText });
+      expect(durations[0].startOffset).toBe(text.indexOf(rawText));
+    },
+  );
+
+  it("finds no time in a condition alone", () => {
+    expect(
+      parseStep("Kızarana kadar pişirin.", defaultParseContext("tr")).durations,
+    ).toEqual([]);
+  });
+
+  it.each([
+    ["en", "Bake up to 10 minutes.", "maximum"],
+    ["en", "Bake about 10 minutes.", "approximate"],
+    ["fr", "Cuire jusqu'à 10 minutes.", "maximum"],
+    ["de", "Bis zu 10 Minuten backen.", "maximum"],
+    ["es", "Hornear hasta 10 minutos.", "maximum"],
+  ] as const)(
+    "keeps %s modifiers before the time: %s",
+    (locale, text, kind) => {
+      const { durations } = parseStep(text, defaultParseContext(locale));
+      expect(durations).toHaveLength(1);
+      expect(durations[0].value).toEqual({ kind, value: 10 });
+    },
+  );
+});
+
 describe("temperature annotations", () => {
   it.each([
     ["en", "Preheat the oven to 350°F (175°C).", 350, "fahrenheit"],

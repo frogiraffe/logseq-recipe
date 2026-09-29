@@ -50,7 +50,6 @@ export const trMessages: UiMessages = {
   remove: "Kaldır",
   relationAnd: "ve",
   relationOr: "veya",
-  relationThen: "sonra",
   fanOven: "Fanlı",
   conventionalOven: "Fansız",
   preheated: "Önceden ısıtılmış",

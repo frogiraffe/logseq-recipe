@@ -288,29 +288,94 @@ function matchesAlias(text: string, alias: string): boolean {
   );
 }
 
+// "flour, sifted", "Butter, zimmerwarm": a comma tail that only says how the
+// ingredient was prepared doesn't change which ingredient it is. It is set
+// aside only when every comma-separated part of it is one of these, so
+// "sugar, powdered" and "milk, condensed" are never read as sugar and milk.
+// Only preparations of the ingredients above are listed.
+const PREPARATION_PHRASES = new Set(
+  [
+    "sifted",
+    "softened",
+    "melted",
+    "divided",
+    "chopped",
+    "diced",
+    "cubed",
+    "room temperature",
+    "at room temperature",
+    "elenmiş",
+    "yumuşamış",
+    "yumuşatılmış",
+    "eritilmiş",
+    "doğranmış",
+    "küp doğranmış",
+    "oda sıcaklığında",
+    "tamisé",
+    "tamisée",
+    "ramolli",
+    "fondu",
+    "en dés",
+    "coupé en dés",
+    "à température ambiante",
+    "gesiebt",
+    "weich",
+    "zerlassen",
+    "geschmolzen",
+    "gewürfelt",
+    "zimmerwarm",
+    "tamizado",
+    "tamizada",
+    "derretida",
+    "ablandada",
+    "en cubos",
+    "a temperatura ambiente",
+  ].map(normalizeIngredientText),
+);
+
+// The name before the first comma when all that follows is preparation
+// ("flour, sifted" -> "flour"), else null.
+function withoutPreparation(ingredientText: string): string | null {
+  const [name, ...tail] = ingredientText.split(",");
+  return tail.length > 0 &&
+    tail.every((part) => PREPARATION_PHRASES.has(normalizeIngredientText(part)))
+    ? normalizeIngredientText(name)
+    : null;
+}
+
 // Exact phrase -> longest/most-specific matching alias -> no conversion.
 // Scanning every alias (rather than stopping at the first rule) means a
 // specific multi-word rule always wins over a shorter generic one
 // regardless of which order the rules happen to be declared in.
+function bestRule(
+  rules: readonly IngredientMassVolumeRule[],
+  normalized: string,
+): IngredientMassVolumeRule | null {
+  let best: IngredientMassVolumeRule | null = null;
+  let bestAliasLength = -1;
+  for (const rule of rules) {
+    for (const alias of rule.aliases) {
+      if (!matchesAlias(normalized, alias)) continue;
+      const aliasLength = normalizeIngredientText(alias).length;
+      if (aliasLength > bestAliasLength) {
+        best = rule;
+        bestAliasLength = aliasLength;
+      }
+    }
+  }
+  return best;
+}
+
 function providerFromRules(
   rules: readonly IngredientMassVolumeRule[],
 ): IngredientConversionProvider {
   return {
     find(ingredientText) {
-      const normalized = normalizeIngredientText(ingredientText);
-      let best: IngredientMassVolumeRule | null = null;
-      let bestAliasLength = -1;
-      for (const rule of rules) {
-        for (const alias of rule.aliases) {
-          if (!matchesAlias(normalized, alias)) continue;
-          const aliasLength = normalizeIngredientText(alias).length;
-          if (aliasLength > bestAliasLength) {
-            best = rule;
-            bestAliasLength = aliasLength;
-          }
-        }
-      }
-      return best;
+      const name = withoutPreparation(ingredientText);
+      return (
+        bestRule(rules, normalizeIngredientText(ingredientText)) ??
+        (name === null ? null : bestRule(rules, name))
+      );
     },
   };
 }

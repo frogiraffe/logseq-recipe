@@ -141,6 +141,8 @@ export const esLocale: RecipeLocalePack = {
     unos: "approximate",
     unas: "approximate",
   },
+  postpositionalModifiers: {},
+  dativeEndings: [],
   heatAliases: {
     "fuego bajo": { level: "low" },
     "fuego medio-bajo": { level: "medium_low" },
@@ -155,10 +157,6 @@ export const esLocale: RecipeLocalePack = {
     "fuego medio alto": { level: "medium_high" },
     "fuego fuerte": { level: "high" },
     "fuego vivo": { level: "high" },
-  },
-  sequenceConnectors: {
-    luego: "then",
-    después: "afterwards",
   },
   relationConnectors: {
     o: "or",

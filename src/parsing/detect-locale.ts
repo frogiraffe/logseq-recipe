@@ -1,7 +1,11 @@
-import type { MeasurementSystem } from "../domain/unit";
+import type { RecipeLocale } from "../domain/recipe";
+import type { CanonicalUnit, MeasurementSystem } from "../domain/unit";
+import { COUNT_UNITS } from "../units/definitions";
 import { defaultParseContext, type ParseContext } from "./context";
 import { parseIngredient } from "./ingredient";
-import { RECIPE_LOCALES } from "./locales";
+import { lexRecipeText } from "./lexer";
+import { getLocalePack, RECIPE_LOCALES } from "./locales";
+import { normalizeLookup } from "./normalize";
 import { parseStep } from "./step";
 
 /**
@@ -62,4 +66,44 @@ export function ingredientParseContext(
   return bestContext(primary, sourceOverride, (context) =>
     parseIngredient(text, context).unit ? 1 : 0,
   );
+}
+
+const UNIT_WORDS = new Map(
+  RECIPE_LOCALES.map((locale) => [
+    locale,
+    new Set(
+      Object.keys(getLocalePack(locale).unitAliases).map((alias) =>
+        normalizeLookup(alias, locale),
+      ),
+    ),
+  ]),
+);
+
+// A unit word `locale` has and no other language does.
+function isExclusiveUnit(word: string, locale: RecipeLocale): boolean {
+  return RECIPE_LOCALES.every(
+    (other) => UNIT_WORDS.get(other)?.has(word) === (other === locale),
+  );
+}
+
+/**
+ * The languages whose own unit words `text` uses right after an amount:
+ * words no other language has ("2 c. à soupe", "2 EL", "2 yemek kaşığı").
+ * Shared ones ("g", "ml", "min", "°C", "tasse") never count, nor do counted
+ * units: a word only one pack lists as a container can still be plain text
+ * in another language ("2 pots of cream", "1 sachet dried yeast").
+ */
+export function exclusiveUnitLocales(text: string): RecipeLocale[] {
+  return RECIPE_LOCALES.filter((locale) => {
+    const tokens = lexRecipeText(text, locale);
+    return tokens.some(
+      (token, index) =>
+        token.kind === "unit" &&
+        !COUNT_UNITS.has(token.normalized as CanonicalUnit) &&
+        ["number", "fraction", "quantity_word"].includes(
+          tokens[index - 1]?.kind ?? "",
+        ) &&
+        isExclusiveUnit(normalizeLookup(token.raw, locale), locale),
+    );
+  });
 }

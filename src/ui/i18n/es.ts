@@ -50,7 +50,6 @@ export const esMessages: UiMessages = {
   remove: "Quitar",
   relationAnd: "y",
   relationOr: "o",
-  relationThen: "luego",
   fanOven: "Con ventilador",
   conventionalOven: "Convencional",
   preheated: "Precalentado",

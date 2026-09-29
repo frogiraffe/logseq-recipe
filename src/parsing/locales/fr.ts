@@ -141,6 +141,8 @@ export const frLocale: RecipeLocalePack = {
     "jusqu'à": "maximum",
     "à peu près": "approximate",
   },
+  postpositionalModifiers: {},
+  dativeEndings: [],
   heatAliases: {
     "feu doux": { level: "low" },
     "feu moyen-doux": { level: "medium_low" },
@@ -152,10 +154,6 @@ export const frLocale: RecipeLocalePack = {
     "feu moyen doux": { level: "medium_low" },
     "feu moyen vif": { level: "medium_high" },
     "feu fort": { level: "high" },
-  },
-  sequenceConnectors: {
-    puis: "then",
-    ensuite: "afterwards",
   },
   relationConnectors: {
     ou: "or",

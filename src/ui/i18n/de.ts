@@ -50,7 +50,6 @@ export const deMessages: UiMessages = {
   remove: "Entfernen",
   relationAnd: "und",
   relationOr: "oder",
-  relationThen: "dann",
   fanOven: "Umluft",
   conventionalOven: "Ober-/Unterhitze",
   preheated: "Vorgeheizt",

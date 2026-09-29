@@ -168,6 +168,12 @@ export const CORPUS: Record<RecipeLocale, LocaleCorpus> = {
       ["10 ila 15 dakika pişirin.", "D: 10-15 minute"],
       ["Kekin altı kızarınca 5 dakika daha pişirin.", "D: 5 minute"],
       ["İyice karıştırıp 10 dakika bekletin.", "D: 10 minute"],
+      [
+        "Yumurta ve şekeri köpük kıvamına gelene kadar 5 dakika çırpın.",
+        "D: 5 minute",
+      ],
+      ["Hamuru 1 saat kadar mayalandırın.", "D: ~1 hour"],
+      ["Fırında 30 dakikaya kadar pişirin.", "D: <=30 minute"],
     ],
     metadata: [
       ["Porsiyon: 4 kişilik", "yield 4 kişilik"],

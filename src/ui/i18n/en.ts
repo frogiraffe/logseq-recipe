@@ -50,7 +50,6 @@ export const enMessages: UiMessages = {
   remove: "Remove",
   relationAnd: "and",
   relationOr: "or",
-  relationThen: "then",
   fanOven: "Fan",
   conventionalOven: "Conventional",
   preheated: "Preheated",

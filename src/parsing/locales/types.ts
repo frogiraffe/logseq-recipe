@@ -39,7 +39,6 @@ export type UnitLexeme =
   | "fahrenheit";
 
 export type TemporalModifier = "approximate" | "minimum" | "maximum";
-export type SequenceConnector = "then" | "afterwards";
 export type RelationConnector = "and" | "or";
 export type OvenMode = "fan" | "conventional";
 export type RecipeMetadataField =
@@ -84,8 +83,22 @@ export interface RecipeLocalePack {
   /** A word adding ½ to the amount before it ("bir buçuk" = 1½). */
   halfSuffixes: readonly string[];
   temporalModifiers: Readonly<Record<string, TemporalModifier>>;
+  /**
+   * Modifiers that follow the time they modify and never precede one, each
+   * with what it means after the time word as is. Turkish "kadar" is "about"
+   * after "10 dakika" but keeps its `temporalModifiers` meaning, "up to",
+   * after a time word in the dative ("10 dakikaya", "10 dk'ya"). Before a
+   * number it ends the clause before: "köpük kıvamına gelene kadar 5 dakika"
+   * is not at most 5 minutes.
+   */
+  postpositionalModifiers: Readonly<Record<string, TemporalModifier>>;
+  /**
+   * Case endings that put a time word in the dative, either glued to
+   * another form of the same unit ("dakika" + "ya") or after an apostrophe
+   * ("dk'ya").
+   */
+  dativeEndings: readonly string[];
   heatAliases: Readonly<Record<string, HeatAliasValue>>;
-  sequenceConnectors: Readonly<Record<string, SequenceConnector>>;
   relationConnectors: Readonly<Record<string, RelationConnector>>;
   inexactDurations: Readonly<Record<string, string>>;
   ovenModeAliases: Readonly<Record<string, OvenMode>>;

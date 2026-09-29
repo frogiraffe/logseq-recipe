@@ -133,6 +133,8 @@ export const deLocale: RecipeLocalePack = {
     circa: "approximate",
     "ca.": "approximate",
   },
+  postpositionalModifiers: {},
+  dativeEndings: [],
   heatAliases: {
     "niedrige hitze": { level: "low" },
     "mittlere hitze": { level: "medium" },
@@ -150,10 +152,6 @@ export const deLocale: RecipeLocalePack = {
     "hoher hitze": { level: "high" },
     "starke hitze": { level: "high" },
     "starker hitze": { level: "high" },
-  },
-  sequenceConnectors: {
-    dann: "then",
-    anschließend: "afterwards",
   },
   relationConnectors: {
     oder: "or",

@@ -126,6 +126,8 @@ export const trLocale: RecipeLocalePack = {
     ortalama: "approximate",
     "aşağı yukarı": "approximate",
   },
+  postpositionalModifiers: { kadar: "approximate" },
+  dativeEndings: ["a", "e", "ya", "ye"],
   heatAliases: {
     // Both the bare form ("kısık ateş") and the natural locative-case form
     // ("kısık ateşte" = "on/at low heat") are common in real recipes. Word-
@@ -145,10 +147,6 @@ export const trLocale: RecipeLocalePack = {
     "çok sıcak tava": { surface: "pan", surfaceState: "very_hot" },
     "harlı ateş": { level: "high" },
     "harlı ateşte": { level: "high" },
-  },
-  sequenceConnectors: {
-    sonra: "then",
-    ardından: "afterwards",
   },
   relationConnectors: {
     veya: "or",

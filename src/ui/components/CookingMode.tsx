@@ -56,7 +56,6 @@ function relationLabel(
 ): string {
   if (relation === "and") return messages.relationAnd;
   if (relation === "or") return messages.relationOr;
-  if (relation === "then") return messages.relationThen;
   return "";
 }
 

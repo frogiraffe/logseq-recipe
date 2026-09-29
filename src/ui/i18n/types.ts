@@ -52,7 +52,6 @@ export interface UiMessages {
   remove: string;
   relationAnd: string;
   relationOr: string;
-  relationThen: string;
   fanOven: string;
   conventionalOven: string;
   preheated: string;

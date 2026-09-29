@@ -50,7 +50,6 @@ export const frMessages: UiMessages = {
   remove: "Supprimer",
   relationAnd: "et",
   relationOr: "ou",
-  relationThen: "puis",
   fanOven: "Chaleur tournante",
   conventionalOven: "Convection naturelle",
   preheated: "Préchauffé",
