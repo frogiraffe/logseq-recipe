@@ -8,6 +8,7 @@ import type {
   ArchivedRecipeSummary,
   NewRecipeInput,
   RecipeSummary,
+  TaxonomyExportPlan,
 } from "../application/types";
 import type { Recipe, RecipeLocale, RecipeMeta } from "../domain/recipe";
 import type { MeasurementSystem } from "../domain/unit";
@@ -65,6 +66,10 @@ export interface DraftRecipeUiController {
   listStepMediaAssets?(): Promise<string[]>;
   resolveAssetUrl?(path: string): Promise<string | null>;
   saveRecipeMeta(id: string, meta: RecipeMeta): Promise<void>;
+  // Absent where the graph can't hold the category and tag properties.
+  planTaxonomyExport?(): Promise<TaxonomyExportPlan>;
+  /** Copies every recipe's categories and tags; how many recipes changed. */
+  exportTaxonomy?(): Promise<number>;
   setCoverPath(id: string, path: string): Promise<void>;
   clearCover(id: string): Promise<void>;
   saveRecipeEdit(id: string, patch: RecipeEditPatch): Promise<void>;

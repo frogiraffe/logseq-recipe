@@ -11,6 +11,13 @@
   gap: 4px;
 }
 
+/* The recipe's name heads the screen, at the size of the text beside it. */
+.draft-recipe-app .draft-recipe-cooking-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 .draft-recipe-cooking-cover {
   flex: none;
   overflow: hidden;
@@ -144,19 +151,27 @@
   background: color-mix(in srgb, var(--ls-link-text-color) 14%, transparent);
 }
 
+/* A 24px target around a small ×, without making the chip taller. */
 .draft-recipe-chip-input .draft-recipe-category-chip button,
 .draft-recipe-chip-input .draft-recipe-tag-chip button {
-  padding: 0 2px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  margin: -5px -8px -5px -2px;
+  padding: 0;
   border: 0;
+  border-radius: 50%;
   background: transparent;
   color: inherit;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   line-height: 1;
 }
 
 .draft-recipe-chip-input input {
   flex: 1 1 120px;
   min-width: 80px;
+  min-height: 28px;
   border: 0;
   padding: 2px;
   background: transparent;
@@ -232,7 +247,7 @@
 
 .draft-recipe-timer [role="timer"] {
   margin-left: auto;
-  color: var(--dr-ember);
+  color: var(--dr-ember-text);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
@@ -243,7 +258,7 @@
 }
 
 .draft-recipe-app .draft-recipe-timer-start {
-  color: var(--dr-ember);
+  color: var(--dr-ember-text);
   border-color: color-mix(in srgb, var(--dr-ember) 40%, transparent);
   background: var(--dr-ember-soft);
 }
@@ -496,6 +511,13 @@
 
 .draft-recipe-advanced-disclosure[open] summary {
   margin-bottom: 8px;
+}
+
+/* Disclosure rows ("Filters", "Advanced", "Notes & media") are a 28px
+   target, not just their text line. */
+.draft-recipe-app details:not(.draft-recipe-menu) > summary {
+  min-height: 28px;
+  padding-block: 4px;
 }
 
 .draft-recipe-app summary:focus-visible {
@@ -821,6 +843,8 @@
   bottom: 16px;
   z-index: 8;
   width: min(360px, calc(100vw - 32px));
+  max-height: 184px;
+  overflow-y: auto;
   padding: 8px;
   border: 1px solid var(--ls-border-color);
   border-radius: var(--dr-radius-md);
@@ -832,6 +856,41 @@
 /* On a view with a sticky Save/Confirm bar, the dock sits above it. */
 .draft-recipe-app:has(.draft-recipe-sticky-actions) .draft-recipe-timer-dock {
   bottom: 76px;
+}
+
+/* Scrolling to a focused field stops above the sticky Save bar and the
+   timer dock, so neither ever hides the field being typed in. The dock is
+   66px tall with one timer and 54px taller per timer, up to three. */
+:root {
+  --dr-bar-clear: 0px;
+  --dr-dock-clear: 0px;
+  scroll-padding-bottom: calc(var(--dr-bar-clear) + var(--dr-dock-clear) + 8px);
+}
+
+:root:has(.draft-recipe-sticky-actions) {
+  --dr-bar-clear: 76px;
+}
+
+:root:has(.draft-recipe-timer-dock) {
+  --dr-dock-clear: 90px;
+}
+
+:root:has(.draft-recipe-timer-dock li:nth-child(2)) {
+  --dr-dock-clear: 144px;
+}
+
+:root:has(.draft-recipe-timer-dock li:nth-child(3)) {
+  --dr-dock-clear: 198px;
+}
+
+/* Room at the end of the page for the dock, so nothing stays hidden under
+   it: the page, or a form above its sticky bar, scrolls clear of it. */
+.draft-recipe-app:has(.draft-recipe-timer-dock) {
+  padding-bottom: calc(var(--dr-shell-padding) + var(--dr-dock-clear));
+}
+
+.draft-recipe-app:has(.draft-recipe-timer-dock) .draft-recipe-sticky-actions {
+  margin-top: var(--dr-dock-clear);
 }
 
 .draft-recipe-timer-dock ul {
@@ -880,10 +939,10 @@
 }
 
 .draft-recipe-timer > .draft-recipe-icon-button {
+  flex: none;
   width: 30px;
   height: 30px;
-  font-size: 0.75rem;
-  letter-spacing: -1px;
+  font-size: 0.9rem;
 }
 
 @keyframes draft-recipe-paused-blink {

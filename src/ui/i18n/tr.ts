@@ -217,4 +217,27 @@ export const trMessages: UiMessages = {
   enterAmount: "Miktar gir",
   recipeCountOne: "{shown} / {total} tarif",
   recipeCountOther: "{shown} / {total} tarif",
+  exportTaxonomy: "Kategori ve etiketleri Logseq'e aktar…",
+  exportTaxonomyConfirmOne:
+    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} property'lerine yazılacak. Bundan sonra kategori ve etiketler bu property'lerdir: eklentide ya da Logseq'te değiştirebilirsiniz.",
+  exportTaxonomyConfirmOther:
+    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} property'lerine yazılacak. Bundan sonra kategori ve etiketler bu property'lerdir: eklentide ya da Logseq'te değiştirebilirsiniz.",
+  exportTaxonomyNewPages: "Yeni sayfalar: {pages}",
+  exportTaxonomyExistingPages: "Mevcut sayfalar: {pages}",
+  exportTaxonomyKeptNames:
+    "Logseq bunları sayfa adı olarak kullanamadığı için yalnızca eklentide kalır: {pages}",
+  exportTaxonomyAction: "Aktar",
+  exportTaxonomyDoneOne:
+    "{count} tarifin kategori ve etiketleri Logseq'e aktarıldı",
+  exportTaxonomyDoneOther:
+    "{count} tarifin kategori ve etiketleri Logseq'e aktarıldı",
+  taxonomyNoticeOne:
+    "{count} tarifin kategori veya etiketlerini Logseq sorguları henüz bulamıyor.",
+  taxonomyNoticeOther:
+    "{count} tarifin kategori veya etiketlerini Logseq sorguları henüz bulamıyor.",
+  taxonomyNoticeReview: "İncele…",
+  taxonomyNoticeLater: "Şimdi değil",
+  taxonomyPropertiesHelp:
+    "Logseq'te recipe_categories ve recipe_tags property'leri olarak kaydedilir: Logseq'te de değiştirebilir, Logseq sorgularıyla tarifleri bunlara göre bulabilirsiniz.",
+  importInstead: "Tarifin tamamı metin olarak mı elinizde? Metinden İçe Aktar",
 };

@@ -60,6 +60,10 @@ import {
   moveRecipeToLibrarySection,
   type RecipeLibraryHost,
 } from "./recipe-library";
+import {
+  readTaxonomyProperties,
+  resolveRecipeTaxonomy,
+} from "./recipe-taxonomy";
 import type { DraftRecipeSettings } from "./settings";
 import { resolveParserLocale } from "./settings";
 
@@ -598,6 +602,7 @@ export function createLogseqRecipeRepository(
       metaRaw,
       coverRaw,
       schemaVersionRaw,
+      taxonomyProperties,
     ] = await Promise.all([
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.baseYield),
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.yieldUnit),
@@ -608,12 +613,17 @@ export function createLogseqRecipeRepository(
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.recipeMeta),
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.coverRef),
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.schemaVersion),
+      readTaxonomyProperties(host.editor, root.uuid),
     ]);
 
     const schemaVersion = propertyNumber(schemaVersionRaw) ?? 0;
     const canSynchronizeIngredientMetadata =
       synchronizeIngredientMetadata && schemaVersion <= RECIPE_SCHEMA_VERSION;
     const meta = decodeRecipeMeta(unwrapBlockPropertyValue(metaRaw));
+    const { categories, tags } = resolveRecipeTaxonomy(
+      meta,
+      taxonomyProperties,
+    );
     const sections = await readSectionMap(host, root);
     const [userConfigs, ingredientChildren, stepChildren, noteChildren] =
       await Promise.all([
@@ -766,8 +776,8 @@ export function createLogseqRecipeRepository(
       ...(chillMinutes !== undefined ? { chillMinutes } : {}),
       ...(cookMinutes !== undefined ? { cookMinutes } : {}),
       ...(sourceUrl ? { sourceUrl } : {}),
-      categories: meta.categories,
-      tags: meta.tags,
+      categories,
+      tags,
       ingredients,
       steps,
       notes: noteChildren.map((block) => ({

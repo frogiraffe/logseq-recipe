@@ -219,4 +219,27 @@ export const enMessages: UiMessages = {
   enterAmount: "Enter an amount",
   recipeCountOne: "{shown} / {total} recipe",
   recipeCountOther: "{shown} / {total} recipes",
+  exportTaxonomy: "Add categories and tags to Logseq…",
+  exportTaxonomyConfirmOne:
+    "The categories and tags of {count} recipe will be written to the Logseq properties {properties}. From then on those properties are its categories and tags: change them in the plugin or in Logseq.",
+  exportTaxonomyConfirmOther:
+    "The categories and tags of {count} recipes will be written to the Logseq properties {properties}. From then on those properties are their categories and tags: change them in the plugin or in Logseq.",
+  exportTaxonomyNewPages: "New pages: {pages}",
+  exportTaxonomyExistingPages: "Existing pages: {pages}",
+  exportTaxonomyKeptNames:
+    "Kept in the plugin only, since Logseq can't use them as page names: {pages}",
+  exportTaxonomyAction: "Add",
+  exportTaxonomyDoneOne:
+    "Categories and tags added to Logseq for {count} recipe",
+  exportTaxonomyDoneOther:
+    "Categories and tags added to Logseq for {count} recipes",
+  taxonomyNoticeOne:
+    "{count} recipe has categories or tags that Logseq's own queries can't find yet.",
+  taxonomyNoticeOther:
+    "{count} recipes have categories or tags that Logseq's own queries can't find yet.",
+  taxonomyNoticeReview: "Review…",
+  taxonomyNoticeLater: "Not now",
+  taxonomyPropertiesHelp:
+    "Saved as the Logseq properties recipe_categories and recipe_tags: you can also change them in Logseq, and find recipes by them with Logseq's queries.",
+  importInstead: "Have the whole recipe as text? Import from Text",
 };

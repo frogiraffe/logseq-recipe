@@ -43,6 +43,8 @@ export interface RecipeSettingsPanelProps {
   categorySuggestions?: FacetSuggestion[];
   tagSuggestions?: FacetSuggestion[];
   defaultSourceMeasurementSystem?: MeasurementSystem;
+  // Categories and tags are also Logseq properties in this graph.
+  taxonomyInLogseq?: boolean;
   pending?: boolean;
   onSave(meta: RecipeMeta, cover: CoverSelection): void;
   onCancel(): void;
@@ -58,6 +60,7 @@ export function RecipeSettingsPanel({
   categorySuggestions = [],
   tagSuggestions = [],
   defaultSourceMeasurementSystem = "metric",
+  taxonomyInLogseq = false,
   pending = false,
   onSave,
   onCancel,
@@ -67,6 +70,13 @@ export function RecipeSettingsPanel({
   const helpId = useId();
   const [categories, setCategories] = useState<string[]>(recipe.categories);
   const [tags, setTags] = useState<string[]>(recipe.tags);
+  // The lists as the panel opened with them. Categories and tags can change
+  // in Logseq while it is open (the recipe then reloads): a list left alone
+  // here saves as it is now, never as it was.
+  const [opened] = useState(() => ({
+    categories: recipe.categories,
+    tags: recipe.tags,
+  }));
   const [parserLocale, setParserLocale] = useState<RecipeLocale | "">(
     recipe.parserLocale ?? "",
   );
@@ -98,8 +108,8 @@ export function RecipeSettingsPanel({
     );
   }
   const isDirty =
-    arraysDiffer(categories, recipe.categories) ||
-    arraysDiffer(tags, recipe.tags) ||
+    arraysDiffer(categories, opened.categories) ||
+    arraysDiffer(tags, opened.tags) ||
     parserLocale !== (recipe.parserLocale ?? "") ||
     sourceSystem !==
       (recipe.sourceMeasurementSystem ?? defaultSourceMeasurementSystem) ||
@@ -144,8 +154,10 @@ export function RecipeSettingsPanel({
   const save = () => {
     if (cover === "__custom__" && !validCoverPath) return;
     const meta: RecipeMeta = {
-      categories,
-      tags,
+      categories: arraysDiffer(categories, opened.categories)
+        ? categories
+        : recipe.categories,
+      tags: arraysDiffer(tags, opened.tags) ? tags : recipe.tags,
       ...(parserLocale ? { parserLocale } : {}),
       sourceMeasurementSystem: sourceSystem,
       ...(displaySystem ? { measurementSystemOverride: displaySystem } : {}),
@@ -198,7 +210,13 @@ export function RecipeSettingsPanel({
           removeLabel={messages.remove}
           suggestions={tagSuggestions}
           onChange={setTags}
+          {...(taxonomyInLogseq ? { describedBy: `${helpId}-taxonomy` } : {})}
         />
+        {taxonomyInLogseq && (
+          <small id={`${helpId}-taxonomy`} className="draft-recipe-field-help">
+            {messages.taxonomyPropertiesHelp}
+          </small>
+        )}
       </div>
 
       <label>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildRecipeSchema } from "../../src/logseq/schema";
+import {
+  buildRecipeSchema,
+  buildTaxonomySchema,
+  ensureTaxonomySchema,
+} from "../../src/logseq/schema";
 
 function schemaByKey(
   coverReference: "asset-node" | "asset-path" | "unsupported",
@@ -77,5 +81,47 @@ describe("recipe DB schema", () => {
     expect(keys).not.toContain("unit");
     expect(keys).not.toContain("duration");
     expect(keys).not.toContain("temperature");
+  });
+});
+
+describe("category and tag properties", () => {
+  const taxonomyKeys = (taxonomyProperties?: boolean) =>
+    buildRecipeSchema({ coverReference: "asset-path", taxonomyProperties })
+      .map((definition) => definition.key)
+      .filter((key) => key === "recipe_categories" || key === "recipe_tags");
+
+  it("are visible, page-valued sets", () => {
+    for (const definition of buildTaxonomySchema()) {
+      expect(definition).toMatchObject({
+        type: "node",
+        cardinality: "many",
+        hide: false,
+        public: true,
+      });
+    }
+  });
+
+  it("join the schema only once the graph accepted them", () => {
+    expect(taxonomyKeys()).toEqual([]);
+    expect(taxonomyKeys(false)).toEqual([]);
+    expect(taxonomyKeys(true)).toEqual(["recipe_categories", "recipe_tags"]);
+  });
+
+  it("report a runtime that refuses them instead of failing", async () => {
+    const refusing = {
+      upsertProperty: async () => {
+        throw new Error("unsupported property type");
+      },
+    };
+    const accepted: string[] = [];
+    const accepting = {
+      upsertProperty: async (key: string) => {
+        accepted.push(key);
+      },
+    };
+
+    await expect(ensureTaxonomySchema(refusing)).resolves.toBe(false);
+    await expect(ensureTaxonomySchema(accepting)).resolves.toBe(true);
+    expect(accepted).toEqual(["recipe_categories", "recipe_tags"]);
   });
 });

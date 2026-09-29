@@ -20,6 +20,7 @@ rm -rf release "$ZIP_NAME"
 mkdir -p "$STAGE_DIR"
 cp -r dist "$STAGE_DIR/dist"
 cp -r examples "$STAGE_DIR/examples"
+cp -r docs "$STAGE_DIR/docs"
 cp package.json LICENSE README.md CHANGELOG.md logo.svg "$STAGE_DIR/"
 
 (cd "$STAGE_DIR" && zip -rq "../../$ZIP_NAME" .)

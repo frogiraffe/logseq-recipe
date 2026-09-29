@@ -70,6 +70,8 @@ export interface RecipesViewProps {
   loading?: boolean;
   // Page-level actions shown beside the heading (create, archive, refresh).
   headerActions?: ReactNode;
+  // Shown under the heading: something about the whole library to act on.
+  notice?: ReactNode;
   resolveCover?(recipe: RecipeSummary): Promise<string | null>;
   onOpen(id: string): void;
 }
@@ -79,6 +81,7 @@ export function RecipesView({
   messages,
   loading = false,
   headerActions,
+  notice,
   resolveCover,
   onOpen,
 }: RecipesViewProps) {
@@ -110,6 +113,7 @@ export function RecipesView({
           <div className="draft-recipe-page-actions">{headerActions}</div>
         )}
       </header>
+      {notice}
       <FilterBar
         filter={filter}
         messages={messages}

@@ -194,4 +194,19 @@ export interface UiMessages {
   enterAmount: string;
   recipeCountOne: string;
   recipeCountOther: string;
+  exportTaxonomy: string;
+  exportTaxonomyConfirmOne: string;
+  exportTaxonomyConfirmOther: string;
+  exportTaxonomyNewPages: string;
+  exportTaxonomyExistingPages: string;
+  exportTaxonomyKeptNames: string;
+  exportTaxonomyAction: string;
+  exportTaxonomyDoneOne: string;
+  exportTaxonomyDoneOther: string;
+  taxonomyNoticeOne: string;
+  taxonomyNoticeOther: string;
+  taxonomyNoticeReview: string;
+  taxonomyNoticeLater: string;
+  taxonomyPropertiesHelp: string;
+  importInstead: string;
 }

@@ -15,6 +15,7 @@ import type {
 import { assetMarkup, parseStepChild } from "../../domain/step-media";
 import { useConfirmDiscard, useDirtyReport } from "../dirty-guard";
 import type { UiMessages } from "../i18n";
+import { Field } from "./Field";
 import { type EditableItem, SortableList } from "./SortableList";
 import { StepMedia } from "./StepChildren";
 
@@ -392,23 +393,34 @@ export function RecipeEditor({
         </div>
       )}
       <div className="draft-recipe-field-group">
-        <label className="draft-recipe-field-wide">
-          {messages.title}
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.currentTarget.value)}
-          />
-        </label>
-        <label>
-          {messages.servings}
-          <input
-            type="number"
-            min="0.01"
-            step="1"
-            value={baseYieldText}
-            onChange={(event) => setBaseYieldText(event.currentTarget.value)}
-          />
-        </label>
+        <Field
+          label={messages.title}
+          className="draft-recipe-field-wide"
+          error={!title.trim() && messages.errorTitleRequired}
+        >
+          {(control) => (
+            <input
+              {...control}
+              value={title}
+              onChange={(event) => setTitle(event.currentTarget.value)}
+            />
+          )}
+        </Field>
+        <Field
+          label={messages.servings}
+          error={!baseYieldValid && messages.errorBaseYieldInvalid}
+        >
+          {(control) => (
+            <input
+              {...control}
+              type="number"
+              min="0.01"
+              step="1"
+              value={baseYieldText}
+              onChange={(event) => setBaseYieldText(event.currentTarget.value)}
+            />
+          )}
+        </Field>
         <label>
           {messages.yieldUnit}
           <input
@@ -420,19 +432,28 @@ export function RecipeEditor({
       </div>
       <div className="draft-recipe-field-group">
         {TIME_FIELDS.map(([field, label]) => (
-          <label key={field}>
-            {`${messages[label]} (${messages.minutesUnit})`}
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={minutesTexts[field]}
-              onChange={(event) => {
-                const text = event.currentTarget.value;
-                setMinutesTexts((current) => ({ ...current, [field]: text }));
-              }}
-            />
-          </label>
+          <Field
+            key={field}
+            label={`${messages[label]} (${messages.minutesUnit})`}
+            error={
+              !minutesFieldValid(minutesTexts[field]) &&
+              messages.errorTimeInvalid
+            }
+          >
+            {(control) => (
+              <input
+                {...control}
+                type="number"
+                min="0"
+                step="1"
+                value={minutesTexts[field]}
+                onChange={(event) => {
+                  const text = event.currentTarget.value;
+                  setMinutesTexts((current) => ({ ...current, [field]: text }));
+                }}
+              />
+            )}
+          </Field>
         ))}
       </div>
       <div className="draft-recipe-field-group">

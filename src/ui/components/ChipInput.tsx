@@ -1,10 +1,12 @@
 import { type ClipboardEvent, type KeyboardEvent, useState } from "react";
 import type { FacetSuggestion } from "../../application/list-recipes";
+import { Icon } from "./Icon";
 
 export type ChipVariant = "category" | "tag";
 
+// A leading "#" is how a tag is shown, not part of its name.
 function addChipValue(values: string[], raw: string): string[] {
-  const value = raw.trim();
+  const value = raw.trim().replace(/^#+\s*/u, "");
   if (!value) return values;
   if (
     values.some(
@@ -50,6 +52,8 @@ export interface ChipInputProps {
   values: string[];
   variant: ChipVariant;
   ariaLabel: string;
+  // Id of the help text describing the field.
+  describedBy?: string;
   removeLabel: string;
   suggestions?: FacetSuggestion[];
   onChange(values: string[]): void;
@@ -60,6 +64,7 @@ export function ChipInput({
   values,
   variant,
   ariaLabel,
+  describedBy,
   removeLabel,
   suggestions = [],
   onChange,
@@ -143,13 +148,14 @@ export function ChipInput({
                 onChange(values.filter((existing) => existing !== value))
               }
             >
-              ×
+              <Icon name="close" />
             </button>
           </span>
         ))}
         <input
           id={id}
           aria-label={ariaLabel}
+          aria-describedby={describedBy}
           aria-autocomplete="list"
           aria-expanded={open}
           role="combobox"

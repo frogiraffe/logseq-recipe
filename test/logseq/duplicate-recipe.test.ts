@@ -84,8 +84,15 @@ function fakeHost() {
     getPage: async (id: string) => pagesByTitle.get(id) ?? null,
     getPageBlocksTree: async (id: string) =>
       pagesByTitle.get(id)?.children ?? [],
-    getBlockProperty: async (id: string, key: string) =>
-      properties.get(`${id}:${key}`),
+    // A page property reads back as its pages, as in Logseq.
+    getBlockProperty: async (id: string, key: string) => {
+      const value = properties.get(`${id}:${key}`);
+      return Array.isArray(value)
+        ? value.map((pageId) =>
+            [...pagesByTitle.values()].find((page) => page.id === pageId),
+          )
+        : value;
+    },
     upsertBlockProperty: async (id: string, key: string, value: unknown) => {
       writes.push({ id, key, value });
       properties.set(`${id}:${key}`, value);
@@ -172,7 +179,95 @@ const settings = {
   defaultMeasurementSystem: "metric" as const,
 };
 
+describe("a recipe's categories and tags", () => {
+  const repositoryFor = (fake: ReturnType<typeof fakeHost>) =>
+    createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: {
+        coverReference: "asset-path",
+        taxonomyProperties: true,
+      },
+    });
+  const pageIds = async (
+    fake: ReturnType<typeof fakeHost>,
+    names: string[],
+  ) => {
+    const ids: number[] = [];
+    for (const name of names) {
+      const page =
+        fake.pagesByTitle.get(name) ??
+        ((await fake.host.editor.createPage(name)) as { id: number });
+      ids.push(page.id);
+    }
+    return ids;
+  };
+
+  it("merge the JSON with the properties until the plugin has moved them", async () => {
+    const fake = fakeHost();
+    fake.properties.set(
+      `${fake.root.uuid}:recipe_categories`,
+      await pageIds(fake, ["Baking"]),
+    );
+    const recipe = await repositoryFor(fake).getRecipe(fake.root.uuid);
+    expect(recipe?.categories).toEqual(["Dessert", "Baking"]);
+    expect(recipe?.tags).toEqual(["Quick"]);
+  });
+
+  it("come from the properties alone once moved, edits in Logseq included", async () => {
+    const fake = fakeHost();
+    const meta = JSON.parse(
+      fake.properties.get(`${fake.root.uuid}:recipe_meta`) as string,
+    );
+    fake.properties.set(
+      `${fake.root.uuid}:recipe_meta`,
+      JSON.stringify({ ...meta, taxonomyInProperties: true }),
+    );
+    // In Logseq: Baking added to the categories, every tag removed.
+    fake.properties.set(
+      `${fake.root.uuid}:recipe_categories`,
+      await pageIds(fake, ["Baking", "Dessert"]),
+    );
+    const repository = repositoryFor(fake);
+
+    const recipe = await repository.getRecipe(fake.root.uuid);
+    expect(recipe?.categories).toEqual(["Dessert", "Baking"]);
+    expect(recipe?.tags).toEqual([]);
+    const [summary] = await repository.listRecipeSummaries();
+    expect(summary.categories).toEqual(["Dessert", "Baking"]);
+  });
+});
+
 describe("duplicateRecipe", () => {
+  it("gives the copy its category and tag properties when the graph has them", async () => {
+    const pagesOf = (fake: ReturnType<typeof fakeHost>, id: string) =>
+      ["recipe_categories", "recipe_tags"].map((key) =>
+        (
+          (fake.properties.get(`${id}:${key}`) as number[] | undefined) ?? []
+        ).map(
+          (pageId) =>
+            [...fake.pagesByTitle.values()].find((page) => page.id === pageId)
+              ?.title,
+        ),
+      );
+
+    const withProperties = fakeHost();
+    const copy = await createDraftRecipeRepository(withProperties.host, {
+      settings,
+      schemaCapabilities: {
+        coverReference: "asset-path",
+        taxonomyProperties: true,
+      },
+    }).duplicateRecipe(withProperties.root.uuid);
+    expect(pagesOf(withProperties, copy.id)).toEqual([["Dessert"], ["Quick"]]);
+
+    const without = fakeHost();
+    const plain = await createDraftRecipeRepository(without.host, {
+      settings,
+      schemaCapabilities: { coverReference: "asset-path" },
+    }).duplicateRecipe(without.root.uuid);
+    expect(pagesOf(without, plain.id)).toEqual([[], []]);
+  });
+
   it("copies content, structured ingredient metadata, and root metadata into a library block", async () => {
     const fake = fakeHost();
     const repository = createDraftRecipeRepository(fake.host, {

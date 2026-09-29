@@ -2,6 +2,51 @@
 
 Only user-visible changes are listed here.
 
+## 1.5.0 — 2026-09-30
+
+### Categories and tags in Logseq
+
+- A recipe's categories and tags are now the Logseq properties
+  `recipe_categories` and `recipe_tags`, as links to pages ("Dessert"). Logseq's
+  own queries find recipes by them
+  (`{{query (property recipe_categories [[Dessert]])}}`), the pages list their
+  recipes, and a change made to them in Logseq is the recipe's new list. The
+  plugin never deletes a page.
+- Recipes saved by 1.4 and earlier keep working as they are. The Recipes
+  screen says how many still have categories or tags Logseq can't see, and
+  **Review…** shows what would be written (properties, new and existing
+  pages) before moving them. The move can be repeated or interrupted safely and deletes nothing.
+- Logseq Recipe 1.4.1 still works on recipes 1.5 has saved. After a save in
+  1.4.1, 1.5 shows both versions' categories and tags together, so nothing
+  is lost either way.
+- A name that can't be a page of its own stays in the plugin: one with a "/",
+  or one Logseq uses for a property or a built-in tag ("Task").
+  A typed leading "#" is no longer part of a new category or tag.
+- Recipe settings say that categories and tags are Logseq properties. A
+  change made to them in Logseq while the settings are open is kept.
+
+### Easier to see, reach and read
+
+- Icons are drawn in the text colour instead of symbol characters, so they
+  look the same on every system and never turn into emoji.
+- Small controls are easier to hit: the × on a category or tag, the timer's
+  pause button, and the Filters, Advanced and Notes & media rows.
+- Muted text and timer times are easier to read on light themes.
+- Moving through a form with the keyboard never leaves the field you are on
+  hidden under the Save bar or the timer dock, and the timer dock no longer
+  covers the last fields of a page.
+- Title, servings and times say what is wrong next to the field instead of
+  only greying out Save.
+- Buttons and fields use the plugin's own font and size with the rest of
+  its text, and nothing scrolls sideways in a narrow window when text is
+  enlarged.
+
+### Other
+
+- Create Recipe links to Import from Text.
+- New documentation: getting started, usage, properties and queries,
+  upgrading to 1.5, parser guarantees, data model and architecture.
+
 ## 1.4.1 — 2026-09-29
 
 ### Fixes

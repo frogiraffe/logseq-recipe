@@ -22,6 +22,7 @@ import type { UiMessages } from "../i18n";
 import { formatQuantity } from "../ingredient-display";
 import { requestNotificationPermission } from "../timer-alarms";
 import { CoverImage } from "./CoverImage";
+import { Icon } from "./Icon";
 import { IngredientList } from "./IngredientList";
 import { ServingControl } from "./ServingControl";
 import { StepChildren } from "./StepChildren";
@@ -366,7 +367,7 @@ export function CookingMode({
             </div>
           )}
           <div>
-            <strong>{recipe.title}</strong>
+            <h1 className="draft-recipe-cooking-name">{recipe.title}</h1>
             <span>{`${Math.min(activeStepIndex + 1, recipe.steps.length)} / ${recipe.steps.length}`}</span>
           </div>
         </div>
@@ -506,7 +507,7 @@ export function CookingMode({
                       startTimer(option.durationMs, option.approximate)
                     }
                   >
-                    <span aria-hidden="true">⏱</span> {length}
+                    <Icon name="timer" /> {length}
                   </button>
                 );
               })}

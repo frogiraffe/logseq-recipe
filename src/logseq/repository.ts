@@ -4,7 +4,6 @@ import {
   encodeIngredientMeta,
 } from "../application/ingredient-meta";
 import { sameTitle } from "../application/list-recipes";
-import { encodeRecipeMeta } from "../application/recipe-meta";
 import type { RecipeRepository } from "../application/recipe-repository";
 import type {
   ExistingRecipeStructure,
@@ -32,6 +31,7 @@ import {
   type LogseqRecipeHost,
 } from "./logseq-recipe-repository";
 import { PROPERTY_KEYS } from "./property-keys";
+import { writeRecipeMeta } from "./recipe-taxonomy";
 import {
   ensureRecipeSchema,
   type PropertySchemaEditor,
@@ -245,10 +245,11 @@ export function createDraftRecipeRepository(
           ? { measurementSystemOverride: source.measurementSystemOverride }
           : {}),
       };
-      await host.editor.upsertBlockProperty(
+      await writeRecipeMeta(
+        host.editor,
         structure.rootId,
-        PROPERTY_KEYS.recipeMeta,
-        encodeRecipeMeta(meta),
+        meta,
+        Boolean(options.schemaCapabilities.taxonomyProperties),
       );
 
       await writeOptionalRootFields(host.editor, structure.rootId, {

@@ -133,8 +133,8 @@ describe("CookingMode", () => {
     const timers = [
       ...document.querySelectorAll(".draft-recipe-step-timers button"),
     ].map((button) => button.textContent?.replace(/\s+/g, " ").trim());
-    expect(timers).toContain("⏱ 10:00");
-    expect(timers).toContain("⏱ 05:00");
+    expect(timers).toContain("10:00");
+    expect(timers).toContain("05:00");
     expect(timers.some((label) => label?.includes("15:00"))).toBe(false);
   });
 

@@ -5,6 +5,7 @@ import { useConfirm } from "../confirm";
 import type { UiMessages } from "../i18n";
 import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import { CoverImage } from "./CoverImage";
+import { Icon } from "./Icon";
 import { IngredientList } from "./IngredientList";
 import { ServingControl } from "./ServingControl";
 import { StepChildren } from "./StepChildren";
@@ -202,7 +203,11 @@ export function RecipeCard({
         )}
         {/* Beside the recipe's own actions, not inside the servings control. */}
         {menuItems.length > 0 && (
-          <ActionMenu label={messages.moreActions} icon="⋯" items={menuItems} />
+          <ActionMenu
+            label={messages.moreActions}
+            icon={<Icon name="more" />}
+            items={menuItems}
+          />
         )}
         <ServingControl
           value={targetYield}

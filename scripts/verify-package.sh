@@ -28,11 +28,13 @@ fail() {
 [ -f "$TMP_DIR/dist/index.html" ] || fail "dist/index.html missing"
 [ -d "$TMP_DIR/examples" ] || fail "examples/ missing (README links to it)"
 [ -f "$TMP_DIR/CHANGELOG.md" ] || fail "CHANGELOG.md missing (README links to it)"
+[ -f "$TMP_DIR/docs/getting-started.md" ] || fail "docs/ missing (README links to it)"
 
 EXPECTED_TOP_LEVEL="CHANGELOG.md
 LICENSE
 README.md
 dist
+docs
 examples
 logo.svg
 package.json"

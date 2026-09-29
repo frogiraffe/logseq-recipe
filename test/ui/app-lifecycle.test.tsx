@@ -844,15 +844,33 @@ describe("DraftRecipeApp Escape", () => {
     return close;
   }
   const pressEscape = () => fireEvent.keyDown(document.body, { key: "Escape" });
+  // Resolves in the microtask right after `find` first matches the DOM,
+  // before React's passive effects run: the earliest a key can land on a
+  // screen that has just appeared, which it must already handle.
+  const shown = (find: () => HTMLElement | null) =>
+    new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (!find()) return;
+        observer.disconnect();
+        resolve();
+      });
+      if (find()) resolve();
+      else
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+    });
 
   it("goes back from a recipe to the list, and closes from the list", async () => {
     const close = renderAt({ kind: "recipe", recipeId: "recipe-1" });
-    await screen.findByText("Lifecycle Recipe");
+    await shown(() => screen.queryByText("Lifecycle Recipe"));
 
     pressEscape();
-    expect(
-      await screen.findByRole("heading", { name: enMessages.recipes }),
-    ).toBeTruthy();
+    await shown(() =>
+      screen.queryByRole("heading", { name: enMessages.recipes }),
+    );
     expect(close).not.toHaveBeenCalled();
 
     pressEscape();
@@ -904,7 +922,7 @@ describe("DraftRecipeApp Escape", () => {
 
   it("closes an open menu without leaving the recipe", async () => {
     renderAt({ kind: "recipe", recipeId: "recipe-1" });
-    await screen.findByText("Lifecycle Recipe");
+    await shown(() => screen.queryByText("Lifecycle Recipe"));
     const menu = document.querySelector("details.draft-recipe-menu");
     (menu as HTMLDetailsElement).open = true;
 

@@ -26,6 +26,18 @@ function Harness({
 }
 
 describe("ChipInput", () => {
+  it("drops a typed leading # from the name", () => {
+    render(<Harness />);
+    const input = screen.getByLabelText("Tags");
+    fireEvent.change(input, { target: { value: "#quick" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.change(input, { target: { value: "#" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByText("quick")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Remove/ })).toHaveLength(1);
+  });
+
   it("commits a chip on Enter and clears the draft", () => {
     render(<Harness />);
     const input = screen.getByLabelText("Tags");

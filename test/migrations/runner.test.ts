@@ -40,4 +40,31 @@ describe("recipe migration runner", () => {
     );
     expect(writes).not.toHaveBeenCalled();
   });
+
+  it("finishes an interrupted migration on the next load", async () => {
+    const values = new Map<string, unknown>([
+      ["recipe_meta", JSON.stringify({ categories: ["Dessert"], tags: 3 })],
+    ]);
+    let failVersionWrite = true;
+    const host = {
+      getBlockProperty: async (_id: string, key: string) => values.get(key),
+      upsertBlockProperty: async (_id: string, key: string, value: unknown) => {
+        if (key === "schema_version" && failVersionWrite) {
+          throw new Error("Logseq went away");
+        }
+        values.set(key, value);
+      },
+    };
+
+    await expect(runRecipeMigrations(host, "recipe-1")).rejects.toThrow();
+    expect(values.get("schema_version")).toBeUndefined();
+
+    failVersionWrite = false;
+    expect(await runRecipeMigrations(host, "recipe-1")).toBe(1);
+    expect(JSON.parse(values.get("recipe_meta") as string)).toEqual({
+      categories: ["Dessert"],
+      tags: [],
+      ingredientConversionOverrides: [],
+    });
+  });
 });

@@ -13,6 +13,8 @@
      (the only thing in the UI that is about the stove) use it. */
   --dr-ember: #d9480f;
   --dr-ember-soft: color-mix(in srgb, var(--dr-ember) 14%, transparent);
+  /* Ember as text: dark enough for 4.5:1 on its own tint. */
+  --dr-ember-text: #b93d0b;
 
   box-sizing: border-box;
   /* The shell's edge padding; full-width bars (sticky actions, the cooking
@@ -31,10 +33,14 @@
   box-sizing: border-box;
 }
 
+/* Controls take the page's font, and grow with text size like the rest. */
 .draft-recipe-app button,
 .draft-recipe-app input,
 .draft-recipe-app textarea,
 .draft-recipe-app select {
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.875rem;
   color: inherit;
   background: var(--ls-secondary-background-color);
   border: 1px solid var(--ls-border-color);
@@ -90,6 +96,13 @@
 
 .draft-recipe-app[data-theme-mode="dark"] {
   --dr-ember: #ff8a4c;
+  --dr-ember-text: var(--dr-ember);
+}
+
+/* Line icons sit on the text baseline, at the text's size and colour. */
+.draft-recipe-icon {
+  flex: none;
+  vertical-align: -0.125em;
 }
 
 /* App bar: Back (when there is somewhere to go back to) and Close. */
@@ -111,6 +124,39 @@
 .draft-recipe-app .draft-recipe-back:not(:disabled):hover {
   border-color: transparent;
   color: var(--ls-primary-text-color);
+}
+
+/* A text-only action inside running text or under a heading. */
+.draft-recipe-app .draft-recipe-link-button {
+  min-height: 24px;
+  background: transparent;
+  border-color: transparent;
+  padding: 2px 0;
+  color: var(--ls-link-text-color);
+  text-decoration: underline;
+}
+
+.draft-recipe-app .draft-recipe-link-button:not(:disabled):hover {
+  border-color: transparent;
+  color: var(--ls-primary-text-color);
+}
+
+/* Something to act on across the whole library, above the list. */
+.draft-recipe-library-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ls-link-text-color);
+  border-radius: 8px;
+  background: var(--ls-secondary-background-color);
+}
+
+.draft-recipe-library-notice p {
+  flex: 1 1 16rem;
+  margin: 0;
 }
 
 .draft-recipe-app .draft-recipe-close {
@@ -393,6 +439,7 @@
 
 .draft-recipe-serving-control {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
@@ -580,6 +627,7 @@
 
 .draft-recipe-editor-items {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   margin: 0 0 8px;
   padding: 0;
@@ -603,11 +651,9 @@
   min-width: 0;
 }
 
-/* Same metrics as the sibling inputs (the browser's control font, not the
-   page font), growing with its lines instead of a resize handle. */
+/* Same metrics as the sibling inputs, growing with its lines instead of a
+   resize handle. */
 .draft-recipe-editor-item > textarea {
-  /* biome-ignore lint/a11y/useGenericFontNames: the browser's own control font, the one the sibling inputs use. */
-  font: -webkit-small-control;
   line-height: normal;
   resize: none;
   field-sizing: content;
@@ -644,6 +690,7 @@
 
 .draft-recipe-editor-item-below {
   flex: 1 0 100%;
+  min-width: 0;
   padding-left: 40px;
 }
 
@@ -691,6 +738,8 @@
 .draft-recipe-conversion-editor label,
 .draft-recipe-field {
   display: grid;
+  /* Narrower than a control's own preferred width when the window is. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   font-size: 0.9rem;
 }
@@ -706,7 +755,8 @@
   gap: 12px;
 }
 
-.draft-recipe-field-group > label {
+.draft-recipe-field-group > label,
+.draft-recipe-field-group > .draft-recipe-field {
   flex: 1 1 160px;
   min-width: 0;
 }
@@ -855,6 +905,11 @@
 }
 
 /* A field's one-line explanation, under its control. */
+.draft-recipe-field-error {
+  color: var(--ls-error-color, #d1453b);
+  font-size: 0.8rem;
+}
+
 .draft-recipe-field-help {
   color: var(--ls-secondary-text-color);
   font-size: 0.8rem;
@@ -869,6 +924,7 @@
 .draft-recipe-settings-panel,
 .draft-recipe-editor {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -1098,7 +1154,7 @@
   }
 
   .draft-recipe-filters {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .draft-recipe-card-toolbar .draft-recipe-serving-control {

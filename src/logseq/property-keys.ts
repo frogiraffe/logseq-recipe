@@ -11,6 +11,8 @@ export const PROPERTY_KEYS = {
   cookMinutes: "cook_minutes",
   sourceUrl: "source_url",
   recipeMeta: "recipe_meta",
+  recipeCategories: "recipe_categories",
+  recipeTags: "recipe_tags",
   ingredientMeta: "ingredient_meta",
   coverRef: "cover_ref",
   sectionRole: "section_role",

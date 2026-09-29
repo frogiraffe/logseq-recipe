@@ -30,6 +30,18 @@ export interface ArchivedRecipeSummary extends RecipeSummary {
   archivedAt?: number;
 }
 
+/** What copying categories and tags into Logseq properties would write. */
+export interface TaxonomyExportPlan {
+  /** Recipes whose category or tag properties don't match yet. */
+  recipeCount: number;
+  propertyNames: string[];
+  /** Pages to create, or to bring back from the recycle bin. */
+  pagesToCreate: string[];
+  pagesToReuse: string[];
+  /** Names Logseq can't make a page of ("Sweet/Savory"): JSON only. */
+  namesKeptInPlugin: string[];
+}
+
 export interface ValidationIssue {
   severity: "warning" | "error";
   code: string;

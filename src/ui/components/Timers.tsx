@@ -14,6 +14,7 @@ import {
   timerRemainingMs,
 } from "../../application/cooking-session";
 import type { UiMessages } from "../i18n";
+import { Icon } from "./Icon";
 
 /** Wall-clock "now" that ticks only while something is counting down. */
 export function useNow(active: boolean): number {
@@ -91,7 +92,7 @@ export function TimerRow({
           aria-pressed={paused}
           onClick={onTogglePause}
         >
-          <span aria-hidden="true">{paused ? "▶" : "❚❚"}</span>
+          <Icon name={paused ? "play" : "pause"} />
         </button>
       )}
       {onRemove && (

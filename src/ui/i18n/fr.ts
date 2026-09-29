@@ -221,4 +221,28 @@ export const frMessages: UiMessages = {
   enterAmount: "Saisir une quantité",
   recipeCountOne: "{shown} / {total} recette",
   recipeCountOther: "{shown} / {total} recettes",
+  exportTaxonomy: "Ajouter les catégories et étiquettes à Logseq…",
+  exportTaxonomyConfirmOne:
+    "Les catégories et étiquettes de {count} recette seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi : modifiez-les dans le plugin ou dans Logseq.",
+  exportTaxonomyConfirmOther:
+    "Les catégories et étiquettes de {count} recettes seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi : modifiez-les dans le plugin ou dans Logseq.",
+  exportTaxonomyNewPages: "Nouvelles pages : {pages}",
+  exportTaxonomyExistingPages: "Pages existantes : {pages}",
+  exportTaxonomyKeptNames:
+    "Conservés dans le plugin seulement, Logseq ne pouvant pas en faire des noms de page : {pages}",
+  exportTaxonomyAction: "Ajouter",
+  exportTaxonomyDoneOne:
+    "Catégories et étiquettes ajoutées à Logseq pour {count} recette",
+  exportTaxonomyDoneOther:
+    "Catégories et étiquettes ajoutées à Logseq pour {count} recettes",
+  taxonomyNoticeOne:
+    "{count} recette a des catégories ou étiquettes que les requêtes de Logseq ne trouvent pas encore.",
+  taxonomyNoticeOther:
+    "{count} recettes ont des catégories ou étiquettes que les requêtes de Logseq ne trouvent pas encore.",
+  taxonomyNoticeReview: "Vérifier…",
+  taxonomyNoticeLater: "Plus tard",
+  taxonomyPropertiesHelp:
+    "Enregistrées dans les propriétés Logseq recipe_categories et recipe_tags : vous pouvez aussi les modifier dans Logseq et retrouver les recettes avec les requêtes de Logseq.",
+  importInstead:
+    "Vous avez la recette entière en texte ? Importer depuis un texte",
 };

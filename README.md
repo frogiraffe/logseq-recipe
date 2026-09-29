@@ -1,62 +1,47 @@
 # Logseq Recipe
 
-Turn a Logseq DB graph into a local recipe manager and kitchen companion,
-without moving recipes out of Logseq.
+Recipe cards, serving scaling, unit conversion and a hands-free Cooking Mode
+for Logseq DB graphs. Your recipes stay ordinary Logseq blocks.
 
 ![Logseq Recipe demo](assets/logseq-recipe-demo.gif)
 
-## What you get
-
-- **Recipes stay plain Logseq blocks.** New recipes live under one
-  `Recipe Library` page; existing recipe pages keep working unchanged.
-- **Create or convert.** Start blank, or turn an outline you already have
-  into a recipe with a preview of every change.
-- **Cooking Mode** with timers that keep running when you leave it, step
-  notes, photos and audio, scaled ingredients, and resume-where-you-left-off.
-- **Serving scaling and unit conversion** (metric, US Customary, Imperial)
-  that never rewrites the quantities you wrote.
-- **Search across everything** — titles, tags, ingredients, steps, notes —
-  in a card grid with cover photos.
-- **Five languages** for both the interface and recipe parsing: English,
-  Turkish, French, German, and Spanish.
-- **Local and deterministic**: no account, cloud service, AI, or telemetry.
-
-Unknown or ambiguous text stays unchanged. Logseq Recipe never invents a
-quantity, density, duration, or temperature.
-
-## Requirements
-
-Logseq Recipe supports **Logseq DB graphs only**. It checks the Logseq APIs it
-needs at runtime and shows a warning instead of writing when the current build
-is incompatible.
+- **Create, import or convert.** Start blank, paste a recipe as text, or turn
+  an outline you already wrote into a recipe. Every conversion is previewed
+  before anything is written.
+- **Scale and convert** servings and units (metric, US, imperial) without
+  ever rewriting the amounts you wrote.
+- **Cook** one step at a time, with timers that keep running when you leave,
+  and your place kept until you finish.
+- **Logseq-native.** Categories, tags, servings and times are Logseq
+  properties, so Logseq's own queries find your recipes:
+  `{{query (property recipe_categories [[Dessert]])}}`.
+- **Local and deterministic.** No account, cloud or AI. Text the parser
+  can't read with certainty stays exactly as written.
+- English, Turkish, French, German and Spanish, for the interface and for
+  reading recipes.
 
 ## Install
 
-In Logseq, open **Plugins → Marketplace**, search for **Logseq Recipe**, and
-select **Install**.
+Logseq Recipe needs a **Logseq DB graph**. In Logseq, open **Plugins →
+Marketplace**, search for **Logseq Recipe** and select **Install**.
 
-For a manual install, download the ZIP from the
-[latest GitHub release](https://github.com/frogiraffe/logseq-recipe/releases/latest),
-extract it, choose **Plugins → Load unpacked plugin**, and select the extracted
-folder containing `package.json`.
+To install by hand, download the ZIP from the
+[latest release](https://github.com/frogiraffe/logseq-recipe/releases/latest),
+extract it, and choose **Plugins → Load unpacked plugin** on the extracted
+folder.
 
-## Create or convert a recipe
+## Start
 
-Run **Logseq Recipe: Create Recipe** from the command palette for a blank
-recipe, or select an existing outline and run **Logseq Recipe: Convert to
-Recipe**. Convert previews every change and asks you to resolve ambiguous
-sections or ingredients before it writes anything; when Logseq split a paste
-along the wrong lines, the preview also shows the block structure it will be
-rebuilt into.
+Open the command palette and run:
 
-To bring in a recipe from elsewhere, use **Logseq Recipe: Import Recipe from
-Text** (or **Create Recipe ▾ → Import from Text** on the Recipes screen) and
-paste the whole recipe. It is split by its section headings, previewed like
-Convert, and added to the Recipe Library only when you confirm. Convert and
-Import pick the recipe's language from its headings and labels ("Malzemeler",
-"Porsiyon:").
+| Command | What it does |
+| --- | --- |
+| **Logseq Recipe: Recipes** | Browse, search and open your recipes |
+| **Logseq Recipe: Create Recipe** | Start a blank recipe |
+| **Logseq Recipe: Import Recipe from Text** | Paste a whole recipe |
+| **Logseq Recipe: Convert to Recipe** | Turn the current outline into a recipe (also in a block's context menu) |
 
-A recipe remains a plain outline:
+A recipe is a plain outline:
 
 ```text
 Chocolate Chip Cookies
@@ -67,120 +52,40 @@ Chocolate Chip Cookies
     120 g butter
     150 g brown sugar
     1 egg
-    180 g dark chocolate (roughly chopped)
   Steps
     Melt the butter and let it cool slightly.
-      Stop before it browns.
-      ![melted butter](../assets/melted-butter.jpg)
-    Mix in the sugar and egg.
     Bake at 180°C for 10-12 minutes.
   Notes
-    The centers may still look soft when removed from the oven.
+    The centers still look soft when they come out.
 ```
 
-`Yield`, `Prep`, `Chill`, and `Cook` take a single number; a range such as
-"10-12 minutes" belongs in a step, where it offers a timer for either end.
-Blocks nested under a step are that step's notes; a block that is just an
-image or audio file from the graph's `assets` folder is shown as a photo or
-player. See [the banana bread example](examples/banana-bread.md) for a complete
-outline you can paste into Logseq.
+## Documentation
 
-Ingredients can be grouped: a line in `Ingredients` with ingredients nested
-under it ("For the dough", "Hamur için:") is a group heading, shown above its
-ingredients on the card and in Cooking Mode. When importing or converting, a
-line ending in a colon with ingredients listed after it becomes a group too,
-and a recipe written in parts ("Ingredients for the cake", "Ingredients for
-the frosting") becomes one section with a group per part.
-
-An ingredient line keeps its own words. A line with two amounts ("1 cup plus
-2 tbsp flour") or a number that can't be read asks you to settle it in the
-Convert preview; a line with no amount ("salt to taste", "a little olive oil")
-is kept as written and doesn't scale.
-
-## Browse and edit
-
-- Open **Logseq Recipe: Recipes** to search, filter, sort, and open recipes.
-  Every word you type in the search box must appear somewhere in the recipe.
-- On a recipe, **Start cooking** and **Edit recipe** are up front; duplicate,
-  settings, **Open in Logseq**, and archive are under **More actions** (⋯),
-  along with **Move to Recipe Library** for a recipe converted somewhere else
-  (a journal, say).
-- In the editor, drag the handle to reorder ingredients, steps, notes, and
-  step notes — with a mouse, touch, or the keyboard (focus the handle, press
-  Space, use the arrow keys, Space to drop, Escape to cancel). Nothing is
-  written until you save, and a save that Logseq interrupts is reported as
-  incomplete rather than silently half-done.
-- **Archive** hides a recipe from the list but keeps it indefinitely.
-  **Archived Recipes** can restore it, or delete it permanently after a
-  confirmation.
-- Recipe Settings hold categories, tags, recipe language, measurement
-  systems, custom conversions, and the cover image.
-
-Edits made directly in Logseq refresh the open plugin view. Removing the
-plugin leaves your recipe content intact.
-
-## Cook
-
-- **Start cooking** walks through one step at a time; tap the step track to
-  jump. The ingredient panel lets you tick items off and change servings.
-- **Timers**: a duration in a step or in one of its notes offers a timer
-  button (ranges offer both ends; "about 20 minutes" offers `~20:00`), except
-  inside an instruction not to do something ("don't bake past 15 minutes").
-  **+ Timer** starts one of any length. Timers can run side by side and be
-  paused. They keep running when you leave Cooking Mode, close the plugin, or
-  restart Logseq, and ring with a sound and a Logseq notice; a small dock
-  shows them on every other screen.
-- **Exit for now** keeps your step, ticked ingredients, and timers, even
-  across a Logseq restart (a cook left untouched for a week is dropped);
-  **Finish cooking** clears them.
-- The screen stays awake while Cooking Mode is open.
-
-## Covers and media
-
-Covers and step media reference files already in the graph's `assets`
-folder; the plugin never uploads, moves, or deletes files. A cover path is
-stored relative to that folder (`assets/pie.jpg`), web links and anything
-outside `assets` are refused, and missing files show a placeholder.
-
-## Languages
-
-The interface follows Logseq's language unless you choose one in the
-plugin settings. Recipe text is read in
-the recipe's language, and each line falls back to whichever supported
-language understands it — a Turkish step is still understood when Logseq runs
-in English.
-
-Section headings and labels ("Ingredients", "Malzemeler", "Yield:",
-"Porsiyon:") are recognized in any of the five languages, whatever the
-recipe's language, and without accents ("Yapilis", "Etapes").
+- [Getting started](docs/getting-started.md): install, your first recipe,
+  the outline format
+- [Using Logseq Recipe](docs/usage.md): browsing, editing, scaling, Cooking
+  Mode, covers, languages
+- [Properties and queries](docs/properties-and-queries.md): what the plugin
+  stores on your blocks, and how to query it
+- [Upgrading to 1.5](docs/migration.md): what changes, what to do, and going
+  back to 1.4.1
+- [Parser guarantees](docs/parser.md): what is read, and what is never
+  guessed
+- [Data model](docs/data-model.md) and [architecture](docs/architecture.md):
+  how recipes are stored and why
+- [Contributing](docs/contributing.md): building, testing and the live
+  Logseq tests
 
 ## Limits
 
-- File graphs are not supported.
-- Parsing is deterministic syntax recognition, not general natural-language
-  understanding. Ambiguous lines stay as written until you correct them.
-- Website import, nutrition, shopping lists, meal planning, and cloud sync are
-  not included.
+File graphs are not supported. Website import, nutrition, shopping lists,
+meal planning and sync are not part of the plugin. Parsing recognizes
+recipe syntax; it is not general language understanding.
 
-If commands are missing, confirm the plugin is enabled and the current graph is
-a DB graph. For bugs, open an
+If commands are missing, check that the plugin is enabled and the graph is a
+DB graph. For bugs, open an
 [issue](https://github.com/frogiraffe/logseq-recipe/issues) with your Logseq
-version, graph type, and the relevant DevTools console error.
-
-## Development
-
-Requires Node.js 20.19+ and pnpm 10.33.0.
-
-```bash
-pnpm install --frozen-lockfile
-pnpm check                # typecheck, lint, test, build
-pnpm package              # logseq-recipe-v<version>.zip
-pnpm run package:verify
-pnpm demo                 # the real UI over sample data, in a browser
-```
-
-Pushing a `v<version>` tag builds, verifies, and publishes the release ZIP
-through GitHub Actions.
+version and the DevTools console error.
 
 ## License
 

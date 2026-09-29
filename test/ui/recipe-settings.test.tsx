@@ -26,6 +26,60 @@ const recipe: Recipe = {
 };
 
 describe("RecipeSettingsPanel", () => {
+  it("keeps a list changed in Logseq while open, unless it was edited here", () => {
+    const onSave = vi.fn();
+    const panel = (current: Recipe) => (
+      <RecipeSettingsPanel
+        recipe={current}
+        assets={[]}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />
+    );
+    const { rerender } = render(panel(recipe));
+    commitChip(enMessages.tags, "Party");
+    // Meanwhile in Logseq: a category added, a tag removed.
+    rerender(panel({ ...recipe, categories: ["Dessert", "Baking"], tags: [] }));
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categories: ["Dessert", "Baking"],
+        tags: ["Chocolate", "Party"],
+      }),
+      undefined,
+    );
+  });
+
+  it("says categories and tags are Logseq properties when they are", () => {
+    const { rerender } = render(
+      <RecipeSettingsPanel
+        recipe={recipe}
+        assets={[]}
+        messages={enMessages}
+        onSave={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(screen.queryByText(enMessages.taxonomyPropertiesHelp)).toBeNull();
+
+    rerender(
+      <RecipeSettingsPanel
+        recipe={recipe}
+        assets={[]}
+        messages={enMessages}
+        taxonomyInLogseq
+        onSave={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    const help = screen.getByText(enMessages.taxonomyPropertiesHelp);
+    expect(
+      screen.getByLabelText(enMessages.tags).getAttribute("aria-describedby"),
+    ).toBe(help.id);
+  });
+
   it("saves free-form categories/tags and an explicit conversion rule", () => {
     const onSave = vi.fn();
     render(

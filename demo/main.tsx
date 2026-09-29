@@ -615,6 +615,15 @@ const controller: DraftRecipeUiController = {
     Object.assign(mustGet(id), meta);
     notify(id);
   },
+  // A graph whose categories and tags are already Logseq properties.
+  planTaxonomyExport: async () => ({
+    recipeCount: 0,
+    propertyNames: [],
+    pagesToCreate: [],
+    pagesToReuse: [],
+    namesKeptInPlugin: [],
+  }),
+  exportTaxonomy: async () => 0,
   setCoverPath: async () => undefined,
   clearCover: async () => undefined,
   saveRecipeEdit: (id, patch) => commitRecipeEdit(repository, id, patch),

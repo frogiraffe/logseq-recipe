@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 
 export interface ActionMenuItem {
   label: string;
@@ -26,7 +26,9 @@ export function ActionMenu({
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
 
-  useEffect(() => {
+  // Listening from commit, so Escape closes the menu even on the screen's
+  // first frame instead of leaving the screen.
+  useLayoutEffect(() => {
     const close = (event: Event) => {
       const menu = ref.current;
       if (!menu?.open) return;
@@ -77,7 +79,7 @@ export function ActionMenu({
       onToggle={keepInWindow}
     >
       <summary aria-label={label} title={label}>
-        <span aria-hidden="true">{icon}</span>
+        {icon}
       </summary>
       <div className="draft-recipe-menu-items">
         {items.map((item) => (

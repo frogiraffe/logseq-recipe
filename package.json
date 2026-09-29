@@ -1,8 +1,8 @@
 {
   "name": "logseq-recipe",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
-  "description": "A local recipe library for Logseq DB graphs: serving scaling, unit conversion, and a Cooking Mode with timers.",
+  "description": "DB-native recipe cards, serving scaling, and cooking mode for Logseq.",
   "author": "frogiraffe",
   "license": "MIT",
   "type": "module",

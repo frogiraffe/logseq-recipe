@@ -219,4 +219,27 @@ export const esMessages: UiMessages = {
   enterAmount: "Escribir una cantidad",
   recipeCountOne: "{shown} / {total} receta",
   recipeCountOther: "{shown} / {total} recetas",
+  exportTaxonomy: "Añadir categorías y etiquetas a Logseq…",
+  exportTaxonomyConfirmOne:
+    "Las categorías y etiquetas de {count} receta se escribirán en las propiedades de Logseq {properties}. Después, esas propiedades son las que cuentan: cámbialas en el plugin o en Logseq.",
+  exportTaxonomyConfirmOther:
+    "Las categorías y etiquetas de {count} recetas se escribirán en las propiedades de Logseq {properties}. Después, esas propiedades son las que cuentan: cámbialas en el plugin o en Logseq.",
+  exportTaxonomyNewPages: "Páginas nuevas: {pages}",
+  exportTaxonomyExistingPages: "Páginas existentes: {pages}",
+  exportTaxonomyKeptNames:
+    "Se quedan solo en el plugin, porque Logseq no puede usarlos como nombres de página: {pages}",
+  exportTaxonomyAction: "Añadir",
+  exportTaxonomyDoneOne:
+    "Categorías y etiquetas añadidas a Logseq para {count} receta",
+  exportTaxonomyDoneOther:
+    "Categorías y etiquetas añadidas a Logseq para {count} recetas",
+  taxonomyNoticeOne:
+    "{count} receta tiene categorías o etiquetas que las consultas de Logseq aún no encuentran.",
+  taxonomyNoticeOther:
+    "{count} recetas tienen categorías o etiquetas que las consultas de Logseq aún no encuentran.",
+  taxonomyNoticeReview: "Revisar…",
+  taxonomyNoticeLater: "Ahora no",
+  taxonomyPropertiesHelp:
+    "Se guardan como las propiedades de Logseq recipe_categories y recipe_tags: también puedes cambiarlas en Logseq y encontrar recetas con las consultas de Logseq.",
+  importInstead: "¿Tienes la receta entera como texto? Importar desde texto",
 };

@@ -32,6 +32,11 @@ export interface IngredientConversionOverride {
 export interface RecipeMeta {
   categories: string[];
   tags: string[];
+  // Set by the plugin when it wrote categories and tags into their Logseq
+  // properties, which are then the source of truth and `categories`/`tags`
+  // above only a copy. Logseq Recipe 1.4 drops it on its next save, so its
+  // absence also marks a recipe an older version has edited since.
+  taxonomyInProperties?: true;
   parserLocale?: RecipeLocale;
   sourceMeasurementSystem?: MeasurementSystem;
   measurementSystemOverride?: MeasurementSystem;

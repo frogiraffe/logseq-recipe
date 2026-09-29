@@ -13,6 +13,8 @@ export interface RecipePropertyDefinition {
 
 export interface RecipeSchemaCapabilities {
   coverReference: CoverReferenceCapability;
+  /** The category and tag page properties exist (see ensureTaxonomySchema). */
+  taxonomyProperties?: boolean;
 }
 
 export interface PropertySchemaEditor {
@@ -68,19 +70,59 @@ export function buildRecipeSchema(
     ),
     hidden(PROPERTY_KEYS.sectionRole, "default"),
     hidden(PROPERTY_KEYS.scaleMode, "default"),
+    ...(capabilities.taxonomyProperties ? buildTaxonomySchema() : []),
   ];
 }
 
-export async function ensureRecipeSchema(
+// A recipe's categories and tags as pages ("Tatlı", "Kek"): a page value
+// is a set Logseq's queries and page references understand, where text
+// values would pile up on every rewrite.
+export function buildTaxonomySchema(): RecipePropertyDefinition[] {
+  return [PROPERTY_KEYS.recipeCategories, PROPERTY_KEYS.recipeTags].map(
+    (key) => ({
+      key,
+      type: "node",
+      cardinality: "many",
+      hide: false,
+      public: true,
+    }),
+  );
+}
+
+async function upsertDefinitions(
   editor: PropertySchemaEditor,
-  capabilities: RecipeSchemaCapabilities,
+  definitions: readonly RecipePropertyDefinition[],
 ): Promise<void> {
-  for (const definition of buildRecipeSchema(capabilities)) {
+  for (const definition of definitions) {
     await editor.upsertProperty(definition.key, {
       type: definition.type,
       cardinality: definition.cardinality,
       hide: definition.hide,
       public: definition.public,
     });
+  }
+}
+
+export async function ensureRecipeSchema(
+  editor: PropertySchemaEditor,
+  capabilities: RecipeSchemaCapabilities,
+): Promise<void> {
+  await upsertDefinitions(editor, buildRecipeSchema(capabilities));
+}
+
+/**
+ * Creates the category and tag properties, and whether it could. They are
+ * the plugin's first page-valued properties: a runtime that refuses them
+ * must only lose the mirror, never block every other write the way a
+ * failure in ensureRecipeSchema does.
+ */
+export async function ensureTaxonomySchema(
+  editor: PropertySchemaEditor,
+): Promise<boolean> {
+  try {
+    await upsertDefinitions(editor, buildTaxonomySchema());
+    return true;
+  } catch {
+    return false;
   }
 }

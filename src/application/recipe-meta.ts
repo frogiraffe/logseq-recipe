@@ -99,6 +99,9 @@ export function decodeRecipeMeta(raw: unknown): RecipeMeta {
   return {
     categories: stringArray(parsed.categories),
     tags: stringArray(parsed.tags),
+    ...(parsed.taxonomyInProperties === true
+      ? { taxonomyInProperties: true }
+      : {}),
     ...(isRecipeLocale(parserLocale) ? { parserLocale } : {}),
     ...(isMeasurementSystem(sourceMeasurementSystem)
       ? { sourceMeasurementSystem }

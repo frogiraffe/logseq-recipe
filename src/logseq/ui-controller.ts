@@ -10,7 +10,6 @@ import {
 } from "../application/edit-recipe";
 import { RecipeError, titleTaken } from "../application/errors";
 import { sameTitle } from "../application/list-recipes";
-import { encodeRecipeMeta } from "../application/recipe-meta";
 import type { OutlineNode } from "../application/split-outline";
 import type { NewRecipeInput } from "../application/types";
 import { validateLoadedRecipe } from "../application/validate-recipe";
@@ -30,12 +29,16 @@ import {
 } from "./assets";
 import type { RuntimeCapabilities } from "./capabilities";
 import { watchDebounced } from "./events";
-import { PROPERTY_KEYS } from "./property-keys";
+import {
+  moveRecipeTaxonomy,
+  planRecipeTaxonomy,
+  writeRecipeMeta,
+} from "./recipe-taxonomy";
 import {
   createDraftRecipeRepository,
   currentDraftRecipeHost,
 } from "./repository";
-import { ensureRecipeSchema } from "./schema";
+import { ensureRecipeSchema, ensureTaxonomySchema } from "./schema";
 import {
   type DraftRecipeSettings,
   readSettings,
@@ -59,9 +62,13 @@ export async function createRuntimeUiContext(
   const settings = readSettings();
   const host = currentDraftRecipeHost();
 
-  const schemaCapabilities = { coverReference: capabilities.coverReference };
-
-  await ensureRecipeSchema(host.editor, schemaCapabilities);
+  await ensureRecipeSchema(host.editor, {
+    coverReference: capabilities.coverReference,
+  });
+  const schemaCapabilities = {
+    coverReference: capabilities.coverReference,
+    taxonomyProperties: await ensureTaxonomySchema(host.editor),
+  };
 
   const repository = createDraftRecipeRepository(host, {
     settings,
@@ -75,6 +82,14 @@ export async function createRuntimeUiContext(
   );
   const defaultSourceMeasurementSystem =
     getLocalePack(defaultParserLocale).defaultSourceMeasurementSystem;
+
+  // Archived recipes too: their categories are data like any other.
+  async function allRecipeSummaries() {
+    return [
+      ...(await repository.listRecipeSummaries({ fresh: true })),
+      ...(await repository.listArchivedRecipeSummaries()),
+    ];
+  }
 
   async function migrateThenLoad(id: string): Promise<Recipe | null> {
     await runRecipeMigrations(logseq.Editor, id);
@@ -146,11 +161,20 @@ export async function createRuntimeUiContext(
     resolveAssetUrl: (path: string) =>
       resolveAssetUrl(currentCoverResolverHost(), path),
     saveRecipeMeta: (id: string, meta: RecipeMeta) =>
-      logseq.Editor.upsertBlockProperty(
+      writeRecipeMeta(
+        logseq.Editor,
         id,
-        PROPERTY_KEYS.recipeMeta,
-        encodeRecipeMeta(meta),
+        meta,
+        schemaCapabilities.taxonomyProperties,
       ),
+    ...(schemaCapabilities.taxonomyProperties
+      ? {
+          planTaxonomyExport: async () =>
+            planRecipeTaxonomy(logseq.Editor, await allRecipeSummaries()),
+          exportTaxonomy: async () =>
+            moveRecipeTaxonomy(logseq.Editor, await allRecipeSummaries()),
+        }
+      : {}),
     setCoverPath: async (id: string, path: string) => {
       if (capabilities.coverReference !== "asset-path") {
         throw new Error(

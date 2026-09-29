@@ -33,7 +33,7 @@ const SECTION_TITLES: Record<RecipeLibrarySectionRole, string> = {
   archived: "Archived",
 };
 
-function isRecycledPage(value: unknown): boolean {
+export function isRecycledPage(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const page = value as Record<string, unknown>;
   return (

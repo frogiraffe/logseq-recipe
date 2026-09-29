@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,12 +27,14 @@ import {
   type FacetSuggestion,
 } from "../application/list-recipes";
 import type { OutlineNode } from "../application/split-outline";
+import type { TaxonomyExportPlan } from "../application/types";
 import type { Recipe, RecipeLocale } from "../domain/recipe";
 import type { CanonicalUnit } from "../domain/unit";
 import { ActionMenu } from "./components/ActionMenu";
 import { ArchivedRecipesView } from "./components/ArchivedRecipesView";
 import { ConvertPreview } from "./components/ConvertPreview";
 import { CookingMode } from "./components/CookingMode";
+import { Icon } from "./components/Icon";
 import { ImportRecipeText } from "./components/ImportRecipeText";
 import { NewRecipeForm } from "./components/NewRecipeForm";
 import { RecipeCard } from "./components/RecipeCard";
@@ -297,6 +300,78 @@ function RecipeApp({
     [controller, messages],
   );
 
+  // Whether any recipe's categories and tags are not in their Logseq
+  // properties yet: checked on open and after a copy, since every later
+  // save mirrors them itself.
+  const [taxonomyPlan, setTaxonomyPlan] = useState<TaxonomyExportPlan | null>(
+    null,
+  );
+  // "Not now" hides the notice until the plugin is next opened; the offer
+  // stays under More actions.
+  const [taxonomyNoticeHidden, setTaxonomyNoticeHidden] = useState(false);
+  const refreshTaxonomyPlan = useCallback(async () => {
+    if (!controller.planTaxonomyExport) return;
+    try {
+      setTaxonomyPlan(await controller.planTaxonomyExport());
+    } catch {
+      // Only an offer: without a plan its menu item isn't shown.
+      setTaxonomyPlan(null);
+    }
+  }, [controller]);
+  useEffect(() => {
+    void refreshTaxonomyPlan();
+  }, [refreshTaxonomyPlan]);
+
+  const plural = (count: number, one: string, other: string) =>
+    (new Intl.PluralRules(messages.uiLocale).select(count) === "one"
+      ? one
+      : other
+    ).replace("{count}", String(count));
+
+  // Planned again when chosen, so the question counts what is there now.
+  const offerTaxonomyExport = () =>
+    void runAction(async () => {
+      if (!controller.planTaxonomyExport || !controller.exportTaxonomy) return;
+      const exportTaxonomy = controller.exportTaxonomy;
+      const plan = await controller.planTaxonomyExport();
+      setTaxonomyPlan(plan);
+      if (plan.recipeCount === 0) return;
+      const pages = [
+        [messages.exportTaxonomyNewPages, plan.pagesToCreate],
+        [messages.exportTaxonomyExistingPages, plan.pagesToReuse],
+        [messages.exportTaxonomyKeptNames, plan.namesKeptInPlugin],
+      ] as const;
+      confirm(
+        {
+          message: plural(
+            plan.recipeCount,
+            messages.exportTaxonomyConfirmOne,
+            messages.exportTaxonomyConfirmOther,
+          ).replace("{properties}", plan.propertyNames.join(", ")),
+          detail:
+            pages
+              .filter(([, names]) => names.length > 0)
+              .map(([label, names]) =>
+                label.replace("{pages}", names.join(", ")),
+              )
+              .join(" · ") || undefined,
+          confirmLabel: messages.exportTaxonomyAction,
+        },
+        () =>
+          void runAction(async () => {
+            const updated = await exportTaxonomy();
+            announce(
+              plural(
+                updated,
+                messages.exportTaxonomyDoneOne,
+                messages.exportTaxonomyDoneOther,
+              ),
+            );
+            await refreshTaxonomyPlan();
+          }),
+      );
+    });
+
   const refreshArchivedRecipes = useCallback(async () => {
     setArchivedRecipesLoaded(false);
     try {
@@ -406,6 +481,8 @@ function RecipeApp({
   const backToRecipes = () => {
     setView({ kind: "recipes" });
     void refreshRecipes();
+    // Saving a recipe's settings moves its categories and tags too.
+    void refreshTaxonomyPlan();
   };
 
   // Escape does what the screen's Back or Cancel does, and closes the
@@ -434,8 +511,35 @@ function RecipeApp({
         return guarded(controller.close);
     }
   })();
-  const escapeRef = useRef(leaveScreen);
+  // Keyboard focus never rests under the sticky Save bar or the timer dock:
+  // the browser only scrolls to a field it thinks is off screen, so one
+  // already on screen but covered is brought up here, above them (see the
+  // scroll-padding in feature-styles.css).
   useEffect(() => {
+    const covers = ".draft-recipe-sticky-actions, .draft-recipe-timer-dock";
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || target.closest(covers)) return;
+      const box = target.getBoundingClientRect();
+      const covered = [...document.querySelectorAll(covers)].some((cover) => {
+        const over = cover.getBoundingClientRect();
+        return (
+          box.bottom > over.top &&
+          box.top < over.bottom &&
+          box.right > over.left &&
+          box.left < over.right
+        );
+      });
+      if (covered) target.scrollIntoView({ block: "nearest" });
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, []);
+
+  const escapeRef = useRef(leaveScreen);
+  // At commit, not after paint: a key pressed as the new screen appears must
+  // not run the previous screen's Escape.
+  useLayoutEffect(() => {
     escapeRef.current = leaveScreen;
   });
   useEffect(() => {
@@ -462,7 +566,7 @@ function RecipeApp({
       <header className="draft-recipe-app-bar">
         {onBack && (
           <button type="button" className="draft-recipe-back" onClick={onBack}>
-            <span aria-hidden="true">←</span> {messages.back}
+            <Icon name="back" /> {messages.back}
           </button>
         )}
         <button
@@ -472,7 +576,7 @@ function RecipeApp({
           title={messages.close}
           onClick={() => confirmDiscard(formDirty, controller.close)}
         >
-          <span aria-hidden="true">×</span>
+          <Icon name="close" />
         </button>
       </header>
       {error && <div className="draft-recipe-error">{error}</div>}
@@ -508,6 +612,7 @@ function RecipeApp({
         sourceMeasurementSystem={config.defaultSourceMeasurementSystem}
         pending={pending}
         onCancel={backToRecipes}
+        onImport={() => setView({ kind: "import-text" })}
         onSubmit={(input) => {
           void runAction(async () => {
             const created = await controller.createRecipe(input);
@@ -640,6 +745,7 @@ function RecipeApp({
         categorySuggestions={categorySuggestions}
         tagSuggestions={tagSuggestions}
         defaultSourceMeasurementSystem={config.defaultSourceMeasurementSystem}
+        taxonomyInLogseq={Boolean(controller.planTaxonomyExport)}
         pending={pending}
         onCancel={() => setView({ kind: "recipe-loaded" })}
         onDirtyChange={setFormDirty}
@@ -835,6 +941,31 @@ function RecipeApp({
       loading={!recipesLoaded}
       onOpen={(id) => void openRecipeById(id, true)}
       resolveCover={controller.resolveCover}
+      notice={
+        taxonomyPlan &&
+        taxonomyPlan.recipeCount > 0 &&
+        !taxonomyNoticeHidden && (
+          <div className="draft-recipe-library-notice" role="status">
+            <p>
+              {plural(
+                taxonomyPlan.recipeCount,
+                messages.taxonomyNoticeOne,
+                messages.taxonomyNoticeOther,
+              )}
+            </p>
+            <button type="button" onClick={offerTaxonomyExport}>
+              {messages.taxonomyNoticeReview}
+            </button>
+            <button
+              type="button"
+              className="draft-recipe-link-button"
+              onClick={() => setTaxonomyNoticeHidden(true)}
+            >
+              {messages.taxonomyNoticeLater}
+            </button>
+          </div>
+        )
+      }
       headerActions={
         <>
           <button
@@ -844,11 +975,11 @@ function RecipeApp({
             title={messages.refresh}
             onClick={() => void refreshRecipes(true)}
           >
-            <span aria-hidden="true">↻</span>
+            <Icon name="refresh" />
           </button>
           <ActionMenu
             label={messages.moreActions}
-            icon="⋯"
+            icon={<Icon name="more" />}
             align="end"
             items={[
               {
@@ -858,6 +989,14 @@ function RecipeApp({
                   void refreshArchivedRecipes();
                 },
               },
+              ...(taxonomyPlan && taxonomyPlan.recipeCount > 0
+                ? [
+                    {
+                      label: messages.exportTaxonomy,
+                      onSelect: offerTaxonomyExport,
+                    },
+                  ]
+                : []),
             ]}
           />
           {/* One control: Create, with its ▾ for the other ways to add. */}
@@ -871,7 +1010,7 @@ function RecipeApp({
             </button>
             <ActionMenu
               label={messages.moreWaysToAdd}
-              icon="▾"
+              icon={<Icon name="chevronDown" />}
               align="end"
               items={[
                 {

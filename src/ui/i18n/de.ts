@@ -220,4 +220,27 @@ export const deMessages: UiMessages = {
   enterAmount: "Menge eingeben",
   recipeCountOne: "{shown} / {total} Rezept",
   recipeCountOther: "{shown} / {total} Rezepte",
+  exportTaxonomy: "Kategorien und Tags zu Logseq hinzufügen…",
+  exportTaxonomyConfirmOne:
+    "Die Kategorien und Tags von {count} Rezept werden in die Logseq-Eigenschaften {properties} geschrieben. Danach gelten diese Eigenschaften: Ändern Sie sie im Plugin oder in Logseq.",
+  exportTaxonomyConfirmOther:
+    "Die Kategorien und Tags von {count} Rezepten werden in die Logseq-Eigenschaften {properties} geschrieben. Danach gelten diese Eigenschaften: Ändern Sie sie im Plugin oder in Logseq.",
+  exportTaxonomyNewPages: "Neue Seiten: {pages}",
+  exportTaxonomyExistingPages: "Vorhandene Seiten: {pages}",
+  exportTaxonomyKeptNames:
+    "Nur im Plugin behalten, da Logseq sie nicht als Seitennamen verwenden kann: {pages}",
+  exportTaxonomyAction: "Hinzufügen",
+  exportTaxonomyDoneOne:
+    "Kategorien und Tags für {count} Rezept zu Logseq hinzugefügt",
+  exportTaxonomyDoneOther:
+    "Kategorien und Tags für {count} Rezepte zu Logseq hinzugefügt",
+  taxonomyNoticeOne:
+    "{count} Rezept hat Kategorien oder Tags, die Logseq-Abfragen noch nicht finden.",
+  taxonomyNoticeOther:
+    "{count} Rezepte haben Kategorien oder Tags, die Logseq-Abfragen noch nicht finden.",
+  taxonomyNoticeReview: "Prüfen…",
+  taxonomyNoticeLater: "Später",
+  taxonomyPropertiesHelp:
+    "Gespeichert als Logseq-Eigenschaften recipe_categories und recipe_tags: Sie können sie auch in Logseq ändern und Rezepte mit Logseq-Abfragen danach finden.",
+  importInstead: "Haben Sie das ganze Rezept als Text? Aus Text importieren",
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { foldLabel } from "../../parsing/normalize";
 import type { UiMessages } from "../i18n";
+import { Icon } from "./Icon";
 
 export interface ServingControlProps {
   value: number;
@@ -60,7 +61,7 @@ export function ServingControl({
         aria-label={messages.fewerServings}
         disabled={value - 1 <= 0}
       >
-        −
+        <Icon name="minus" />
       </button>
       <input
         aria-label={messages.servings}
@@ -76,7 +77,7 @@ export function ServingControl({
         onClick={() => commit(value + 1)}
         aria-label={messages.moreServings}
       >
-        +
+        <Icon name="plus" />
       </button>
       {unit && !repeatsLabel(unit, messages.servings) && (
         <span className="draft-recipe-yield-unit">{unit}</span>
@@ -94,7 +95,8 @@ export function ServingControl({
             title={messages.resetServings.replace("{count}", String(baseValue))}
             onClick={() => onChange(baseValue)}
           >
-            <span aria-hidden="true">↺ {baseValue}</span>
+            <Icon name="reset" />
+            <span aria-hidden="true">{baseValue}</span>
           </button>
         )}
     </div>

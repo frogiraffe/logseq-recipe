@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { type ReactNode, useRef, useState } from "react";
 import type { UiMessages } from "../i18n";
+import { Icon } from "./Icon";
 
 export interface EditableItem {
   id: string;
@@ -115,7 +116,7 @@ function SortableRow({
         {...attributes}
         {...listeners}
       >
-        <span aria-hidden="true">⠿</span>
+        <Icon name="grip" />
       </button>
       {children}
     </li>
@@ -290,7 +291,7 @@ export function SortableList({
                     )
                   }
                 >
-                  <span aria-hidden="true">×</span>
+                  <Icon name="close" />
                 </button>
                 {renderItemBelow && (
                   <div className="draft-recipe-editor-item-below">
