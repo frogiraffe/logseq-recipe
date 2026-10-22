@@ -69,8 +69,9 @@ plugin must understand to use it safely. A plugin refuses to open a recipe
 with a newer version than its own (Logseq Recipe 1.4.1 knows version 1),
 instead of misreading or overwriting it.
 
-1.5 keeps version **1**: everything Logseq Recipe 1.4.1 reads is still
-written the way it reads it. Rules for later changes:
+1.5 and 1.6 keep version **1**: everything Logseq Recipe 1.4.1 reads is
+still written the way it reads it, and 1.6's `recipe_last_cooked` is a
+property older versions simply don't read. Rules for later changes:
 
 - **Raise `schema_version` only when an older plugin would misread or damage
   the data.** Everything else is an additive change that older versions
@@ -78,10 +79,10 @@ written the way it reads it. Rules for later changes:
 - **An older plugin drops JSON fields it doesn't know** when it saves
   `recipe_meta`. A new field must treat its absence as "an older version
   wrote this", the way `taxonomyInProperties` does.
-- **A migration step must be safe to repeat.** The runner
-  (`src/migrations/runner.ts`) writes the new version only after a step
-  completes, so an interrupted step runs again from the start on the next
-  load.
+- **A migration step must be safe to repeat.** Each step writes its new
+  `schema_version` as its last write (see `src/migrations/v1.ts`); the
+  runner (`src/migrations/runner.ts`) writes nothing itself. So an
+  interrupted step runs again from the start on the next load.
 - **Nothing is deleted to migrate.** Old copies stay until nothing that can
   still run needs them. Logseq's orphaned value entities are left alone.
 - **Bulk changes are previewed**, and each recipe is marked done only after

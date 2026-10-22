@@ -1,7 +1,7 @@
 import { decodeRecipeMeta, encodeRecipeMeta } from "../application/recipe-meta";
 import type { TaxonomyExportPlan } from "../application/types";
-import type { RecipeMeta } from "../domain/recipe";
-import { unwrapBlockPropertyValue } from "./block-reader";
+import { RECIPE_SCHEMA_VERSION, type RecipeMeta } from "../domain/recipe";
+import { propertyNumber, unwrapBlockPropertyValue } from "./block-reader";
 import { PROPERTY_KEYS } from "./property-keys";
 import { isRecycledPage } from "./recipe-library";
 
@@ -301,6 +301,11 @@ async function pendingMove(
   changes: FieldChange[];
   kept: string[];
 } | null> {
+  // A newer Logseq Recipe's JSON may hold what this one can't write back.
+  const schemaVersion = propertyNumber(
+    await host.getBlockProperty(recipeId, PROPERTY_KEYS.schemaVersion),
+  );
+  if ((schemaVersion ?? 0) > RECIPE_SCHEMA_VERSION) return null;
   const meta = await readMeta(host, recipeId);
   if (meta.taxonomyInProperties) return null;
   if (meta.categories.length === 0 && meta.tags.length === 0) return null;
@@ -312,6 +317,13 @@ async function pendingMove(
   const changes = await changesFor(host, recipeId, fits, pages);
   if (changes.length === 0 && kept.length > 0) return null;
   return { meta, taxonomy, changes, kept };
+}
+
+// The move creates a page with the first spelling it meets ("dessert"
+// before "Dessert"), so the plan shows that one.
+function addFirstSpelling(names: Map<string, string>, name: string): void {
+  const key = name.toLowerCase();
+  if (!names.has(key)) names.set(key, name);
 }
 
 /** What moveRecipeTaxonomy would write, without writing or creating anything. */
@@ -333,10 +345,10 @@ export async function planRecipeTaxonomy(
       properties.add(change.key);
       for (const [index, name] of change.names.entries()) {
         const target = change.pages[index] === null ? create : reuse;
-        target.set(name.toLowerCase(), name);
+        addFirstSpelling(target, name);
       }
     }
-    for (const name of move.kept) keep.set(name.toLowerCase(), name);
+    for (const name of move.kept) addFirstSpelling(keep, name);
   }
   return {
     recipeCount,

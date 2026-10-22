@@ -513,6 +513,48 @@ describe("CookingMode sessions and timers", () => {
     confirm.mockRestore();
   });
 
+  it("reports a finished cook, and not one left for now", () => {
+    const onFinish = vi.fn();
+    const onExit = vi.fn();
+    render(
+      <CookingMode
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={recipe}
+        targetYield={2}
+        measurementSystem="metric"
+        messages={enMessages}
+        onExit={onExit}
+        onFinish={onFinish}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.exitCookingForNow }),
+    );
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(onFinish).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: enMessages.finishCooking })[0],
+    );
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(onExit).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks before finishing with no timer running", () => {
+    const onExit = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(cookingMode(recipe, onExit));
+    fireEvent.click(screen.getByRole("button", { name: enMessages.next }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.finishCooking }),
+    );
+    expect(confirm).toHaveBeenCalledWith(enMessages.finishCookingQuestion);
+    expect(onExit).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
   it("keeps keys and clicks on the finish question from reaching the step behind it", () => {
     const onExit = vi.fn();
     renderWithConfirm(cookingMode(recipe, onExit));
@@ -588,6 +630,22 @@ describe("CookingMode custom timer", () => {
     expect(
       screen.getByText(`${enMessages.stepProgress} 1 · 02:00`),
     ).toBeTruthy();
+  });
+
+  it("closes the timer field on Escape, and leaves on the next one", () => {
+    const onExit = vi.fn();
+    render(cookingMode(recipe, onExit));
+    fireEvent.click(
+      screen.getByRole("button", { name: `+ ${enMessages.addTimer}` }),
+    );
+    fireEvent.keyDown(screen.getByLabelText(enMessages.timerMinutes), {
+      key: "Escape",
+    });
+    expect(screen.queryByLabelText(enMessages.timerMinutes)).toBeNull();
+    expect(onExit).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -684,5 +742,34 @@ describe("CookingMode on a wide window", () => {
         .querySelector(".draft-recipe-cooking-mode")
         ?.classList.contains("draft-recipe-cooking-split"),
     ).toBe(true);
+  });
+});
+
+describe("CookingMode converted temperatures", () => {
+  function shownTemperature(text: string, system: "metric" | "us") {
+    const step = parseStep(text, defaultParseContext("en"));
+    render(
+      <CookingMode
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={{ ...recipe, steps: [{ ...step, id: "t1", rawText: text }] }}
+        targetYield={2}
+        measurementSystem={system}
+        messages={enMessages}
+        onExit={() => undefined}
+      />,
+    );
+    return [...document.querySelectorAll(".draft-recipe-annotation")]
+      .map((annotation) => annotation.textContent)
+      .join(" | ");
+  }
+
+  it.each([
+    ["Bake at 350°F.", "metric", "175 °C"],
+    ["Bring the water to 100°C.", "us", "212 °F"],
+    ["Cook the sugar to 245°F.", "metric", "118 °C"],
+    ["Freeze at -18°C.", "us", "0 °F"],
+  ] as const)("shows %s in %s as %s", (text, system, shown) => {
+    expect(shownTemperature(text, system)).toContain(shown);
   });
 });

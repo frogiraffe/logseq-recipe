@@ -1,9 +1,10 @@
 import {
   analyzeWithDetectedLocale,
   type ConversionSourceNode,
-  isSectionHeadingInAnyLocale,
   outlineToSource,
+  sectionRoleInAnyLocale,
 } from "../application/convert-recipe";
+import type { RecipeSectionRole } from "../application/types";
 import type { RecipeLocale } from "../domain/recipe";
 import type { ConversionRebuild, DraftRecipeInitialView } from "../ui/state";
 import {
@@ -70,36 +71,52 @@ export async function loadConversionRoot(
   return snapshot ? toConversionSource(snapshot) : null;
 }
 
+// More separate chunks than this between two headings are not one section.
+const MAX_CHUNKS_BETWEEN_HEADINGS = 20;
+
 /**
  * A pasted recipe often lands as flat sibling blocks - a title block, then
  * "Ingredients"/"Steps"/"Notes" blocks holding their lines as multi-line
- * text - instead of sections nested under the title. Collects the
- * consecutive next siblings that are childless section headings (any
- * language) so the outline split can fold them under the title. Stops at
- * the first sibling that isn't one, so whatever follows the recipe (e.g.
- * the rest of a journal page) is never swallowed.
+ * text, sometimes with a section's later lines as blocks of their own -
+ * instead of sections nested under the title. Collects the childless next
+ * siblings from the first section heading (any language) to the last, with
+ * the chunks between them, so the outline split can fold them under the
+ * title. Chunks after the last heading are left, since they can't be told
+ * from what follows the recipe (e.g. the rest of a journal page), and so is
+ * everything from a section seen before after chunks: another recipe's.
  */
 export async function loadTrailingSectionSiblings(
   uuid: string,
 ): Promise<ConversionSourceNode[]> {
   const siblings: ConversionSourceNode[] = [];
+  const roles = new Set<RecipeSectionRole>();
+  let throughLastHeading = 0;
   // A page, or a block Logseq can't place, has no siblings to fold in.
   const nextOf = (id: string) =>
     logseq.Editor.getNextSiblingBlock(id).catch(() => null);
   let next = await nextOf(uuid);
-  while (next) {
+  while (
+    next &&
+    siblings.length - throughLastHeading < MAX_CHUNKS_BETWEEN_HEADINGS
+  ) {
     const snapshot = toRecipeBlockSnapshot(
       await logseq.Editor.getBlock(next.uuid, { includeChildren: true }),
     );
     if (!snapshot) break;
     const node = toConversionSource(snapshot);
-    if (node.children.length > 0 || !isSectionHeadingInAnyLocale(node.title)) {
-      break;
-    }
+    if (node.children.length > 0) break;
+    const role = sectionRoleInAnyLocale(node.title);
+    if (!role && throughLastHeading === 0) break;
+    const afterChunks = siblings.length > throughLastHeading;
+    if (role && afterChunks && roles.has(role)) break;
     siblings.push(node);
+    if (role) {
+      roles.add(role);
+      throughLastHeading = siblings.length;
+    }
     next = await nextOf(node.id);
   }
-  return siblings;
+  return siblings.slice(0, throughLastHeading);
 }
 
 export function conversionView(

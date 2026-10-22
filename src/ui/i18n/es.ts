@@ -17,7 +17,7 @@ export const esMessages: UiMessages = {
   tags: "Etiquetas",
   containsIngredient: "Contiene el ingrediente",
   prepTime: "Preparación",
-  chillTime: "Reposo / frío",
+  chillTime: "Refrigeración / reposo",
   cookTime: "Cocción",
   totalTime: "Tiempo total",
   source: "Fuente",
@@ -69,6 +69,8 @@ export const esMessages: UiMessages = {
   rangeMax: "Máx.",
   minutesUnit: "min",
   converting: "Convirtiendo",
+  colon: ":",
+  importing: "Importando",
   alreadyRecipe: "Esto ya es una receta:",
   openRecipe: "Abrir receta",
   missingYieldPrompt:
@@ -80,6 +82,9 @@ export const esMessages: UiMessages = {
     "Logseq Recipe convierte automáticamente unidades fijas como g ↔ kg y ml ↔ L. Para los ingredientes compatibles, también convierte automáticamente entre peso y volumen (p. ej. tazas a gramos) con datos integrados. Añade una conversión personalizada solo cuando un ingrediente no sea compatible o para sustituir su conversión integrada en esta receta. Esto no añade un ingrediente a la receta: escribe los ingredientes como líneas normales bajo Ingredientes.",
   editRecipe: "Editar receta",
   duplicateRecipe: "Duplicar receta",
+  copyAsText: "Copiar como texto",
+  copiedNotice: "Copiada como texto",
+  copyFailed: "No se pudo copiar al portapapeles.",
   archivedRecipes: "Recetas archivadas",
   noArchivedRecipes: "No hay recetas archivadas",
   archiveRecipe: "Archivar receta",
@@ -98,6 +103,8 @@ export const esMessages: UiMessages = {
   sortBy: "Ordenar por",
   sortByTitle: "Título (A–Z)",
   sortByTotalTime: "Tiempo total (más corto primero)",
+  sortByLastCooked: "Última cocción (más reciente primero)",
+  lastCooked: "Última cocción",
   doesNotScale: "No cambia con las raciones",
   resumeCooking: "Seguir cocinando",
   finishCooking: "Terminar de cocinar",
@@ -106,7 +113,7 @@ export const esMessages: UiMessages = {
   startTimer: "Iniciar temporizador",
   cancelTimer: "Cancelar",
   dismissTimer: "Cerrar",
-  timerDone: "Tiempo cumplido",
+  timerDone: "Se acabó el tiempo",
   addTimer: "Temporizador",
   pauseTimer: "Pausar",
   resumeTimer: "Reanudar",
@@ -121,7 +128,7 @@ export const esMessages: UiMessages = {
   dragPickedUp: "{item} tomado en la posición {position}.",
   dragMovedTo: "{item} movido a la posición {position}.",
   dragDropped: "{item} soltado en la posición {position}.",
-  dragCancelled: "Se canceló mover {item}.",
+  dragCancelled: "Se canceló el movimiento de {item}.",
   saving: "Guardando…",
   savedNotice: "Guardado",
   archivedNotice: "Receta archivada",
@@ -134,6 +141,9 @@ export const esMessages: UiMessages = {
   fewerServings: "Menos raciones",
   moreServings: "Más raciones",
   resetServings: "Raciones originales: {count}",
+  scaleToIngredient:
+    "Ajustar la receta a la cantidad de {ingredient} que tienes",
+  scaleToIngredientAmount: "Cantidad de {ingredient} que tienes",
   noRecipesHint:
     "Crea una aquí, pega una con «Importar desde texto» o convierte una página existente con «Logseq Recipe: Convert to Recipe» en su menú de bloque.",
   saveIncomplete:
@@ -167,7 +177,7 @@ export const esMessages: UiMessages = {
   importRecipe: "Importar desde texto",
   moreWaysToAdd: "Otras formas de añadir una receta",
   importRecipeHelp:
-    "Pega una receta completa. La primera línea es el título; los encabezados de sección como «Ingredientes», «Preparación» y «Notas» la dividen en secciones, y una línea como «Para la masa:» empieza un grupo de ingredientes; las líneas antes del primer encabezado («Porciones: 4», «Preparación: 15 min») pasan a ser datos de la receta. No se escribe nada hasta que confirmes la vista previa.",
+    "Pega una receta completa. La primera línea es el título; los encabezados de sección como «Ingredientes», «Preparación» y «Notas» la dividen en secciones, y una línea como «Para la masa:» empieza un grupo de ingredientes; las líneas antes del primer encabezado («Raciones: 4», «Tiempo de preparación: 15 min») pasan a ser datos de la receta. No se escribe nada hasta que confirmes la vista previa.",
   recipeText: "Texto de la receta",
   importNoSections:
     "No se encontró ningún encabezado de sección. Pon «Ingredientes» y «Preparación» (o su equivalente en el idioma de la receta) en líneas propias.",
@@ -191,7 +201,7 @@ export const esMessages: UiMessages = {
   errorTitleRequired: "Una receta necesita un título.",
   errorTitleTaken: "Ya existe una receta llamada «{detail}».",
   errorPageTitleTaken: "Ya existe una página de Logseq llamada «{detail}».",
-  errorBaseYieldInvalid: "Las porciones deben ser un número mayor que 0.",
+  errorBaseYieldInvalid: "El número de raciones debe ser mayor que 0.",
   errorTimeInvalid: "Los tiempos deben ser de 0 minutos o más.",
   errorRecipeNotFound: "Esta receta ya no está en el grafo.",
   errorSectionMissing:
@@ -208,14 +218,16 @@ export const esMessages: UiMessages = {
     "Logseq Recipe: primero abre una página o haz clic derecho en un bloque que contenga una receta.",
   insideRecipe: "Este bloque ya forma parte de una receta:",
   finishCookingConfirm:
-    "Todavía hay un temporizador en marcha. ¿Terminar de cocinar y borrar los temporizadores, el paso actual y los ingredientes marcados?",
+    "Todavía hay un temporizador en marcha. ¿Terminar de cocinar y reiniciar los temporizadores, el paso actual y las marcas de los ingredientes?",
+  finishCookingQuestion:
+    "¿Terminar de cocinar y reiniciar el paso actual, las marcas de los ingredientes y los temporizadores?",
   fixedAmountShort: "Fija",
   sourceMeasurementHelp:
-    "Las unidades en que está escrita la receta: si su «taza» o «cda» es estadounidense, métrica o imperial.",
+    "Las unidades en que está escrita la receta: si su «taza» o «cda.» es estadounidense, métrica o imperial.",
   displayMeasurementHelp:
     "Las unidades en que se muestran las cantidades de esta receta; si se deja por defecto, se usa el ajuste del plugin.",
   noAmountLinesNote:
-    "Estas líneas no tienen cantidad: se quedan tal como están y no cambian con las porciones:",
+    "Estas líneas no tienen cantidad; se quedan tal como están y no cambian con las raciones:",
   enterAmount: "Escribir una cantidad",
   recipeCountOne: "{shown} / {total} receta",
   recipeCountOther: "{shown} / {total} recetas",

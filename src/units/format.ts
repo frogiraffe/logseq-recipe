@@ -23,10 +23,16 @@ const UNIT_LABELS: Readonly<
     tbsp_us: "tbsp",
     cup_us: "cup",
     fl_oz_us: "fl oz",
+    pint_us: "pint",
+    quart_us: "quart",
+    gallon_us: "gallon",
     tsp_imperial: "tsp",
     tbsp_imperial: "tbsp",
     cup_imperial: "cup",
     fl_oz_imperial: "fl oz",
+    pint_imperial: "pint",
+    quart_imperial: "quart",
+    gallon_imperial: "gallon",
     su_bardagi: "su bardağı",
     cay_bardagi: "çay bardağı",
     tatli_kasigi: "dessert spoon",
@@ -62,14 +68,20 @@ const UNIT_LABELS: Readonly<
     tsp_metric: "çay kaşığı",
     tbsp_metric: "yemek kaşığı",
     cup_metric: "bardak",
-    tsp_us: "çay kaşığı (US)",
-    tbsp_us: "yemek kaşığı (US)",
-    cup_us: "bardak (US)",
-    fl_oz_us: "sıvı ons (US)",
+    tsp_us: "çay kaşığı (ABD)",
+    tbsp_us: "yemek kaşığı (ABD)",
+    cup_us: "bardak (ABD)",
+    fl_oz_us: "sıvı ons (ABD)",
+    pint_us: "pint (ABD)",
+    quart_us: "quart (ABD)",
+    gallon_us: "galon (ABD)",
     tsp_imperial: "çay kaşığı (İngiliz)",
     tbsp_imperial: "yemek kaşığı (İngiliz)",
     cup_imperial: "bardak (İngiliz)",
     fl_oz_imperial: "sıvı ons (İngiliz)",
+    pint_imperial: "pint (İngiliz)",
+    quart_imperial: "quart (İngiliz)",
+    gallon_imperial: "galon (İngiliz)",
     su_bardagi: "su bardağı",
     cay_bardagi: "çay bardağı",
     tatli_kasigi: "tatlı kaşığı",
@@ -109,10 +121,16 @@ const UNIT_LABELS: Readonly<
     tbsp_us: "c. à s.",
     cup_us: "tasse",
     fl_oz_us: "oz liq.",
+    pint_us: "pinte",
+    quart_us: "quart",
+    gallon_us: "gallon",
     tsp_imperial: "c. à c.",
     tbsp_imperial: "c. à s.",
     cup_imperial: "tasse",
     fl_oz_imperial: "oz liq.",
+    pint_imperial: "pinte",
+    quart_imperial: "quart",
+    gallon_imperial: "gallon",
     su_bardagi: "su bardağı",
     cay_bardagi: "çay bardağı",
     tatli_kasigi: "c. à dessert",
@@ -152,10 +170,16 @@ const UNIT_LABELS: Readonly<
     tbsp_us: "EL",
     cup_us: "Cup",
     fl_oz_us: "fl oz",
+    pint_us: "Pint",
+    quart_us: "Quart",
+    gallon_us: "Gallone",
     tsp_imperial: "TL",
     tbsp_imperial: "EL",
     cup_imperial: "Cup",
     fl_oz_imperial: "fl oz",
+    pint_imperial: "Pint",
+    quart_imperial: "Quart",
+    gallon_imperial: "Gallone",
     su_bardagi: "su bardağı",
     cay_bardagi: "çay bardağı",
     tatli_kasigi: "Dessertlöffel",
@@ -195,10 +219,16 @@ const UNIT_LABELS: Readonly<
     tbsp_us: "cda.",
     cup_us: "taza",
     fl_oz_us: "oz líq.",
+    pint_us: "pinta",
+    quart_us: "cuarto de galón",
+    gallon_us: "galón",
     tsp_imperial: "cdta.",
     tbsp_imperial: "cda.",
     cup_imperial: "taza",
     fl_oz_imperial: "oz líq.",
+    pint_imperial: "pinta",
+    quart_imperial: "cuarto de galón",
+    gallon_imperial: "galón",
     su_bardagi: "su bardağı",
     cay_bardagi: "çay bardağı",
     tatli_kasigi: "cda. de postre",
@@ -235,6 +265,12 @@ const COUNT_UNIT_PLURALS: Partial<
     cup_metric: "cups",
     cup_us: "cups",
     cup_imperial: "cups",
+    pint_us: "pints",
+    quart_us: "quarts",
+    gallon_us: "gallons",
+    pint_imperial: "pints",
+    quart_imperial: "quarts",
+    gallon_imperial: "gallons",
     egg: "eggs",
     clove: "cloves",
     slice: "slices",
@@ -257,6 +293,12 @@ const COUNT_UNIT_PLURALS: Partial<
     cup_metric: "tasses",
     cup_us: "tasses",
     cup_imperial: "tasses",
+    pint_us: "pintes",
+    quart_us: "quarts",
+    gallon_us: "gallons",
+    pint_imperial: "pintes",
+    quart_imperial: "quarts",
+    gallon_imperial: "gallons",
     day: "jours",
     can: "boîtes",
     package: "paquets",
@@ -274,6 +316,12 @@ const COUNT_UNIT_PLURALS: Partial<
     cup_metric: "Tassen",
     cup_us: "Cups",
     cup_imperial: "Cups",
+    pint_us: "Pints",
+    quart_us: "Quarts",
+    gallon_us: "Gallonen",
+    pint_imperial: "Pints",
+    quart_imperial: "Quarts",
+    gallon_imperial: "Gallonen",
     day: "Tage",
     can: "Dosen",
     package: "Packungen",
@@ -291,6 +339,12 @@ const COUNT_UNIT_PLURALS: Partial<
     cup_metric: "tazas",
     cup_us: "tazas",
     cup_imperial: "tazas",
+    pint_us: "pintas",
+    quart_us: "cuartos de galón",
+    gallon_us: "galones",
+    pint_imperial: "pintas",
+    quart_imperial: "cuartos de galón",
+    gallon_imperial: "galones",
     day: "días",
     can: "latas",
     package: "paquetes",
@@ -314,7 +368,9 @@ function isPluralCount(count: number, locale: UiLocale): boolean {
     rules = new Intl.PluralRules(locale);
     pluralRules.set(locale, rules);
   }
-  return rules.select(count) !== "one";
+  // The number as shown: 1.0144 cups reads "1 cup".
+  const shown = formatRecipeNumber(count);
+  return rules.select(/^\d+$/.test(shown) ? Number(shown) : count) !== "one";
 }
 
 const DECIMAL_COMMA_LOCALES = new Set<UiLocale>(["tr", "fr", "de", "es"]);
@@ -338,6 +394,15 @@ const DECIMAL_UNITS = new Set<CanonicalUnit>([
   "l",
 ]);
 
+// Kitchen spoons differ by under 2% between systems (a US teaspoon is 4.93
+// ml), far less than any spoon is filled to: 2 US tsp in metric is 2 tsp,
+// not 1.97.
+function nearWholeSpoons(value: number, unit: CanonicalUnit | undefined) {
+  if (!unit || !/^t(b)?sp_/.test(unit)) return value;
+  const whole = Math.round(value);
+  return whole > 0 && Math.abs(value - whole) <= value * 0.02 ? whole : value;
+}
+
 /**
  * Metric mass/volume reads as a plain decimal ("62.5 ml", "188 g"), never a
  * kitchen fraction ("62½ ml"): whole numbers from 100 up, one decimal from
@@ -351,7 +416,7 @@ export function formatNumberForUnit(
   locale: UiLocale = "en",
 ): string {
   if (!unit || !DECIMAL_UNITS.has(unit) || !Number.isFinite(value)) {
-    return formatLocalizedNumber(value, locale);
+    return formatLocalizedNumber(nearWholeSpoons(value, unit), locale);
   }
   const size = Math.abs(value);
   const rounded =

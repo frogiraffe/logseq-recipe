@@ -10,6 +10,7 @@ import {
 import type { RecipeSummary } from "../../application/types";
 import type { UiMessages } from "../i18n";
 import { FilterBar } from "./FilterBar";
+import { Icon } from "./Icon";
 
 // Resolved cover URLs, kept across list renders and reopenings so a card
 // never flickers back to its placeholder.
@@ -161,7 +162,10 @@ export function RecipesView({
               <span className="draft-recipe-recipe-list-heading">
                 <strong>{recipe.title}</strong>
                 {totalMinutes(recipe) !== undefined && (
-                  <small>{`${totalMinutes(recipe)} ${messages.minutesUnit}`}</small>
+                  <small>
+                    <Icon name="timer" />{" "}
+                    {`${totalMinutes(recipe)} ${messages.minutesUnit}`}
+                  </small>
                 )}
               </span>
               {(recipe.categories.length > 0 || recipe.tags.length > 0) && (

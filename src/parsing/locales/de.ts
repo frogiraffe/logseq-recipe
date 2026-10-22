@@ -180,6 +180,16 @@ export const deLocale: RecipeLocalePack = {
   rangeOpeners: ["zwischen"],
   negationWords: ["nicht", "nie", "niemals", "keinesfalls", "kein", "keine"],
   negativeImperativeSuffixes: [],
+  clauseConjunctions: [
+    "bis",
+    "damit",
+    "sodass",
+    "aber",
+    "ohne",
+    "während",
+    "um",
+    "bevor",
+  ],
   durationWords: { hour: "Std.", minute: "Min." },
   metadataAliases: {
     portionen: "yield",

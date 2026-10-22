@@ -696,7 +696,13 @@ export function planRecipeConversion(
   if (looksUnsplit(source.children)) {
     const outline = splitIndentedOutline(flattenUnsplitSource(source));
     if (outline) {
-      return { kind: "split", outline: tidyRecipeOutline(outline, context) };
+      // Chunks Logseq left beside their heading still belong under it.
+      return {
+        kind: "split",
+        outline:
+          regroupConversionSource(outlineToSource(outline), context) ??
+          tidyRecipeOutline(outline, context),
+      };
     }
   }
   const draft = analyzeRecipeConversion(source, context);
@@ -713,10 +719,19 @@ export function planRecipeConversion(
   return { kind: "convert", draft };
 }
 
+/** The section `text`'s first line heads in any supported language. */
+export function sectionRoleInAnyLocale(text: string): RecipeSectionRole | null {
+  const heading = text.split("\n")[0];
+  for (const locale of RECIPE_LOCALES) {
+    const role = sectionRoleIn(heading, locale);
+    if (role) return role;
+  }
+  return null;
+}
+
 /** Whether `text`'s first line is a section heading in any supported language. */
 export function isSectionHeadingInAnyLocale(text: string): boolean {
-  const heading = text.split("\n")[0];
-  return RECIPE_LOCALES.some((locale) => sectionRoleIn(heading, locale));
+  return sectionRoleInAnyLocale(text) !== null;
 }
 
 function linesBelow(node: ConversionSourceNode): string[] {

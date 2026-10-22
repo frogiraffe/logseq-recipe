@@ -33,6 +33,7 @@ import {
 import { PROPERTY_KEYS } from "./property-keys";
 import { writeRecipeMeta } from "./recipe-taxonomy";
 import {
+  ensureLastCookedSchema,
   ensureRecipeSchema,
   type PropertySchemaEditor,
   type RecipeSchemaCapabilities,
@@ -96,8 +97,16 @@ export function createDraftRecipeRepository(
     await copy(block?.children ?? [], toId);
   }
 
+  let lastCookedSchema: Promise<boolean> | null = null;
+
   return {
     ...readRepository,
+
+    async markRecipeCooked(id: string, at: number): Promise<void> {
+      lastCookedSchema ??= ensureLastCookedSchema(host.editor);
+      if (!(await lastCookedSchema)) return;
+      await host.editor.upsertBlockProperty(id, PROPERTY_KEYS.lastCooked, at);
+    },
 
     async createRecipe(input: NewRecipeInput): Promise<Recipe> {
       await ensureRecipeSchema(host.editor, options.schemaCapabilities);

@@ -12,21 +12,28 @@ time, categories and tags.
 - **More actions (⋯)** holds **Archived Recipes**.
 - **Create Recipe ▾** also offers **Import from Text**.
 
-Edits made directly in Logseq refresh whatever the plugin has open.
+An open recipe refreshes when it changes in Logseq; the Recipes list
+reloads when you go back to it or press **Refresh**.
 
 ## A recipe
 
 **Start cooking** and **Edit recipe** are up front. **More actions (⋯)**
-holds Duplicate, Recipe settings, Open in Logseq, Archive, and **Move to
-Recipe Library** for a recipe converted somewhere else.
+holds Duplicate, **Copy as text**, Recipe settings, Open in Logseq,
+Archive, and **Move to Recipe Library** for a recipe converted somewhere
+else. **Copy as text** puts the recipe on the clipboard as plain text, at
+the servings and in the units shown, to paste into a message.
 
 ### Servings and units
 
 - Change **Servings** with − and +, or type a number. The ingredient amounts
   follow; **Original servings** returns to the recipe's own number.
+- Or click an ingredient's amount and type how much of it you have ("150"
+  for the butter): the servings follow, and every other amount with them.
+  An ingredient marked **Fixed** can't set the servings.
 - Amounts show in your measurement system (plugin setting, or per recipe in
   Recipe settings). Each ingredient that can be shown in another unit has a
-  unit menu beside it; the choice lasts while the plugin is open.
+  unit menu beside it; the choice lasts until you open another recipe or
+  close the plugin.
 - Mass and volume convert into each other only for ingredients with known
   densities, or with a conversion you add under Recipe settings → Advanced.
 - An ingredient marked **Fixed** in the editor ("1 bay leaf") doesn't scale.
@@ -75,7 +82,9 @@ only possible from the archive.
   other screen.
 - **Exit for now** keeps your step, ticked ingredients and timers, across a
   Logseq restart too. A cook left untouched for a week is dropped.
-  **Finish cooking** clears them.
+  **Finish cooking** asks, then clears them and notes the date: the recipe
+  shows **Last cooked**, and **Sort by** can put the most recently cooked
+  first.
 - The screen stays awake while Cooking Mode is open, where the system allows
   it.
 

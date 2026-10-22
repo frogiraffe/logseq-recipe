@@ -1,7 +1,12 @@
 import type { CoverReferenceCapability } from "./capabilities";
 import { PROPERTY_KEYS } from "./property-keys";
 
-export type RecipePropertyType = "default" | "number" | "checkbox" | "node";
+export type RecipePropertyType =
+  | "default"
+  | "number"
+  | "checkbox"
+  | "node"
+  | "datetime";
 
 export interface RecipePropertyDefinition {
   key: string;
@@ -108,6 +113,30 @@ export async function ensureRecipeSchema(
   capabilities: RecipeSchemaCapabilities,
 ): Promise<void> {
   await upsertDefinitions(editor, buildRecipeSchema(capabilities));
+}
+
+/**
+ * Creates the "last cooked" property, and whether it could: a date and time
+ * Logseq shows as such. Like the category and tag properties, a runtime
+ * without that type only loses this one, never blocks other writes.
+ */
+export async function ensureLastCookedSchema(
+  editor: PropertySchemaEditor,
+): Promise<boolean> {
+  try {
+    await upsertDefinitions(editor, [
+      {
+        key: PROPERTY_KEYS.lastCooked,
+        type: "datetime",
+        cardinality: "one",
+        hide: false,
+        public: true,
+      },
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

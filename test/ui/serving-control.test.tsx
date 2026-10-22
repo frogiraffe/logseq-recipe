@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { ServingControl } from "../../src/ui/components/ServingControl";
-import { enMessages } from "../../src/ui/i18n";
+import { enMessages, frMessages } from "../../src/ui/i18n";
 
 function Harness({ initial = 2, base }: { initial?: number; base?: number }) {
   const [value, setValue] = useState(initial);
@@ -35,6 +35,22 @@ describe("ServingControl", () => {
       "4",
     );
     expect(reset()).toBeNull();
+  });
+
+  it("names the recipe's own servings with the language's decimal comma", () => {
+    render(
+      <ServingControl
+        value={4}
+        baseValue={2.5}
+        messages={frMessages}
+        onChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: frMessages.resetServings.replace("{count}", "2,5"),
+      }),
+    ).toBeTruthy();
   });
 
   it("allows clearing the field and typing a replacement without a 0/08 flash", () => {

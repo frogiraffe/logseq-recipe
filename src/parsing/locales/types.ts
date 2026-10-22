@@ -16,6 +16,9 @@ export type UnitLexeme =
   | "tbsp"
   | "cup"
   | "fl_oz"
+  | "pint"
+  | "quart"
+  | "gallon"
   | "su_bardagi"
   | "cay_bardagi"
   | "tatli_kasigi"
@@ -118,6 +121,12 @@ export interface RecipeLocalePack {
    * bake"). Empty where negation is a separate word.
    */
   negativeImperativeSuffixes: readonly string[];
+  /**
+   * Words opening another clause after a time ("until", "para que"): a
+   * negation after one is about that clause, not the time ("1 minute until
+   * fragrant but don't let it brown").
+   */
+  clauseConjunctions: readonly string[];
   metadataAliases: Readonly<Record<string, RecipeMetadataField>>;
   /** How a time is written back into a line ("1 saat 30 dk"). */
   durationWords: { hour: string; minute: string };

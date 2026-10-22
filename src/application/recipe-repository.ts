@@ -20,6 +20,8 @@ export interface RecipeRepository {
   validateRecipe(id: string): Promise<ValidationResult>;
   watchRecipe(id: string, listener: () => void): () => void;
   renameRecipe(id: string, title: string): Promise<void>;
+  /** Records that the recipe was cooked at `at` (ms); best effort. */
+  markRecipeCooked(id: string, at: number): Promise<void>;
   updateRecipeFields(
     id: string,
     patch: {

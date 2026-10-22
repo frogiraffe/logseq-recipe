@@ -133,6 +133,7 @@ export function SortableList({
   addLabel,
   messages,
   onChange,
+  onDraftChange,
   renderItemContent,
   renderItemExtra,
   renderItemBelow,
@@ -146,6 +147,8 @@ export function SortableList({
   addLabel: string;
   messages: UiMessages;
   onChange(items: EditableItem[]): void;
+  // The text typed in the add field and not added yet.
+  onDraftChange?(draft: string): void;
   // Shown instead of the text field when it returns something (a photo or
   // audio note shows as the file, not as its markup).
   renderItemContent?(item: EditableItem): ReactNode;
@@ -162,7 +165,11 @@ export function SortableList({
   nested?: boolean;
 }) {
   const counter = useRef(0);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraftState] = useState("");
+  const setDraft = (text: string) => {
+    setDraftState(text);
+    onDraftChange?.(text);
+  };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {

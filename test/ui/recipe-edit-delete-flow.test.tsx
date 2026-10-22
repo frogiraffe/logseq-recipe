@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -146,6 +147,97 @@ describe("recipe edit/archive flow wiring", () => {
       screen.getByRole("button", { name: enMessages.editRecipe }),
     ).toBeTruthy();
     expect(loadRecipe).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the incomplete-save report when Logseq's change reloads the recipe", async () => {
+    let changed: (() => void) | undefined;
+    const loadRecipe = vi
+      .fn<() => Promise<Recipe | null>>()
+      .mockResolvedValue(recipe());
+    const controller = baseController({
+      saveRecipeEdit: async () => {
+        throw new IncompleteSaveError(new Error("write failed"));
+      },
+      loadRecipe,
+      watchRecipe: (_id, listener) => {
+        changed = listener;
+        return () => undefined;
+      },
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "New Title" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+    expect(
+      await screen.findByText(new RegExp(enMessages.saveIncomplete)),
+    ).toBeTruthy();
+
+    const loads = loadRecipe.mock.calls.length;
+    await act(async () => changed?.());
+    await waitFor(() =>
+      expect(loadRecipe.mock.calls.length).toBeGreaterThan(loads),
+    );
+    expect(
+      screen.getByText(new RegExp(enMessages.saveIncomplete)),
+    ).toBeTruthy();
+  });
+
+  it("drops a refused save's error when the edit is discarded", async () => {
+    const controller = baseController({
+      saveRecipeEdit: async () => {
+        throw new Error('A Logseq page named "Soup" already exists.');
+      },
+    });
+
+    render(
+      <DraftRecipeApp
+        controller={controller}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "recipe", recipeId: "recipe-1" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "Soup" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+    expect(await screen.findByText(/already exists/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: enMessages.discardChanges,
+      }),
+    );
+    expect(
+      await screen.findByRole("button", { name: enMessages.editRecipe }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/already exists/)).toBeNull();
   });
 
   it("keeps the editor open when a save is refused before writing", async () => {

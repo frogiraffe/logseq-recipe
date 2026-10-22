@@ -14,9 +14,9 @@ model. The same text always reads the same way, on any machine, offline.
   line is shown exactly as written. It is never dropped.
 - **It asks instead of choosing** when a line could mean two things. In the
   Convert and Import preview, a line with two amounts ("1 cup plus 2 tbsp
-  flour"), a number that could be a thousands separator ("1.250 kg"), or a
-  section it can't place is marked for you to settle before anything is
-  written.
+  flour"), an amount of 1000 kg, l or lb or more (usually a thousands
+  separator misread, "1.250 kg" in a decimal-comma language), or a section
+  it can't place is marked for you to settle before anything is written.
 
 ## Ingredients
 
@@ -26,9 +26,10 @@ An ingredient line is read as amount, unit, ingredient and note:
   (`0,3`), fractions (`1/2`, `½`, `1 1/2`), ranges (`2-3`), and "about",
   "at least" and "up to" in each language.
 - Units: metric, US and imperial measures, and each language's kitchen
-  units ("çay kaşığı", "EL", "c. à soupe"). A cup, spoon or pint is read in
-  the recipe's source measurement system (US, metric or imperial), which
-  you can change in the preview or in Recipe settings.
+  units ("çay kaşığı", "EL", "c. à soupe"). A cup, spoon, fluid ounce,
+  pint, quart or gallon is read in the recipe's source measurement system
+  (US, metric or imperial; the last four as US unless it is imperial),
+  which you can change in the preview or in Recipe settings.
 - The unit may follow the ingredient ("flour 200 g"), but only when it is a
   recognized unit, so a number inside an ingredient's name is never taken
   for an amount.

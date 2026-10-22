@@ -71,6 +71,9 @@ export interface UiMessages {
   rangeMax: string;
   minutesUnit: string;
   converting: string;
+  /** What ends a label before its value: ":", or " :" in French. */
+  colon: string;
+  importing: string;
   alreadyRecipe: string;
   openRecipe: string;
   missingYieldPrompt: string;
@@ -80,6 +83,9 @@ export interface UiMessages {
   conversionRulesHelp: string;
   editRecipe: string;
   duplicateRecipe: string;
+  copyAsText: string;
+  copiedNotice: string;
+  copyFailed: string;
   archivedRecipes: string;
   noArchivedRecipes: string;
   archiveRecipe: string;
@@ -96,6 +102,8 @@ export interface UiMessages {
   sortBy: string;
   sortByTitle: string;
   sortByTotalTime: string;
+  sortByLastCooked: string;
+  lastCooked: string;
   doesNotScale: string;
   blankItemError: string;
   saveIncomplete: string;
@@ -133,6 +141,8 @@ export interface UiMessages {
   fewerServings: string;
   moreServings: string;
   resetServings: string;
+  scaleToIngredient: string;
+  scaleToIngredientAmount: string;
   noRecipesHint: string;
   cookingNoSteps: string;
   stepProgress: string;
@@ -187,6 +197,7 @@ export interface UiMessages {
   nothingToConvert: string;
   insideRecipe: string;
   finishCookingConfirm: string;
+  finishCookingQuestion: string;
   fixedAmountShort: string;
   sourceMeasurementHelp: string;
   displayMeasurementHelp: string;

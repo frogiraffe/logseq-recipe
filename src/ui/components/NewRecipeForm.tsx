@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { NewRecipeInput } from "../../application/types";
 import type { RecipeLocale } from "../../domain/recipe";
 import type { MeasurementSystem } from "../../domain/unit";
+import { useConfirmDiscard, useDirtyReport } from "../dirty-guard";
 import type { UiMessages } from "../i18n";
 import { Field } from "./Field";
 
@@ -12,6 +13,7 @@ export interface NewRecipeFormProps {
   pending?: boolean;
   onSubmit(input: NewRecipeInput): void;
   onCancel(): void;
+  onDirtyChange?(isDirty: boolean): void;
   // Offered for a recipe the cook already has written down elsewhere.
   onImport?(): void;
 }
@@ -23,13 +25,19 @@ export function NewRecipeForm({
   pending = false,
   onSubmit,
   onCancel,
+  onDirtyChange,
   onImport,
 }: NewRecipeFormProps) {
+  const confirmDiscard = useConfirmDiscard(messages);
   const [title, setTitle] = useState("");
   const [baseYieldText, setBaseYieldText] = useState("4");
   const [yieldUnit, setYieldUnit] = useState("");
   // The title is only called missing once it has been typed and cleared.
   const [titleTouched, setTitleTouched] = useState(false);
+
+  const isDirty =
+    title.trim() !== "" || baseYieldText !== "4" || yieldUnit.trim() !== "";
+  useDirtyReport(isDirty, onDirtyChange);
 
   const baseYield = Number(baseYieldText);
   const baseYieldValid =
@@ -54,7 +62,7 @@ export function NewRecipeForm({
           <button
             type="button"
             className="draft-recipe-link-button"
-            onClick={onImport}
+            onClick={() => confirmDiscard(isDirty, onImport)}
           >
             {messages.importInstead}
           </button>
@@ -99,7 +107,7 @@ export function NewRecipeForm({
         />
       </label>
       <div className="draft-recipe-actions">
-        <button type="button" onClick={onCancel}>
+        <button type="button" onClick={() => confirmDiscard(isDirty, onCancel)}>
           {messages.cancel}
         </button>
         <button

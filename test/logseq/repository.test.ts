@@ -902,6 +902,30 @@ describe("Logseq recipe repository", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps refreshing an open recipe after the list cache drops it", async () => {
+    const host = fakeHost();
+    const callbacks: Array<(payload: ChangePayload) => void> = [];
+    host.db.onChanged = (callback: (payload: ChangePayload) => void) => {
+      callbacks.push(callback);
+      return () => undefined;
+    };
+
+    const repository = repositoryFor(host);
+    await repository.listRecipeSummaries();
+    await repository.getRecipe("recipe-1");
+
+    const listener = vi.fn();
+    repository.watchRecipe("recipe-1", listener);
+    const change: ChangePayload = {
+      blocks: [],
+      txData: [[3, ":block/title", "120 g tereyağı", 100, false]],
+    };
+    for (const callback of callbacks) callback(change);
+    for (const callback of callbacks) callback(change);
+
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
   it("discovers active recipes through the hidden marker property", async () => {
     const host = fakeHost();
     let query = "";

@@ -19,6 +19,7 @@ export interface RecipeSummary {
   prepMinutes?: number;
   chillMinutes?: number;
   cookMinutes?: number;
+  lastCookedAt?: number;
   ingredientTexts: string[];
   cover?: CoverRef;
   // Full-text search only; absent on summaries built before they existed.

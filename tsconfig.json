@@ -12,7 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "types": ["@logseq/libs", "vitest/globals"]
+    "types": ["@logseq/libs"]
   },
   "include": ["src", "test", "demo", "vite.config.ts"]
 }

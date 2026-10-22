@@ -196,6 +196,20 @@ describe("instructions not to do something", () => {
     },
   );
 
+  it.each([
+    ["en", "Cook the garlic 1 minute until fragrant but don't let it brown."],
+    ["fr", "Faire revenir 5 minutes en remuant pour que ça n'attache pas."],
+    ["fr", "Cuire 20 minutes jusqu'à ce qu'il n'y ait plus de liquide."],
+    ["de", "10 Minuten kneten bis der Teig nicht mehr klebt."],
+    ["es", "Cocinar 10 minutos removiendo para que no se pegue."],
+  ])("%s keeps the timer when only a later clause says not", (locale, text) => {
+    const durations = parseStep(
+      text,
+      defaultParseContext(locale as RecipeLocale),
+    ).durations;
+    expect(durations.map((d) => Boolean(d.negated))).toEqual([false]);
+  });
+
   it("reads Turkish case-suffixed times and the polite negative", () => {
     const [time] = parseStep(
       "Asla 20 dakikadan fazla pişirmeyin.",
@@ -203,6 +217,91 @@ describe("instructions not to do something", () => {
     ).durations;
     expect(time).toMatchObject({ unit: "minute", negated: true });
   });
+});
+
+describe("a temperature after hours and minutes", () => {
+  it.each(["Cuire 1 h 30 à 180 °C.", "Cuire 1h30 à 180°C."])(
+    "keeps the temperature: %s",
+    (text) => {
+      const step = parseStep(text, defaultParseContext("fr"));
+      expect(step.durations[0]?.value).toEqual({ kind: "exact", value: 90 });
+      expect(step.temperatures.map((t) => t.value)).toEqual([180]);
+    },
+  );
+});
+
+describe("words after a time", () => {
+  it.each([
+    ["es", "Hornear 30 minutos hasta que esté dorado.", "30 minutos"],
+    [
+      "fr",
+      "Cuire 30 minutes jusqu'à ce que le gâteau soit doré.",
+      "30 minutes",
+    ],
+    ["fr", "Faire dorer 5 minutes jusqu'à coloration.", "5 minutes"],
+  ])("%s reads an 'until' after a time as exact", (locale, text, rawText) => {
+    const [time] = parseStep(
+      text,
+      defaultParseContext(locale as RecipeLocale),
+    ).durations;
+    expect(time).toMatchObject({ value: { kind: "exact" }, rawText });
+  });
+
+  it("still reads a modifier that ends the phrase", () => {
+    const [time] = parseStep(
+      "Marinate 2 hours at least.",
+      defaultParseContext("en"),
+    ).durations;
+    expect(time?.value).toEqual({ kind: "minimum", value: 2 });
+  });
+});
+
+describe("a temperature after hours and minutes", () => {
+  it.each(["Cuire 1 h 30 à 180 °C.", "Cuire 1h30 à 180°C."])(
+    "keeps the temperature: %s",
+    (text) => {
+      const step = parseStep(text, defaultParseContext("fr"));
+      expect(step.durations[0]?.value).toEqual({ kind: "exact", value: 90 });
+      expect(step.temperatures.map((t) => t.value)).toEqual([180]);
+    },
+  );
+});
+
+describe("words after a time", () => {
+  it.each([
+    ["es", "Hornear 30 minutos hasta que esté dorado.", "30 minutos"],
+    [
+      "fr",
+      "Cuire 30 minutes jusqu'à ce que le gâteau soit doré.",
+      "30 minutes",
+    ],
+    ["fr", "Faire dorer 5 minutes jusqu'à coloration.", "5 minutes"],
+  ])("%s reads an 'until' after a time as exact", (locale, text, rawText) => {
+    const [time] = parseStep(
+      text,
+      defaultParseContext(locale as RecipeLocale),
+    ).durations;
+    expect(time).toMatchObject({ value: { kind: "exact" }, rawText });
+  });
+
+  it("still reads a modifier that ends the phrase", () => {
+    const [time] = parseStep(
+      "Marinate 2 hours at least.",
+      defaultParseContext("en"),
+    ).durations;
+    expect(time?.value).toEqual({ kind: "minimum", value: 2 });
+  });
+});
+
+describe("a temperature after hours and minutes", () => {
+  it.each(["Cuire 1 h 30 à 180 °C.", "Cuire 1h30 à 180°C."])(
+    "keeps the temperature: %s",
+    (text) => {
+      const step = parseStep(text, defaultParseContext("fr"));
+      expect(step.durations[0]?.value).toEqual({ kind: "exact", value: 90 });
+      expect(step.temperatures.map((t) => t.value)).toEqual([180]);
+    },
+  );
 });
 
 describe("an amount and a half", () => {

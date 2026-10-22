@@ -3,7 +3,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Recipe } from "../../src/domain/recipe";
 import { RecipeCard } from "../../src/ui/components/RecipeCard";
-import { enMessages, trMessages } from "../../src/ui/i18n";
+import { enMessages, frMessages, trMessages } from "../../src/ui/i18n";
 import { renderWithConfirm } from "./confirm-host";
 import { ingredientLine } from "./ingredient-line";
 
@@ -52,6 +52,154 @@ function Harness() {
     />
   );
 }
+
+describe("RecipeCard last cooked", () => {
+  it("shows when the recipe was last cooked", () => {
+    render(
+      <RecipeCard
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={{ ...recipe, lastCookedAt: new Date(2026, 9, 22).getTime() }}
+        targetYield={2}
+        measurementSystem="metric"
+        messages={enMessages}
+        onTargetYieldChange={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Last cooked: Oct 22, 2026")).toBeTruthy();
+  });
+});
+
+describe("RecipeCard labels in French", () => {
+  it("keeps a no-break space before the colon", () => {
+    render(
+      <RecipeCard
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={{ ...recipe, prepMinutes: 15 }}
+        targetYield={2}
+        measurementSystem="metric"
+        messages={frMessages}
+        onTargetYieldChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByText(`${frMessages.prepTime}\u00a0: 15 min`, {
+        normalizer: (text) => text,
+      }),
+    ).toBeTruthy();
+  });
+});
+
+describe("RecipeCard copy as text", () => {
+  it("hands over the recipe as text at the servings shown", () => {
+    const onCopyAsText = vi.fn();
+    render(
+      <RecipeCard
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={recipe}
+        targetYield={4}
+        measurementSystem="metric"
+        messages={enMessages}
+        onTargetYieldChange={() => undefined}
+        onCopyAsText={onCopyAsText}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: enMessages.copyAsText }),
+    );
+    expect(onCopyAsText).toHaveBeenCalledWith(
+      expect.stringContaining("Cookie\nServings: 4 cookies"),
+    );
+    expect(onCopyAsText.mock.calls[0][0]).toContain("- 240 g butter");
+  });
+});
+
+describe("RecipeCard scaled to an ingredient", () => {
+  const butterButton = () =>
+    screen.getByRole("button", {
+      name: `120 g: ${enMessages.scaleToIngredient.replace("{ingredient}", "butter")}`,
+    });
+  const amountField = () =>
+    screen.getByLabelText(
+      enMessages.scaleToIngredientAmount.replace("{ingredient}", "butter"),
+    );
+
+  it("sets the servings from how much of an ingredient there is", () => {
+    render(<Harness />);
+    fireEvent.click(butterButton());
+    expect((amountField() as HTMLInputElement).value).toBe("120");
+    fireEvent.change(amountField(), { target: { value: "180" } });
+    fireEvent.keyDown(amountField(), { key: "Enter" });
+
+    expect((screen.getByLabelText("Servings") as HTMLInputElement).value).toBe(
+      "3",
+    );
+    expect(screen.getByText(ingredientLine("180 g butter"))).toBeTruthy();
+  });
+
+  it("leaves the servings alone on Escape or a value that isn't one", () => {
+    render(<Harness />);
+    fireEvent.click(butterButton());
+    fireEvent.change(amountField(), { target: { value: "180" } });
+    // Handled here, so the screen behind doesn't leave with it.
+    expect(fireEvent.keyDown(amountField(), { key: "Escape" })).toBe(false);
+    fireEvent.click(butterButton());
+    fireEvent.change(amountField(), { target: { value: "0" } });
+    fireEvent.blur(amountField());
+
+    expect((screen.getByLabelText("Servings") as HTMLInputElement).value).toBe(
+      "2",
+    );
+  });
+
+  it("changes nothing when the field is left as it opened", () => {
+    const onTargetYieldChange = vi.fn();
+    const third: Recipe = {
+      ...recipe,
+      baseYield: 3,
+      ingredients: [
+        {
+          id: "m",
+          rawText: "1 cup milk",
+          amount: { kind: "exact", value: 1 },
+          unit: "cup_metric",
+          ingredientText: "milk",
+          scaleMode: "linear",
+        },
+      ],
+    };
+    render(
+      <RecipeCard
+        ingredientUnitOverrides={{}}
+        onIngredientUnitOverrideChange={() => undefined}
+        recipe={third}
+        targetYield={1}
+        measurementSystem="metric"
+        messages={enMessages}
+        onTargetYieldChange={onTargetYieldChange}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /^⅓ cup:/ });
+    fireEvent.click(button);
+    const field = screen.getByLabelText(
+      enMessages.scaleToIngredientAmount.replace("{ingredient}", "milk"),
+    );
+    expect((field as HTMLInputElement).value).toBe("0.33");
+    fireEvent.keyDown(field, { key: "Enter" });
+    fireEvent.blur(field);
+
+    expect(onTargetYieldChange).not.toHaveBeenCalled();
+    // Back on the amount, for the keyboard.
+    expect(document.activeElement?.textContent).toBe("⅓ cup");
+  });
+
+  it("offers no scaling by an amount that doesn't follow the servings", () => {
+    render(<Harness />);
+    expect(screen.queryByRole("button", { name: /^1 pinch:/ })).toBeNull();
+  });
+});
 
 describe("RecipeCard", () => {
   it("scales from canonical amounts without mutating source recipe text", () => {

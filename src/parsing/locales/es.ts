@@ -183,6 +183,7 @@ export const esLocale: RecipeLocalePack = {
   rangeOpeners: ["entre"],
   negationWords: ["no", "nunca", "jamás", "jamas"],
   negativeImperativeSuffixes: [],
+  clauseConjunctions: ["para", "hasta", "pero", "sin", "mientras", "antes"],
   durationWords: { hour: "h", minute: "min" },
   metadataAliases: {
     porciones: "yield",

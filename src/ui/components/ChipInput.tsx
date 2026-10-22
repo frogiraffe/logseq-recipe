@@ -101,9 +101,15 @@ export function ChipInput({
       return;
     }
     if (event.key === "Escape") {
-      if (!open) return;
-      event.preventDefault();
-      setDismissed(true);
+      if (open) {
+        event.preventDefault();
+        setDismissed(true);
+      } else if (draft.trim()) {
+        // Keeps what was typed, as leaving the field does; the next Escape
+        // leaves the screen.
+        event.preventDefault();
+        commit();
+      }
       return;
     }
     if (event.key === "Enter") {

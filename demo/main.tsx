@@ -349,6 +349,10 @@ const repository: RecipeRepository = {
     mustGet(id).title = title;
     notify(id);
   },
+  markRecipeCooked: async (id, at) => {
+    mustGet(id).lastCookedAt = at;
+    notify(id);
+  },
   updateRecipeFields: async (id, patch) => {
     Object.assign(mustGet(id), patch);
     notify(id);
@@ -630,6 +634,7 @@ const controller: DraftRecipeUiController = {
   canMoveToRecipeLibrary: (id) => repository.canMoveToRecipeLibrary(id),
   moveToRecipeLibrary: (id) => repository.moveToRecipeLibrary(id),
   archiveRecipe: (id) => repository.archiveRecipe(id),
+  markRecipeCooked: (id) => repository.markRecipeCooked(id, Date.now()),
   restoreRecipe: (id) => repository.restoreRecipe(id),
   deleteArchivedRecipe: (id) => repository.deleteArchivedRecipe(id),
   openInLogseq: () => undefined,

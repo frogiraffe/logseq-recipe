@@ -178,6 +178,16 @@ export const frLocale: RecipeLocalePack = {
   rangeOpeners: ["entre"],
   negationWords: ["ne", "n'", "jamais"],
   negativeImperativeSuffixes: [],
+  clauseConjunctions: [
+    "pour",
+    "jusqu'à",
+    "jusqu’à",
+    "afin",
+    "mais",
+    "sans",
+    "pendant",
+    "avant",
+  ],
   durationWords: { hour: "h", minute: "min" },
   metadataAliases: {
     portions: "yield",

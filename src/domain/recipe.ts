@@ -92,6 +92,8 @@ export interface Recipe {
   chillMinutes?: number;
   cookMinutes?: number;
   sourceUrl?: string;
+  /** When Cooking Mode last finished it (ms since 1970). */
+  lastCookedAt?: number;
   categories: string[];
   tags: string[];
   ingredients: Ingredient[];

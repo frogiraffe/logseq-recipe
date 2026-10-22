@@ -246,6 +246,24 @@ describe("temperature annotations", () => {
     expect(temperatures.map((t) => t.value)).toEqual([220, 350]);
   });
 
+  it.each([
+    ["en", "Freeze at -18°C.", -18, "-18°C"],
+    ["en", "Chill to −4 °F overnight.", -4, "−4 °F"],
+    ["de", "Bei -18 °C einfrieren.", -18, "-18 °C"],
+  ] as const)("keeps the minus of %s %s", (locale, text, value, rawText) => {
+    const { temperatures } = parseStep(text, defaultParseContext(locale));
+    expect(temperatures).toHaveLength(1);
+    expect(temperatures[0]).toMatchObject({ value, rawText });
+  });
+
+  it("reads a bracketed conversion of a freezer temperature as one", () => {
+    const { temperatures } = parseStep(
+      "Store at -18°C (0°F).",
+      defaultParseContext("en"),
+    );
+    expect(temperatures.map((t) => t.value)).toEqual([-18]);
+  });
+
   it("does not silently turn a temperature range into its upper bound", () => {
     expect(
       parseStep("180-200°C'de pişir", defaultParseContext("tr")).temperatures,

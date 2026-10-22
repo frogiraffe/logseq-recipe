@@ -197,6 +197,19 @@ describe("ChipInput", () => {
       expect((input as HTMLInputElement).value).toBe("des");
     });
 
+    it("keeps typed text as a chip on an Escape with nothing to close", () => {
+      render(<Harness suggestions={suggestions} />);
+      const input = screen.getByLabelText("Tags");
+      fireEvent.change(input, { target: { value: "des" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      // Handled here, so the screen behind doesn't leave with it.
+      expect(fireEvent.keyDown(input, { key: "Escape" })).toBe(false);
+      expect(screen.getByText("des")).toBeTruthy();
+      expect((input as HTMLInputElement).value).toBe("");
+      expect(fireEvent.keyDown(input, { key: "Escape" })).toBe(true);
+    });
+
     it("still commits typed text on Enter when no suggestion is highlighted", () => {
       render(<Harness suggestions={suggestions} />);
       const input = screen.getByLabelText("Tags");

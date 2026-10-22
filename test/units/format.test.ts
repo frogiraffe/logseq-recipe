@@ -32,6 +32,12 @@ describe("unitLabel", () => {
     expect(unitLabel("cup_metric", "es", 0.5)).toBe("taza");
   });
 
+  it("picks the plural for the number as shown", () => {
+    expect(unitLabel("cup_us", "en", 1.0144)).toBe("cup");
+    expect(unitLabel("cup_metric", "es", 1.01)).toBe("taza");
+    expect(unitLabel("cup_metric", "fr", 1.995)).toBe("tasses");
+  });
+
   it("never pluralizes a non-count unit", () => {
     expect(unitLabel("g", "en", 5)).toBe("g");
     expect(unitLabel("tbsp_metric", "en", 5)).toBe("tbsp");
@@ -83,6 +89,14 @@ describe("French, German, and Spanish formatting", () => {
 });
 
 describe("formatNumberForUnit", () => {
+  it("shows spoons converted between systems as the whole spoons they are", () => {
+    expect(formatNumberForUnit(1.9716, "tsp_metric")).toBe("2");
+    expect(formatNumberForUnit(2.0288, "tsp_us")).toBe("2");
+    expect(formatNumberForUnit(2.957, "tbsp_metric")).toBe("3");
+    expect(formatNumberForUnit(1.9, "tsp_metric")).toBe("1.9");
+    expect(formatNumberForUnit(0.845, "tbsp_imperial")).toBe("0.85");
+  });
+
   it("shows metric amounts as decimals without losing whole grams", () => {
     expect(formatNumberForUnit(1234, "g")).toBe("1234");
     expect(formatNumberForUnit(187.5, "ml")).toBe("188");

@@ -115,6 +115,23 @@ describe("splitIndentedOutline", () => {
     expect(tree?.children.map((n) => n.text)).toEqual(["Ingredients", "Steps"]);
     expect(tree?.children[1].children.map((n) => n.text)).toEqual(["Mix."]);
   });
+  it("counts a tab as four spaces when a paste mixes them", () => {
+    const outline = splitIndentedOutline(
+      "Soup\nIngredients\n\t1 l water\n  2 g salt\nSteps\n\tBoil.\n\t  Gently.\n  Simmer.",
+    );
+    const [ingredients, steps] = outline?.children ?? [];
+    expect(ingredients.children.map((line) => line.text)).toEqual([
+      "1 l water",
+      "2 g salt",
+    ]);
+    expect(steps.children.map((line) => line.text)).toEqual([
+      "Boil.",
+      "Simmer.",
+    ]);
+    expect(steps.children[0].children.map((line) => line.text)).toEqual([
+      "Gently.",
+    ]);
+  });
 });
 
 describe("looksUnsplit", () => {

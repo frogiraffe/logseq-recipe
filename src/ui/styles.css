@@ -1029,6 +1029,9 @@
       "timers timers"
       "side body"
       "nav nav";
+    /* Only the step's row takes a tall window's spare height: shared out,
+       it pushed the ingredients far below the header. */
+    grid-template-rows: auto auto 1fr auto;
     align-items: start;
     gap: 0 28px;
   }
@@ -1237,4 +1240,35 @@
   border-bottom-left-radius: 0;
   background: var(--ls-link-text-color);
   color: var(--ls-primary-background-color);
+}
+
+/* An amount that scales the recipe when clicked reads as the amount, with
+   an underline once pointed at or focused. */
+.draft-recipe-app .draft-recipe-scale-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 3px;
+}
+
+.draft-recipe-app .draft-recipe-scale-button:hover,
+.draft-recipe-app .draft-recipe-scale-button:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.draft-recipe-scale-to {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.draft-recipe-app .draft-recipe-scale-to input {
+  width: 5.5em;
+  padding: 2px 6px;
+  text-align: right;
 }

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Recipe } from "../../src/domain/recipe";
 import { RecipeSettingsPanel } from "../../src/ui/components/RecipeSettingsPanel";
-import { enMessages } from "../../src/ui/i18n";
+import { deMessages, enMessages } from "../../src/ui/i18n";
 
 function commitChip(labelText: string, value: string) {
   const input = screen.getByLabelText(labelText);
@@ -26,6 +26,29 @@ const recipe: Recipe = {
 };
 
 describe("RecipeSettingsPanel", () => {
+  it("writes a conversion's grams with the language's decimal comma", () => {
+    render(
+      <RecipeSettingsPanel
+        recipe={{
+          ...recipe,
+          ingredientConversionOverrides: [
+            {
+              ingredientKey: "butter",
+              massUnit: "g",
+              volumeUnit: "tbsp_us",
+              gramsPerVolumeUnit: 14.2,
+            },
+          ],
+        }}
+        assets={[]}
+        messages={deMessages}
+        onSave={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/= 14,2 g$/)).toBeTruthy();
+  });
+
   it("keeps a list changed in Logseq while open, unless it was edited here", () => {
     const onSave = vi.fn();
     const panel = (current: Recipe) => (

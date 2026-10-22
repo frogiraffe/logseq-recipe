@@ -61,6 +61,7 @@ function fakeRepository() {
     renameRecipe: async (id, title) => {
       calls.push(`rename:${id}:${title}`);
     },
+    markRecipeCooked: async () => undefined,
     updateRecipeFields: async (id, patch) => {
       calls.push(`fields:${id}:${JSON.stringify(patch)}`);
     },

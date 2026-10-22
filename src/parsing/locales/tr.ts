@@ -183,6 +183,7 @@ export const trLocale: RecipeLocalePack = {
     "meyiniz",
     "mayınız",
   ],
+  clauseConjunctions: [],
   durationWords: { hour: "saat", minute: "dk" },
   metadataAliases: {
     porsiyon: "yield",

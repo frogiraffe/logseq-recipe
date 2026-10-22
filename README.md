@@ -9,11 +9,14 @@ for Logseq DB graphs. Your recipes stay ordinary Logseq blocks.
   an outline you already wrote into a recipe. Every conversion is previewed
   before anything is written.
 - **Scale and convert** servings and units (metric, US, imperial) without
-  ever rewriting the amounts you wrote.
+  ever rewriting the amounts you wrote, or scale to how much of an
+  ingredient you have.
 - **Cook** one step at a time, with timers that keep running when you leave,
-  and your place kept until you finish.
-- **Logseq-native.** Categories, tags, servings and times are Logseq
-  properties, so Logseq's own queries find your recipes:
+  and your place kept until you finish; the recipe then remembers when you
+  last cooked it.
+- **Share** a recipe as plain text, at the servings and units you chose.
+- **Logseq-native.** Categories, tags, servings, times and the last cook
+  are Logseq properties, so Logseq's own queries find your recipes:
   `{{query (property recipe_categories [[Dessert]])}}`.
 - **Local and deterministic.** No account, cloud or AI. Text the parser
   can't read with certainty stays exactly as written.
@@ -82,8 +85,9 @@ File graphs are not supported. Website import, nutrition, shopping lists,
 meal planning and sync are not part of the plugin. Parsing recognizes
 recipe syntax; it is not general language understanding.
 
-If commands are missing, check that the plugin is enabled and the graph is a
-DB graph. For bugs, open an
+If a command answers that Logseq Recipe works with DB graphs only, open or
+create a DB graph; if the commands are missing, check that the plugin is
+enabled. For bugs, open an
 [issue](https://github.com/frogiraffe/logseq-recipe/issues) with your Logseq
 version and the DevTools console error.
 

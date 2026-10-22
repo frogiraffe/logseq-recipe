@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Packages the built plugin into the exact ZIP that ships in a GitHub Release
 # and to the Marketplace. `pnpm package` always runs `pnpm build` first, so
-# this never packages a stale dist/ left over from an earlier source state.
-# Running this script directly (bypassing `pnpm package`) still refuses to
-# package without a fresh-looking dist/, rather than silently reusing one.
+# this never packages a stale dist/ left over from an earlier source state;
+# scripts/verify-package.sh rejects a dev-server or older dist/ packaged by
+# running this script directly.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,8 +19,8 @@ STAGE_DIR="release/stage"
 rm -rf release "$ZIP_NAME"
 mkdir -p "$STAGE_DIR"
 cp -r dist "$STAGE_DIR/dist"
-cp -r examples "$STAGE_DIR/examples"
-cp -r docs "$STAGE_DIR/docs"
+# Only tracked files: never a draft or .DS_Store lying in docs/ or examples/.
+git ls-files -z docs examples | tar --null -T - -cf - | tar -xf - -C "$STAGE_DIR"
 cp package.json LICENSE README.md CHANGELOG.md logo.svg "$STAGE_DIR/"
 
 (cd "$STAGE_DIR" && zip -rq "../../$ZIP_NAME" .)

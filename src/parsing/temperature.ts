@@ -128,6 +128,8 @@ export function parseTemperatures(
     number: Token;
     unitToken: Token;
     unit: TemperatureUnit;
+    value: number;
+    start: number;
   }> = [];
   for (let index = 0; index < tokens.length - 1; index += 1) {
     const number = tokens[index];
@@ -136,10 +138,13 @@ export function parseTemperatures(
     // and 200°C", "180 ou 200 °C") is not a temperature on its own. The
     // joining word counts in any language: a temperature reads the same in
     // every one, so otherwise another language would pick up the "200°C"
-    // this one deliberately left.
+    // this one deliberately left. The minutes of "1 h 30 à 180 °C" are not
+    // the lower end of one.
     const joiner = tokens[index - 1];
+    const hours = tokens[index - 3];
     if (
       tokens[index - 2]?.kind === "number" &&
+      !(hours?.kind === "unit" && hours.normalized === "hour") &&
       (joiner?.kind === "range" ||
         (joiner?.kind === "word" &&
           RANGE_JOINERS.has(String(joiner.normalized))))
@@ -148,31 +153,43 @@ export function parseTemperatures(
     const unitToken = tokens[index + 1];
     const unit =
       temperatureUnitFromToken(unitToken) ?? bareScaleUnit(number, unitToken);
-    if (unit) found.push({ number, unitToken, unit });
+    if (!unit) continue;
+    // "-18°C": a minus against the number, with no number before it.
+    const minus =
+      joiner?.kind === "range" &&
+      (joiner.raw === "-" || joiner.raw === "−") &&
+      joiner.endOffset === number.startOffset
+        ? joiner
+        : undefined;
+    const value = Number(number.normalized);
+    found.push({
+      number,
+      unitToken,
+      unit,
+      value: minus ? -value : value,
+      start: (minus ?? number).startOffset,
+    });
   }
 
   // "350°F (175°C)": the bracketed one is the same heat in the other
   // scale, not a second temperature.
-  const celsius = (entry: (typeof found)[number]) => {
-    const value = Number(entry.number.normalized);
-    return entry.unit === "celsius" ? value : ((value - 32) * 5) / 9;
-  };
+  const celsius = ({ unit, value }: (typeof found)[number]) =>
+    unit === "celsius" ? value : ((value - 32) * 5) / 9;
   const distinct = found.filter((entry, index) => {
     const previous = found[index - 1];
     return !(
       previous &&
       previous.unit !== entry.unit &&
       /^\s*\(\s*$/u.test(
-        text.slice(previous.unitToken.endOffset, entry.number.startOffset),
+        text.slice(previous.unitToken.endOffset, entry.start),
       ) &&
       Math.abs(celsius(previous) - celsius(entry)) <= 10
     );
   });
 
-  return distinct.map(({ number, unitToken, unit }, index) => {
-    const start = number.startOffset;
+  return distinct.map(({ unitToken, unit, value, start }, index) => {
     const end = unitToken.endOffset;
-    const nextStart = distinct[index + 1]?.number.startOffset ?? text.length;
+    const nextStart = distinct[index + 1]?.start ?? text.length;
     const nearbyMode = nearbySpan(
       text,
       ovenModes,
@@ -194,7 +211,7 @@ export function parseTemperatures(
 
     return {
       kind: "temperature",
-      value: Number(number.normalized),
+      value,
       unit,
       ...(nearbyMode ? { ovenMode: nearbyMode.value } : {}),
       ...(isPreheated ? { preheat: true } : {}),

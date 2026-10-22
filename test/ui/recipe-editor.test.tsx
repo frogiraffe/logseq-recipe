@@ -152,6 +152,59 @@ describe("RecipeEditor", () => {
     );
   });
 
+  it("saves text typed in an add field without pressing Add", () => {
+    const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={onSave}
+        onCancel={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(enMessages.addIngredient), {
+      target: { value: "2 eggs" },
+    });
+    fireEvent.change(screen.getByLabelText(enMessages.addStep), {
+      target: { value: "Bake 20 minutes." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.save }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingredients: expect.objectContaining({
+          added: [{ tempId: "new:typed", text: "2 eggs" }],
+        }),
+        steps: expect.objectContaining({
+          added: [{ tempId: "new:typed", text: "Bake 20 minutes." }],
+        }),
+      }),
+    );
+  });
+
+  it("asks before Cancel drops text typed in an add field", () => {
+    const onCancel = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <RecipeEditor
+        recipe={recipe}
+        messages={enMessages}
+        onSave={() => undefined}
+        onCancel={onCancel}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(enMessages.addNote), {
+      target: { value: "Keeps for a week." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
+    expect(confirmSpy).toHaveBeenCalledWith(enMessages.discardChangesConfirm);
+    expect(onCancel).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
+
   it("reports prep, chill, cook, and source changes", () => {
     const onSave = vi.fn<(patch: RecipeEditPatch) => void>();
     render(

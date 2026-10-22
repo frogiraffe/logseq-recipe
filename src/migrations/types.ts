@@ -13,9 +13,9 @@ export interface RecipeMigrationContext {
 }
 
 /**
- * One step of a recipe's schema_version. `run` must be safe to repeat: the
- * runner writes the new version only after it returns, so an interrupted
- * step runs again, from the start, on the next load. A step never deletes
+ * One step of a recipe's schema_version. `run` must be safe to repeat and
+ * write the new schema_version last (the runner writes nothing), so an
+ * interrupted step runs again, from the start, on the next load. A step never deletes
  * what it can't reproduce; see docs/data-model.md for when a change needs
  * one at all.
  */

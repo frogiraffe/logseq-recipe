@@ -50,6 +50,7 @@ import { useConfirmDiscard } from "./dirty-guard";
 import { errorMessage } from "./error-message";
 import { useFocusTrap } from "./focus-trap";
 import type { UiMessages } from "./i18n";
+import { copyText } from "./recipe-text";
 import type {
   DraftRecipeAppConfig,
   DraftRecipeInitialView,
@@ -243,10 +244,11 @@ function RecipeApp({
     async (
       id: string,
       resetYield: boolean,
+      keepError = false,
     ): Promise<Recipe | null | undefined> => {
       const token = ++loadTokenRef.current;
       try {
-        setError(null);
+        if (!keepError) setError(null);
         const loaded = await controller.loadRecipe(id);
         if (loadTokenRef.current !== token) return undefined;
         if (!loaded) {
@@ -352,7 +354,7 @@ function RecipeApp({
             pages
               .filter(([, names]) => names.length > 0)
               .map(([label, names]) =>
-                label.replace("{pages}", names.join(", ")),
+                label.replace("{pages}", () => names.join(", ")),
               )
               .join(" · ") || undefined,
           confirmLabel: messages.exportTaxonomyAction,
@@ -449,7 +451,9 @@ function RecipeApp({
   useEffect(() => {
     if (!recipeId || !controller.watchRecipe) return undefined;
     return controller.watchRecipe(recipeId, () => {
-      void refreshRecipeById(recipeId, false).then((loaded) => {
+      // A change from Logseq keeps the error shown, such as a save that
+      // only partly reached it.
+      void refreshRecipeById(recipeId, false, true).then((loaded) => {
         // The recipe was removed/recycled from outside the plugin (or by
         // this plugin's own Archive) while its card was open - don't leave a
         // stale card on screen with nothing behind it. `undefined` means
@@ -492,10 +496,10 @@ function RecipeApp({
     const guarded = (leave: () => void) => () =>
       confirmDiscard(formDirty, leave);
     switch (view.kind) {
-      case "create":
       case "archived":
       case "recipe-loaded":
         return backToRecipes;
+      case "create":
       case "import-text":
         return guarded(backToRecipes);
       case "import-preview": {
@@ -552,6 +556,8 @@ function RecipeApp({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Leaving the import preview, except back to its text, drops the text.
+  const unsaved = formDirty || view.kind === "import-preview";
   const shell = (content: ReactNode, onBack?: () => void) => (
     <div
       ref={shellRef}
@@ -574,7 +580,7 @@ function RecipeApp({
           className="draft-recipe-close"
           aria-label={messages.close}
           title={messages.close}
-          onClick={() => confirmDiscard(formDirty, controller.close)}
+          onClick={() => confirmDiscard(unsaved, controller.close)}
         >
           <Icon name="close" />
         </button>
@@ -597,7 +603,7 @@ function RecipeApp({
           graphKey={config.graphKey}
           messages={messages}
           onOpenRecipe={(id) =>
-            confirmDiscard(formDirty, () => void openCookingById(id))
+            confirmDiscard(unsaved, () => void openCookingById(id))
           }
         />
       )}
@@ -612,6 +618,7 @@ function RecipeApp({
         sourceMeasurementSystem={config.defaultSourceMeasurementSystem}
         pending={pending}
         onCancel={backToRecipes}
+        onDirtyChange={setFormDirty}
         onImport={() => setView({ kind: "import-text" })}
         onSubmit={(input) => {
           void runAction(async () => {
@@ -665,6 +672,7 @@ function RecipeApp({
         messages={messages}
         pending={pending}
         notice={messages.importNotice}
+        heading={{ title: messages.importRecipe, label: messages.importing }}
         outline={view.outline}
         onCancel={() => setView({ kind: "import-text", text: view.text })}
         onDirtyChange={setFormDirty}
@@ -747,7 +755,10 @@ function RecipeApp({
         defaultSourceMeasurementSystem={config.defaultSourceMeasurementSystem}
         taxonomyInLogseq={Boolean(controller.planTaxonomyExport)}
         pending={pending}
-        onCancel={() => setView({ kind: "recipe-loaded" })}
+        onCancel={() => {
+          setError(null);
+          setView({ kind: "recipe-loaded" });
+        }}
         onDirtyChange={setFormDirty}
         onSave={(meta, cover: CoverSelection) => {
           void runAction(async () => {
@@ -773,7 +784,10 @@ function RecipeApp({
         onReload={() => setEditSession((session) => session + 1)}
         messages={messages}
         pending={pending}
-        onCancel={() => setView({ kind: "recipe-loaded" })}
+        onCancel={() => {
+          setError(null);
+          setView({ kind: "recipe-loaded" });
+        }}
         onDirtyChange={setFormDirty}
         listStepMediaAssets={controller.listStepMediaAssets}
         resolveAssetUrl={controller.resolveAssetUrl}
@@ -818,6 +832,11 @@ function RecipeApp({
         resolveAssetUrl={controller.resolveAssetUrl}
         onTargetYieldChange={setTargetYield}
         onExit={() => setView({ kind: "recipe-loaded" })}
+        // Best effort: a cook isn't undone by failing to note it. The open
+        // recipe's watcher shows the new date.
+        onFinish={() => {
+          void controller.markRecipeCooked?.(recipe.id).catch(() => undefined);
+        }}
       />,
     );
   }
@@ -886,6 +905,12 @@ function RecipeApp({
             setTargetYield(duplicated.baseYield);
             setView({ kind: "recipe-loaded" });
             announce(messages.duplicatedNotice);
+          });
+        }}
+        onCopyAsText={(text) => {
+          void copyText(text).then((copied) => {
+            if (copied) announce(messages.copiedNotice);
+            else setError(messages.copyFailed);
           });
         }}
         onArchiveRecipe={() => {

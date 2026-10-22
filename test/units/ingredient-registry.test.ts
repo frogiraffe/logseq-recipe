@@ -249,6 +249,17 @@ describe("ingredient conversion registry", () => {
     }
   });
 
+  it("matches a name written with a curly apostrophe", () => {
+    expect(
+      builtInIngredientConversionProvider.find("confectioners’ sugar")?.key,
+    ).toBe(
+      builtInIngredientConversionProvider.find("confectioners' sugar")?.key,
+    );
+    expect(
+      builtInIngredientConversionProvider.find("confectioners’ sugar"),
+    ).toBeTruthy();
+  });
+
   describe("a comma tail that only says how the ingredient is prepared", () => {
     const gramsPerUsCup = (ingredientText: string) =>
       convertIngredientMassVolume(

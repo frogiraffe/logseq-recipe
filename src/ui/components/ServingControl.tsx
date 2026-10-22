@@ -28,6 +28,7 @@ export function ServingControl({
 }: ServingControlProps) {
   const [text, setText] = useState(String(value));
   const unit = yieldUnit?.trim();
+  const baseText = baseValue?.toLocaleString(messages.uiLocale) ?? "";
 
   useEffect(() => {
     setText(String(value));
@@ -88,15 +89,12 @@ export function ServingControl({
           <button
             type="button"
             className="draft-recipe-quiet-button"
-            aria-label={messages.resetServings.replace(
-              "{count}",
-              String(baseValue),
-            )}
-            title={messages.resetServings.replace("{count}", String(baseValue))}
+            aria-label={messages.resetServings.replace("{count}", baseText)}
+            title={messages.resetServings.replace("{count}", baseText)}
             onClick={() => onChange(baseValue)}
           >
             <Icon name="reset" />
-            <span aria-hidden="true">{baseValue}</span>
+            <span aria-hidden="true">{baseText}</span>
           </button>
         )}
     </div>

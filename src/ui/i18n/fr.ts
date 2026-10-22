@@ -69,27 +69,32 @@ export const frMessages: UiMessages = {
   rangeMax: "Max",
   minutesUnit: "min",
   converting: "Conversion",
-  alreadyRecipe: "C'est déjà une recette :",
+  colon: "\u00a0:",
+  importing: "Importation",
+  alreadyRecipe: "C'est déjà une recette\u00a0:",
   openRecipe: "Ouvrir la recette",
   missingYieldPrompt:
-    "Combien de portions ou de pièces cette recette donne-t-elle ? Rien n’a été trouvé : elle compte pour 1 (la recette telle qu’écrite) tant que vous ne l’indiquez pas.",
+    "Combien de portions ou de pièces cette recette donne-t-elle\u00a0? Rien n'a été trouvé\u00a0: elle compte pour 1 (la recette telle qu'écrite) tant que vous ne l'indiquez pas.",
   yieldUnitHelp: "portions, biscuits, pièces…",
   useThisYield: "Utiliser ce rendement",
   conversionRulesTitle: "Conversion d'ingrédient personnalisée",
   conversionRulesHelp:
-    "Logseq Recipe convertit automatiquement les unités fixes comme g ↔ kg et ml ↔ L. Pour les ingrédients pris en charge, il convertit aussi automatiquement entre masse et volume (p. ex. tasses en grammes) grâce à des données intégrées. N'ajoutez une conversion personnalisée que si un ingrédient n'est pas pris en charge, ou pour remplacer sa conversion intégrée dans cette recette. Cela n'ajoute pas d'ingrédient à la recette : saisissez les ingrédients comme des lignes normales sous Ingrédients.",
+    "Logseq Recipe convertit automatiquement les unités fixes comme g ↔ kg et ml ↔ L. Pour les ingrédients pris en charge, il convertit aussi automatiquement entre masse et volume (p. ex. tasses en grammes) grâce à des données intégrées. N'ajoutez une conversion personnalisée que si un ingrédient n'est pas pris en charge, ou pour remplacer sa conversion intégrée dans cette recette. Cela n'ajoute pas d'ingrédient à la recette\u00a0: saisissez les ingrédients comme des lignes normales sous Ingrédients.",
   editRecipe: "Modifier la recette",
   duplicateRecipe: "Dupliquer la recette",
+  copyAsText: "Copier en texte",
+  copiedNotice: "Copiée en texte",
+  copyFailed: "Impossible de copier dans le presse-papiers.",
   archivedRecipes: "Recettes archivées",
   noArchivedRecipes: "Aucune recette archivée",
   archiveRecipe: "Archiver la recette",
   archiveRecipeConfirm:
-    "Archiver cette recette ? Elle quittera la liste active et restera récupérable sans limite de durée depuis Recettes archivées.",
+    "Archiver cette recette\u00a0? Elle quittera la liste active et restera récupérable sans limite de durée depuis Recettes archivées.",
   archiveRecipeConfirmAction: "Archiver",
   restoreRecipe: "Restaurer",
   deleteRecipePermanently: "Supprimer définitivement",
   deleteRecipePermanentlyConfirm:
-    "Supprimer définitivement cette recette du graphe Logseq ? Cette action est irréversible depuis Logseq Recipe.",
+    "Supprimer définitivement cette recette du graphe Logseq\u00a0? Impossible d'annuler cette action depuis Logseq Recipe.",
   openInLogseq: "Ouvrir dans Logseq",
   addIngredient: "Ajouter un ingrédient",
   addStep: "Ajouter une étape",
@@ -98,6 +103,8 @@ export const frMessages: UiMessages = {
   sortBy: "Trier par",
   sortByTitle: "Titre (A–Z)",
   sortByTotalTime: "Temps total (le plus court d'abord)",
+  sortByLastCooked: "Dernière cuisson (la plus récente d'abord)",
+  lastCooked: "Dernière cuisson",
   doesNotScale: "Ne varie pas avec les portions",
   resumeCooking: "Reprendre la cuisson",
   finishCooking: "Terminer la cuisson",
@@ -127,22 +134,25 @@ export const frMessages: UiMessages = {
   archivedNotice: "Recette archivée",
   restoredNotice: "Recette restaurée",
   deletedNotice: "Recette supprimée",
-  duplicatedNotice: "Copie créée ; vous voyez maintenant la copie",
+  duplicatedNotice: "Copie créée\u00a0; vous voyez maintenant la copie",
   movedToLibraryNotice: "Déplacée vers Recipe Library",
   archivedOn: "Archivée le {date}",
   moreActions: "Autres actions",
   fewerServings: "Moins de portions",
   moreServings: "Plus de portions",
-  resetServings: "Portions d’origine : {count}",
+  resetServings: "Portions d'origine\u00a0: {count}",
+  scaleToIngredient:
+    "Adapter la recette à la quantité de {ingredient} que vous avez",
+  scaleToIngredientAmount: "Quantité de {ingredient} que vous avez",
   noRecipesHint:
-    "Créez-en une ici, collez-en une avec « Importer depuis un texte », ou transformez une page existante avec « Logseq Recipe: Convert to Recipe » dans son menu de bloc.",
+    "Créez-en une ici, collez-en une avec «\u00a0Importer depuis un texte\u00a0», ou transformez une page existante en recette avec «\u00a0Logseq Recipe: Convert to Recipe\u00a0» dans son menu de bloc.",
   saveIncomplete:
-    "L'enregistrement a été interrompu et n'a été appliqué qu'en partie. La recette a été rechargée depuis Logseq ; vérifiez-la et refaites les modifications manquantes.",
+    "L'enregistrement a été interrompu et n'a été appliqué qu'en partie. La recette a été rechargée depuis Logseq\u00a0; vérifiez-la et refaites les modifications manquantes.",
   blankItemError:
     "Supprimez les éléments vides ou complétez-les avant d'enregistrer.",
   cookingNoSteps: "Cette recette n'a aucune étape à suivre.",
   stepProgress: "Étape",
-  discardChangesConfirm: "Abandonner les modifications non enregistrées ?",
+  discardChangesConfirm: "Abandonner les modifications non enregistrées\u00a0?",
   discardChanges: "Abandonner les modifications",
   keepEditing: "Continuer à modifier",
   refresh: "Actualiser",
@@ -152,27 +162,28 @@ export const frMessages: UiMessages = {
     "Cette recette n'a pas encore d'ingrédients ni d'étapes. Ajoutez-les via Modifier la recette.",
   clearFilters: "Effacer les filtres",
   issueMissingBaseYield:
-    "Aucun nombre de portions trouvé : la recette compte pour 1 portion tant que vous ne l’indiquez pas.",
+    "Aucun nombre de portions trouvé\u00a0: la recette compte pour 1 portion tant que vous ne l'indiquez pas.",
   issueNoIngredientsSection: "Aucune section d'ingrédients trouvée.",
   issueNoStepsSection: "Aucune section d'étapes trouvée.",
   issueDuplicateSectionRole:
     "Plusieurs sections ont été reconnues comme {detail}.",
   issueUnrecognizedSection:
-    "Impossible de déterminer le rôle de la section « {detail} ». Classez-la ci-dessus.",
+    "Impossible de déterminer le rôle de la section «\u00a0{detail}\u00a0». Classez-la ci-dessus.",
   issueUnclassifiedContent:
-    "« {detail} » n'est ni une section, ni une métadonnée, ni un ingrédient, une étape ou une note, et sera ignoré.",
-  issueInvalidMetadataValue: "Impossible de lire la valeur de « {detail} ».",
+    "«\u00a0{detail}\u00a0» n'est ni une section, ni une métadonnée, ni un ingrédient, ni une étape, ni une note, et sera ignoré.",
+  issueInvalidMetadataValue:
+    "Impossible de lire la valeur de «\u00a0{detail}\u00a0».",
   issueIngredientAmountUnparsed:
-    "Aucune quantité trouvée pour l'ingrédient « {detail} ».",
+    "Aucune quantité trouvée pour l'ingrédient «\u00a0{detail}\u00a0».",
   issueIngredientAmountAmbiguous:
-    "La quantité de « {detail} » n'est pas claire (deux quantités ou un nombre illisible). Saisissez-la ou gardez la ligne telle quelle.",
+    "La quantité de «\u00a0{detail}\u00a0» n'est pas claire (deux quantités ou un nombre illisible). Saisissez-la ou gardez la ligne telle quelle.",
   importRecipe: "Importer depuis un texte",
-  moreWaysToAdd: "Autres façons d’ajouter une recette",
+  moreWaysToAdd: "Autres façons d'ajouter une recette",
   importRecipeHelp:
-    "Collez une recette entière. La première ligne est le titre ; les titres de section comme « Ingrédients », « Préparation » et « Notes » la découpent en sections, et une ligne comme « Pour la pâte : » commence un groupe d'ingrédients ; les lignes avant le premier titre (« Portions : 4 », « Préparation : 15 min ») deviennent les informations de la recette. Rien n'est écrit avant que vous confirmiez l'aperçu.",
+    "Collez une recette entière. La première ligne est le titre\u00a0; les titres de section comme «\u00a0Ingrédients\u00a0», «\u00a0Préparation\u00a0» et «\u00a0Notes\u00a0» la découpent en sections, et une ligne comme «\u00a0Pour la pâte\u00a0:\u00a0» commence un groupe d'ingrédients\u00a0; les lignes avant le premier titre («\u00a0Portions\u00a0: 4\u00a0», «\u00a0Temps de préparation\u00a0: 15 min\u00a0») deviennent les informations de la recette. Rien n'est écrit avant que vous confirmiez l'aperçu.",
   recipeText: "Texte de la recette",
   importNoSections:
-    "Aucun titre de section trouvé. Placez « Ingrédients » et « Préparation » (ou leur équivalent dans la langue de la recette) sur des lignes séparées.",
+    "Aucun titre de section trouvé. Placez «\u00a0Ingrédients\u00a0» et «\u00a0Préparation\u00a0» (ou leur équivalent dans la langue de la recette) sur des lignes séparées.",
   importRecipeAction: "Aperçu",
   localeAutoDetected: "détectée automatiquement",
   addIngredientGroup: "Ajouter un groupe",
@@ -180,56 +191,59 @@ export const frMessages: UiMessages = {
   emptyIngredientGroup: "Chaque groupe doit contenir au moins un ingrédient.",
   moveToRecipeLibrary: "Déplacer vers Recipe Library",
   moveToRecipeLibraryConfirm:
-    "Déplacer cette recette de sa page actuelle vers la page Recipe Library ? Son contenu et ses liens restent les mêmes.",
+    "Déplacer cette recette de sa page actuelle vers la page Recipe Library\u00a0? Son contenu et ses liens restent les mêmes.",
   recipeChangedElsewhere:
-    "Cette recette a changé dans Logseq pendant votre modification. L'enregistrement n'écrit que vos changements ; les autres sont conservés.",
+    "Cette recette a changé dans Logseq pendant votre modification. L'enregistrement n'écrit que vos changements\u00a0; les autres sont conservés.",
   loadCurrentVersion: "Charger la version actuelle",
   rebuildNotice:
-    "Ces blocs ne sont pas encore organisés en recette. La confirmation les remplace par de nouveaux blocs comme indiqué sous Nouvelle structure des blocs, puis les convertit. Seul leur texte est repris : les liens vers ces blocs et leurs propriétés ne sont pas conservés. Rien ne change avant votre confirmation.",
+    "Ces blocs ne sont pas encore organisés en recette. La confirmation les remplace par de nouveaux blocs comme indiqué sous Nouvelle structure des blocs, puis les convertit. Seul leur texte est repris\u00a0: les liens vers ces blocs et leurs propriétés ne sont pas conservés. Rien ne change avant votre confirmation.",
   importNotice:
-    "La confirmation ajoute cette recette à Recipe Library comme indiqué sous Nouvelle structure des blocs ; rien n'est écrit avant votre confirmation.",
+    "La confirmation ajoute cette recette à Recipe Library comme indiqué sous Nouvelle structure des blocs\u00a0; rien n'est écrit avant votre confirmation.",
   newStructure: "Nouvelle structure des blocs",
   ingredientsAsRead: "Lecture de chaque ingrédient",
   errorTitleRequired: "Une recette doit avoir un titre.",
-  errorTitleTaken: "Une recette nommée « {detail} » existe déjà.",
-  errorPageTitleTaken: "Une page Logseq nommée « {detail} » existe déjà.",
+  errorTitleTaken: "Une recette nommée «\u00a0{detail}\u00a0» existe déjà.",
+  errorPageTitleTaken:
+    "Une page Logseq nommée «\u00a0{detail}\u00a0» existe déjà.",
   errorBaseYieldInvalid: "Le nombre de portions doit être supérieur à 0.",
   errorTimeInvalid: "Les durées doivent être de 0 minute ou plus.",
   errorRecipeNotFound: "Cette recette n'est plus dans le graphe.",
   errorSectionMissing:
-    "Cette recette n'a plus de section {detail} dans Logseq ; rajoutez-la pour la modifier.",
+    "Cette recette n'a plus de section {detail} dans Logseq\u00a0; rajoutez-la pour la modifier.",
   errorRecipeInvalid:
-    "Les données de cette recette ne peuvent pas être affichées sans risque : {detail}",
+    "Les données de cette recette ne peuvent pas être affichées sans risque\u00a0: {detail}",
   errorFutureSchema:
     "Cette recette a été enregistrée par une version plus récente de Logseq Recipe. Mettez à jour l'extension pour l'ouvrir.",
-  errorUnexpected: "Logseq n'a pas pu terminer : {detail}",
+  errorUnexpected: "Logseq n'a pas pu terminer\u00a0: {detail}",
   notDbGraph: "Logseq Recipe fonctionne uniquement avec les graphes Logseq DB.",
   unsupportedLogseqBuild:
-    "Logseq Recipe : il manque à cette version de Logseq une fonction dont l'extension a besoin. Mettez Logseq à jour et réessayez.",
+    "Logseq Recipe\u00a0: il manque à cette version de Logseq une fonction dont l'extension a besoin. Mettez Logseq à jour et réessayez.",
   nothingToConvert:
-    "Logseq Recipe : ouvrez d'abord une page ou faites un clic droit sur un bloc contenant une recette.",
-  insideRecipe: "Ce bloc fait déjà partie d'une recette :",
+    "Logseq Recipe\u00a0: ouvrez d'abord une page ou faites un clic droit sur un bloc contenant une recette.",
+  insideRecipe: "Ce bloc fait déjà partie d'une recette\u00a0:",
   finishCookingConfirm:
-    "Un minuteur tourne encore. Terminer la cuisson et effacer les minuteurs, l'étape en cours et les ingrédients cochés ?",
+    "Un minuteur tourne encore. Terminer la cuisson et réinitialiser les minuteurs, l'étape en cours et les ingrédients cochés\u00a0?",
+  finishCookingQuestion:
+    "Terminer la cuisson et réinitialiser l'étape en cours, les ingrédients cochés et les minuteurs\u00a0?",
   fixedAmountShort: "Fixe",
   sourceMeasurementHelp:
-    "Les unités dans lesquelles la recette est écrite : si sa « tasse » ou sa « c. à s. » est américaine, métrique ou impériale.",
+    "Les unités dans lesquelles la recette est écrite\u00a0: si sa «\u00a0tasse\u00a0» ou sa «\u00a0c. à s.\u00a0» est américaine, métrique ou impériale.",
   displayMeasurementHelp:
-    "Les unités d'affichage des quantités de cette recette ; le réglage de l'extension s'applique par défaut.",
+    "Les unités d'affichage des quantités de cette recette\u00a0; le réglage de l'extension s'applique par défaut.",
   noAmountLinesNote:
-    "Ces lignes n'ont pas de quantité : elles restent telles quelles et ne changent pas avec les portions :",
+    "Ces lignes n'ont pas de quantité\u00a0; elles restent telles quelles et ne changent pas avec les portions\u00a0:",
   enterAmount: "Saisir une quantité",
   recipeCountOne: "{shown} / {total} recette",
   recipeCountOther: "{shown} / {total} recettes",
   exportTaxonomy: "Ajouter les catégories et étiquettes à Logseq…",
   exportTaxonomyConfirmOne:
-    "Les catégories et étiquettes de {count} recette seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi : modifiez-les dans le plugin ou dans Logseq.",
+    "Les catégories et étiquettes de {count} recette seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi\u00a0: modifiez-les dans l'extension ou dans Logseq.",
   exportTaxonomyConfirmOther:
-    "Les catégories et étiquettes de {count} recettes seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi : modifiez-les dans le plugin ou dans Logseq.",
-  exportTaxonomyNewPages: "Nouvelles pages : {pages}",
-  exportTaxonomyExistingPages: "Pages existantes : {pages}",
+    "Les catégories et étiquettes de {count} recettes seront écrites dans les propriétés Logseq {properties}. Ensuite, ce sont ces propriétés qui font foi\u00a0: modifiez-les dans l'extension ou dans Logseq.",
+  exportTaxonomyNewPages: "Nouvelles pages\u00a0: {pages}",
+  exportTaxonomyExistingPages: "Pages existantes\u00a0: {pages}",
   exportTaxonomyKeptNames:
-    "Conservés dans le plugin seulement, Logseq ne pouvant pas en faire des noms de page : {pages}",
+    "Conservés dans l'extension seulement, Logseq ne pouvant pas en faire des noms de page\u00a0: {pages}",
   exportTaxonomyAction: "Ajouter",
   exportTaxonomyDoneOne:
     "Catégories et étiquettes ajoutées à Logseq pour {count} recette",
@@ -242,7 +256,7 @@ export const frMessages: UiMessages = {
   taxonomyNoticeReview: "Vérifier…",
   taxonomyNoticeLater: "Plus tard",
   taxonomyPropertiesHelp:
-    "Enregistrées dans les propriétés Logseq recipe_categories et recipe_tags : vous pouvez aussi les modifier dans Logseq et retrouver les recettes avec les requêtes de Logseq.",
+    "Enregistrées dans les propriétés Logseq recipe_categories et recipe_tags\u00a0: vous pouvez aussi les modifier dans Logseq et retrouver les recettes avec les requêtes de Logseq.",
   importInstead:
-    "Vous avez la recette entière en texte ? Importer depuis un texte",
+    "Vous avez la recette entière en texte\u00a0? Importer depuis un texte",
 };

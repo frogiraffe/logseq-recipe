@@ -38,6 +38,9 @@ export function recipeSummary(recipe: Recipe): RecipeSummary {
     ...(recipe.cookMinutes !== undefined
       ? { cookMinutes: recipe.cookMinutes }
       : {}),
+    ...(recipe.lastCookedAt !== undefined
+      ? { lastCookedAt: recipe.lastCookedAt }
+      : {}),
     ingredientTexts: recipe.ingredients.map(
       (ingredient) => ingredient.ingredientText,
     ),
@@ -147,7 +150,7 @@ export function filterRecipeSummaries(
   });
 }
 
-export type RecipeSortKey = "title" | "totalTime";
+export type RecipeSortKey = "title" | "totalTime" | "lastCooked";
 
 /** `locale` orders titles the way that language's alphabet does. */
 export function sortRecipeSummaries(
@@ -156,6 +159,14 @@ export function sortRecipeSummaries(
   locale?: string,
 ): RecipeSummary[] {
   const sorted = [...recipes];
+  if (sortBy === "lastCooked") {
+    // Most recent first; never cooked last, by title.
+    return sorted.sort(
+      (a, b) =>
+        (b.lastCookedAt ?? -1) - (a.lastCookedAt ?? -1) ||
+        a.title.localeCompare(b.title, locale),
+    );
+  }
   if (sortBy === "totalTime") {
     sorted.sort((a, b) => {
       const aTotal = totalMinutes(a);

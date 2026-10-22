@@ -75,6 +75,25 @@ EXPECTED_NAME="logseq-recipe-v${PKG_VERSION}.zip"
 [ "$(basename "$ZIP_NAME")" = "$EXPECTED_NAME" ] ||
   fail "artifact is named '$(basename "$ZIP_NAME")', expected '$EXPECTED_NAME'"
 
+# The built plugin itself: a production build of this version that loads
+# everything from the plugin folder - not the page `pnpm dev` writes to
+# dist/, an older build, or a build with files missing.
+INDEX="$TMP_DIR/dist/index.html"
+if grep -qE 'localhost|/@vite/|<base ' "$INDEX"; then
+  fail "dist/index.html is the dev server's page, not a build"
+fi
+for ref in $(grep -oE '(src|href)="[^"]*"' "$INDEX" | sed -E 's/^[a-z]+="//; s/"$//'); do
+  case "$ref" in
+    ./*) [ -f "$TMP_DIR/dist/${ref#./}" ] ||
+      fail "dist/index.html loads $ref, which is missing" ;;
+    *) fail "dist/index.html loads $ref, from outside the plugin" ;;
+  esac
+done
+grep -qF "\"$PKG_VERSION\"" "$TMP_DIR"/dist/assets/*.js ||
+  fail "the built code is not version $PKG_VERSION"
+STRAY="$(cd "$TMP_DIR" && find . -mindepth 2 \( -name '*.map' -o -name '.*' \) | sort)"
+[ -z "$STRAY" ] || fail "unexpected files: $STRAY"
+
 echo "package verification OK: $ZIP_NAME"
 echo "contents:"
 (cd "$TMP_DIR" && find . -type f | sort)

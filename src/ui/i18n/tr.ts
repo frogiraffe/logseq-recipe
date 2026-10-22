@@ -15,7 +15,7 @@ export const trMessages: UiMessages = {
   filters: "Filtreler",
   category: "Kategori",
   tags: "Etiketler",
-  containsIngredient: "İçeren malzeme",
+  containsIngredient: "İçerdiği malzeme",
   prepTime: "Hazırlama süresi",
   chillTime: "Dinlenme / soğutma",
   cookTime: "Pişirme süresi",
@@ -24,7 +24,7 @@ export const trMessages: UiMessages = {
   measurementSystem: "Ölçü sistemi",
   metric: "Metrik",
   usCustomary: "ABD ölçüleri",
-  imperial: "Imperial",
+  imperial: "İngiliz ölçüleri",
   addConversion: "Özel dönüşüm kuralı ekle",
   conversionUnavailable: "Dönüşüm kullanılamıyor",
   convertToRecipe: "Tarife dönüştür",
@@ -42,7 +42,7 @@ export const trMessages: UiMessages = {
   cover: "Kapak görseli",
   coverPath: "Kapak görselinin yolu",
   coverPathHint:
-    "Bu graph içindeki yolu girin, ör. assets/foto.png (PNG, JPG veya WebP).",
+    "Bu graf içindeki bir yolu girin, ör. assets/foto.png (PNG, JPG veya WebP).",
   noCover: "Kapak yok",
   ingredientKey: "Malzeme",
   volumeUnit: "Hacim birimi",
@@ -69,28 +69,33 @@ export const trMessages: UiMessages = {
   rangeMax: "En çok",
   minutesUnit: "dk",
   converting: "Dönüştürülüyor",
+  colon: ":",
+  importing: "İçe aktarılıyor",
   alreadyRecipe: "Bu zaten bir tarif:",
   openRecipe: "Tarifi aç",
   missingYieldPrompt:
     "Bu tarif kaç porsiyon ya da adet veriyor? Bulunamadı; siz girene kadar 1 (yazıldığı haliyle tarif) sayılır.",
   yieldUnitHelp: "porsiyon, kurabiye, adet...",
-  useThisYield: "Bu miktarı kullan",
+  useThisYield: "Bu değeri kullan",
   conversionRulesTitle: "Özel malzeme dönüşümü",
   conversionRulesHelp:
     "Logseq Recipe, g ↔ kg ve ml ↔ L gibi sabit birimleri otomatik olarak dönüştürür. Desteklenen malzemeler için kütle ile hacim arasında da (ör. bardağı grama) yerleşik verilerle otomatik dönüşüm yapar. Özel bir dönüşümü yalnızca bir malzeme desteklenmediğinde veya bu tarif için yerleşik dönüşümü geçersiz kılmak istediğinizde ekleyin. Bu, tarife malzeme eklemez — malzemeleri Malzemeler bölümü altına normal satırlar olarak yazın.",
   editRecipe: "Tarifi düzenle",
   duplicateRecipe: "Tarifi çoğalt",
+  copyAsText: "Metin olarak kopyala",
+  copiedNotice: "Metin olarak kopyalandı",
+  copyFailed: "Panoya kopyalanamadı.",
   archivedRecipes: "Arşivlenen Tarifler",
   noArchivedRecipes: "Arşivlenmiş tarif yok",
   archiveRecipe: "Tarifi arşivle",
   archiveRecipeConfirm:
-    "Bu tarif arşivlensin mi? Etkin listeden çıkar ve Arşivlenen Tarifler bölümünden süresiz olarak geri yüklenebilir.",
+    "Bu tarif arşivlensin mi? Etkin listeden kaldırılır ve Arşivlenen Tarifler bölümünden süresiz olarak geri yüklenebilir.",
   archiveRecipeConfirmAction: "Arşivle",
   restoreRecipe: "Geri yükle",
   deleteRecipePermanently: "Kalıcı olarak sil",
   deleteRecipePermanentlyConfirm:
     "Bu tarif Logseq grafından kalıcı olarak silinsin mi? Bu işlem Logseq Recipe içinden geri alınamaz.",
-  openInLogseq: "Logseq'de aç",
+  openInLogseq: "Logseq'te aç",
   addIngredient: "Malzeme ekle",
   addStep: "Adım ekle",
   addNote: "Not ekle",
@@ -98,6 +103,8 @@ export const trMessages: UiMessages = {
   sortBy: "Sıralama",
   sortByTitle: "Başlık (A–Z)",
   sortByTotalTime: "Toplam süre (önce en kısa)",
+  sortByLastCooked: "Son pişirme (en yenisi önce)",
+  lastCooked: "Son pişirme",
   doesNotScale: "Porsiyonla ölçeklenmez",
   resumeCooking: "Pişirmeye devam et",
   finishCooking: "Pişirmeyi bitir",
@@ -121,7 +128,7 @@ export const trMessages: UiMessages = {
   dragPickedUp: "{item}, {position}. konumdan alındı.",
   dragMovedTo: "{item}, {position}. konuma taşındı.",
   dragDropped: "{item}, {position}. konuma bırakıldı.",
-  dragCancelled: "{item} taşıması iptal edildi.",
+  dragCancelled: "{item} öğesinin taşınması iptal edildi.",
   saving: "Kaydediliyor…",
   savedNotice: "Kaydedildi",
   archivedNotice: "Tarif arşivlendi",
@@ -134,6 +141,8 @@ export const trMessages: UiMessages = {
   fewerServings: "Porsiyonu azalt",
   moreServings: "Porsiyonu artır",
   resetServings: "Asıl porsiyon: {count}",
+  scaleToIngredient: "Tarifi elinizdeki {ingredient} miktarına göre ölçekle",
+  scaleToIngredientAmount: "Elinizdeki {ingredient} miktarı",
   noRecipesHint:
     'Buradan yeni bir tarif oluşturun, "Metinden içe aktar" ile bir tarif yapıştırın ya da mevcut bir sayfayı blok menüsündeki "Logseq Recipe: Convert to Recipe" ile tarife çevirin.',
   saveIncomplete:
@@ -158,7 +167,7 @@ export const trMessages: UiMessages = {
   issueUnrecognizedSection:
     '"{detail}" bölümünün ne olduğu anlaşılamadı. Yukarıdan sınıflandırın.',
   issueUnclassifiedContent:
-    '"{detail}" bir bölüm, metadata satırı, malzeme, adım ya da not olarak tanınmadı ve dahil edilmeyecek.',
+    '"{detail}" bir bölüm, tarif bilgisi satırı, malzeme, adım ya da not olarak tanınmadı ve dahil edilmeyecek.',
   issueInvalidMetadataValue: '"{detail}" satırındaki değer okunamadı.',
   issueIngredientAmountUnparsed: '"{detail}" malzemesinde miktar bulunamadı.',
   issueIngredientAmountAmbiguous:
@@ -192,21 +201,23 @@ export const trMessages: UiMessages = {
   errorPageTitleTaken: '"{detail}" adında bir Logseq sayfası zaten var.',
   errorBaseYieldInvalid: "Porsiyon 0'dan büyük bir sayı olmalı.",
   errorTimeInvalid: "Süreler 0 dakika ya da daha fazla olmalı.",
-  errorRecipeNotFound: "Bu tarif artık grafikte yok.",
+  errorRecipeNotFound: "Bu tarif artık grafta yok.",
   errorSectionMissing:
     "Bu tarifin Logseq'te {detail} bölümü yok; düzenlemek için geri ekleyin.",
   errorRecipeInvalid: "Bu tarifin verisi güvenle gösterilemiyor: {detail}",
   errorFutureSchema:
-    "Bu tarif Logseq Recipe'in daha yeni bir sürümüyle kaydedilmiş. Açmak için eklentiyi güncelleyin.",
+    "Bu tarif Logseq Recipe'nin daha yeni bir sürümüyle kaydedilmiş. Açmak için eklentiyi güncelleyin.",
   errorUnexpected: "Logseq bu işlemi tamamlayamadı: {detail}",
-  notDbGraph: "Logseq Recipe yalnızca Logseq DB grafikleriyle çalışır.",
+  notDbGraph: "Logseq Recipe yalnızca Logseq DB graflarıyla çalışır.",
   unsupportedLogseqBuild:
     "Logseq Recipe: bu Logseq sürümünde eklentinin ihtiyaç duyduğu bir özellik eksik. Logseq'i güncelleyip yeniden deneyin.",
   nothingToConvert:
     "Logseq Recipe: önce tarif içeren bir sayfayı açın ya da bir bloğa sağ tıklayın.",
   insideRecipe: "Bu blok zaten bir tarifin parçası:",
   finishCookingConfirm:
-    "Hâlâ çalışan bir zamanlayıcı var. Pişirme bitirilip zamanlayıcılar, geçerli adım ve işaretli malzemeler silinsin mi?",
+    "Hâlâ çalışan bir zamanlayıcı var. Pişirme bitirilip zamanlayıcılar, geçerli adım ve malzeme işaretleri sıfırlansın mı?",
+  finishCookingQuestion:
+    "Pişirme bitirilip geçerli adım, malzeme işaretleri ve zamanlayıcılar sıfırlansın mı?",
   fixedAmountShort: "Sabit",
   sourceMeasurementHelp:
     'Tarifin yazıldığı ölçüler: tarifteki "bardak" ya da "yemek kaşığı" ABD, metrik ya da İngiliz ölçüsü mü.',
@@ -219,9 +230,9 @@ export const trMessages: UiMessages = {
   recipeCountOther: "{shown} / {total} tarif",
   exportTaxonomy: "Kategori ve etiketleri Logseq'e aktar…",
   exportTaxonomyConfirmOne:
-    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} property'lerine yazılacak. Bundan sonra kategori ve etiketler bu property'lerdir: eklentide ya da Logseq'te değiştirebilirsiniz.",
+    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} özelliklerine yazılacak. Bundan sonra kategori ve etiketler bu özelliklerden okunur: eklentide ya da Logseq'te değiştirebilirsiniz.",
   exportTaxonomyConfirmOther:
-    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} property'lerine yazılacak. Bundan sonra kategori ve etiketler bu property'lerdir: eklentide ya da Logseq'te değiştirebilirsiniz.",
+    "{count} tarifin kategori ve etiketleri Logseq'teki {properties} özelliklerine yazılacak. Bundan sonra kategori ve etiketler bu özelliklerden okunur: eklentide ya da Logseq'te değiştirebilirsiniz.",
   exportTaxonomyNewPages: "Yeni sayfalar: {pages}",
   exportTaxonomyExistingPages: "Mevcut sayfalar: {pages}",
   exportTaxonomyKeptNames:
@@ -238,6 +249,6 @@ export const trMessages: UiMessages = {
   taxonomyNoticeReview: "İncele…",
   taxonomyNoticeLater: "Şimdi değil",
   taxonomyPropertiesHelp:
-    "Logseq'te recipe_categories ve recipe_tags property'leri olarak kaydedilir: Logseq'te de değiştirebilir, Logseq sorgularıyla tarifleri bunlara göre bulabilirsiniz.",
-  importInstead: "Tarifin tamamı metin olarak mı elinizde? Metinden İçe Aktar",
+    "Logseq'te recipe_categories ve recipe_tags özellikleri olarak kaydedilir: Logseq'te de değiştirebilir, Logseq sorgularıyla tarifleri bunlara göre bulabilirsiniz.",
+  importInstead: "Tarifin tamamı metin olarak mı elinizde? Metinden içe aktar",
 };

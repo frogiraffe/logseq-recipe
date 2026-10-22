@@ -507,9 +507,10 @@ function readCacheFor(host: LogseqRecipeHost): RecipeReadCache {
     clear: () => undefined,
     stop: () => undefined,
   };
+  // Refs stay: watchRecipe still needs them for an open recipe, and a load
+  // replaces them.
   const forget = (id: string) => {
     cache.summaries.delete(id);
-    cache.refs.delete(id);
     for (const markerKey of [...cache.markers.keys()]) {
       if (markerKey.startsWith(`${id}\u0000`)) cache.markers.delete(markerKey);
     }
@@ -529,7 +530,6 @@ function readCacheFor(host: LogseqRecipeHost): RecipeReadCache {
   cache.clear = () => {
     cache.summaries.clear();
     cache.markers.clear();
-    cache.refs.clear();
   };
   cache.stop = host.db.onChanged((payload: ChangePayloadLike) => {
     for (const id of cachedIds()) {
@@ -571,7 +571,7 @@ export function createLogseqRecipeRepository(
   options: LogseqRecipeRepositoryOptions,
 ): Omit<
   RecipeRepository,
-  "createRecipe" | "duplicateRecipe" | "markExistingRecipe"
+  "createRecipe" | "duplicateRecipe" | "markExistingRecipe" | "markRecipeCooked"
 > {
   const cache = readCacheFor(host);
   const knownEntityRefs = cache.refs;
@@ -602,6 +602,7 @@ export function createLogseqRecipeRepository(
       metaRaw,
       coverRaw,
       schemaVersionRaw,
+      lastCookedRaw,
       taxonomyProperties,
     ] = await Promise.all([
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.baseYield),
@@ -613,6 +614,7 @@ export function createLogseqRecipeRepository(
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.recipeMeta),
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.coverRef),
       host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.schemaVersion),
+      host.editor.getBlockProperty(root.uuid, PROPERTY_KEYS.lastCooked),
       readTaxonomyProperties(host.editor, root.uuid),
     ]);
 
@@ -766,6 +768,12 @@ export function createLogseqRecipeRepository(
       );
     }
 
+    // A hand-edited value that is no date is left out, not shown.
+    const lastCooked = propertyNumber(lastCookedRaw);
+    const lastCookedAt =
+      lastCooked !== undefined && !Number.isNaN(new Date(lastCooked).getTime())
+        ? lastCooked
+        : undefined;
     const recipe: Recipe = {
       id: root.uuid,
       title: root.title,
@@ -776,6 +784,7 @@ export function createLogseqRecipeRepository(
       ...(chillMinutes !== undefined ? { chillMinutes } : {}),
       ...(cookMinutes !== undefined ? { cookMinutes } : {}),
       ...(sourceUrl ? { sourceUrl } : {}),
+      ...(lastCookedAt !== undefined ? { lastCookedAt } : {}),
       categories,
       tags,
       ingredients,

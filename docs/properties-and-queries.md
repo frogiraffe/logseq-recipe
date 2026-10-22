@@ -18,6 +18,7 @@ Shown on the recipe block (or page) in Logseq:
 | `yield_unit` | text | What a serving is ("cookies") |
 | `prep_minutes`, `chill_minutes`, `cook_minutes` | number | Times, in minutes |
 | `source_url` | text | Where the recipe came from |
+| `recipe_last_cooked` | date and time | When **Finish cooking** last ended a cook of it |
 
 Hidden, for the plugin's own bookkeeping:
 
@@ -70,6 +71,7 @@ graph.
 {{query (property recipe_tags)}}
 {{query (property recipe_marker true)}}
 {{query (property cook_minutes)}}
+{{query (property recipe_last_cooked)}}
 ```
 
 - `(property recipe_marker true)` lists every active recipe; archived ones

@@ -27,10 +27,16 @@ export const LINEAR_UNIT_DEFINITIONS: Partial<
   tbsp_us: { family: "volume", toBase: 14.78676478125 },
   cup_us: { family: "volume", toBase: 236.5882365 },
   fl_oz_us: { family: "volume", toBase: 29.5735295625 },
+  pint_us: { family: "volume", toBase: 473.176473 },
+  quart_us: { family: "volume", toBase: 946.352946 },
+  gallon_us: { family: "volume", toBase: 3785.411784 },
   tsp_imperial: { family: "volume", toBase: 5.919388020833333 },
   tbsp_imperial: { family: "volume", toBase: 17.7581640625 },
   cup_imperial: { family: "volume", toBase: 284.130625 },
   fl_oz_imperial: { family: "volume", toBase: 28.4130625 },
+  pint_imperial: { family: "volume", toBase: 568.26125 },
+  quart_imperial: { family: "volume", toBase: 1136.5225 },
+  gallon_imperial: { family: "volume", toBase: 4546.09 },
 
   // Turkish culinary glass/spoon sizes are their own fixed units, not a
   // regional variant of "cup" - they don't change with the recipe's source
@@ -77,6 +83,9 @@ export const COOKING_UNITS_BY_SYSTEM: Record<
     tbsp: CanonicalUnit;
     cup: CanonicalUnit;
     flOz?: CanonicalUnit;
+    pint?: CanonicalUnit;
+    quart?: CanonicalUnit;
+    gallon?: CanonicalUnit;
   }
 > = {
   metric: {
@@ -89,11 +98,17 @@ export const COOKING_UNITS_BY_SYSTEM: Record<
     tbsp: "tbsp_us",
     cup: "cup_us",
     flOz: "fl_oz_us",
+    pint: "pint_us",
+    quart: "quart_us",
+    gallon: "gallon_us",
   },
   imperial: {
     tsp: "tsp_imperial",
     tbsp: "tbsp_imperial",
     cup: "cup_imperial",
     flOz: "fl_oz_imperial",
+    pint: "pint_imperial",
+    quart: "quart_imperial",
+    gallon: "gallon_imperial",
   },
 };

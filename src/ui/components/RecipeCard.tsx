@@ -3,6 +3,7 @@ import type { Recipe } from "../../domain/recipe";
 import type { CanonicalUnit, MeasurementSystem } from "../../domain/unit";
 import { useConfirm } from "../confirm";
 import type { UiMessages } from "../i18n";
+import { recipeText } from "../recipe-text";
 import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import { CoverImage } from "./CoverImage";
 import { Icon } from "./Icon";
@@ -30,6 +31,8 @@ export interface RecipeCardProps {
   onEditSettings?(): void;
   onEditRecipe?(): void;
   onDuplicateRecipe?(): void;
+  // The recipe as text, as shown (servings, units), to put on the clipboard.
+  onCopyAsText?(text: string): void;
   onArchiveRecipe?(): void;
   onOpenInLogseq?(): void;
   // Offered only for a recipe block outside the Recipe Library.
@@ -76,6 +79,7 @@ export function RecipeCard({
   onEditSettings,
   onEditRecipe,
   onDuplicateRecipe,
+  onCopyAsText,
   onArchiveRecipe,
   onOpenInLogseq,
   onMoveToRecipeLibrary,
@@ -93,6 +97,23 @@ export function RecipeCard({
   const menuItems: ActionMenuItem[] = [
     ...(onDuplicateRecipe
       ? [{ label: messages.duplicateRecipe, onSelect: onDuplicateRecipe }]
+      : []),
+    ...(onCopyAsText
+      ? [
+          {
+            label: messages.copyAsText,
+            onSelect: () =>
+              onCopyAsText(
+                recipeText(
+                  recipe,
+                  targetYield,
+                  measurementSystem,
+                  ingredientUnitOverrides,
+                  messages,
+                ),
+              ),
+          },
+        ]
       : []),
     ...(onEditSettings
       ? [{ label: messages.editRecipeSettings, onSelect: onEditSettings }]
@@ -140,16 +161,19 @@ export function RecipeCard({
           <h1>{recipe.title}</h1>
           <div className="draft-recipe-meta-row">
             {recipe.prepMinutes !== undefined && (
-              <span>{`${messages.prepTime}: ${timeLabel(recipe.prepMinutes, messages.minutesUnit)}`}</span>
+              <span>{`${messages.prepTime}${messages.colon} ${timeLabel(recipe.prepMinutes, messages.minutesUnit)}`}</span>
             )}
             {recipe.chillMinutes !== undefined && (
-              <span>{`${messages.chillTime}: ${timeLabel(recipe.chillMinutes, messages.minutesUnit)}`}</span>
+              <span>{`${messages.chillTime}${messages.colon} ${timeLabel(recipe.chillMinutes, messages.minutesUnit)}`}</span>
             )}
             {recipe.cookMinutes !== undefined && (
-              <span>{`${messages.cookTime}: ${timeLabel(recipe.cookMinutes, messages.minutesUnit)}`}</span>
+              <span>{`${messages.cookTime}${messages.colon} ${timeLabel(recipe.cookMinutes, messages.minutesUnit)}`}</span>
             )}
             {total !== undefined && (
-              <span>{`${messages.totalTime}: ${timeLabel(total, messages.minutesUnit)}`}</span>
+              <span>{`${messages.totalTime}${messages.colon} ${timeLabel(total, messages.minutesUnit)}`}</span>
+            )}
+            {recipe.lastCookedAt !== undefined && (
+              <span>{`${messages.lastCooked}${messages.colon} ${new Intl.DateTimeFormat(messages.uiLocale, { dateStyle: "medium" }).format(recipe.lastCookedAt)}`}</span>
             )}
           </div>
           {(categories.length > 0 || tags.length > 0) && (
@@ -178,7 +202,8 @@ export function RecipeCard({
           ) : (
             sourceText && (
               <span className="draft-recipe-source-text">
-                {messages.source}: {sourceText}
+                {messages.source}
+                {messages.colon} {sourceText}
               </span>
             )
           )}
@@ -238,6 +263,7 @@ export function RecipeCard({
         messages={messages}
         unitOverrides={ingredientUnitOverrides}
         onUnitOverrideChange={onIngredientUnitOverrideChange}
+        onScaleTo={onTargetYieldChange}
       />
 
       <section className="draft-recipe-section">

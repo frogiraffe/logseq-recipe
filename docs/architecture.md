@@ -11,12 +11,12 @@ explicit block and property writes.
 | Directory | Holds | Depends on |
 | --- | --- | --- |
 | `src/domain` | Recipe types, quantities, scaling, step media | nothing |
-| `src/parsing` | The deterministic parser and its five language packs | `domain` |
-| `src/units` | Units, conversion, densities, formatting | `domain` |
+| `src/parsing` | The deterministic parser and its five language packs | `domain`, `units` |
+| `src/units` | Units, conversion, densities, formatting | `domain`, `parsing` |
 | `src/application` | Use cases: convert, import, edit, list and filter, validate, cooking sessions; the `RecipeRepository` interface | `domain`, `parsing`, `units` |
-| `src/migrations` | Versioned, repeatable schema steps | `application` |
-| `src/logseq` | Everything that talks to Logseq: the repository, schema, the category and tag properties, capabilities, events, settings | all of the above |
-| `src/ui` | React screens and components, i18n | `application`, `domain` |
+| `src/migrations` | Versioned, repeatable schema steps | `domain`, `application`, `logseq` |
+| `src/logseq` | Everything that talks to Logseq: the repository, schema, the category and tag properties, capabilities, events, settings | all the others |
+| `src/ui` | React screens and components, i18n | `application`, `domain`, `parsing`, `units`, `migrations` |
 
 `src/index.ts` registers the commands and opens the UI. Only `src/logseq`
 and `src/index.ts` call the Logseq API; the rest runs anywhere, which is
@@ -54,7 +54,8 @@ refreshes an open recipe.
 
 ## Capabilities
 
-At startup the plugin checks that the graph is a DB graph and that the
+The first time one of its commands runs, and on the first one after a
+graph switch, the plugin checks that the graph is a DB graph and that the
 property, change-feed and UI APIs it needs exist. Without them it warns and
 writes nothing. Optional features (covers, page-valued category and tag
 properties) turn themselves off when their API is missing, instead of

@@ -104,6 +104,10 @@ describe("recipe number formatting", () => {
   it("still snaps a near-whole value and keeps a real zero", () => {
     expect(formatRecipeNumber(2.998)).toBe("3");
     expect(formatRecipeNumber(1.004)).toBe("1");
+    // A US teaspoon is 0.986 of a metric one.
+    expect(formatRecipeNumber(0.986)).toBe("1");
+    expect(formatRecipeNumber(1.988)).toBe("2");
+    expect(formatRecipeNumber(0.98)).toBe("0.98");
     expect(formatRecipeNumber(0)).toBe("0");
   });
 });

@@ -35,7 +35,7 @@ export function StepMedia({
   if (url === null) {
     return (
       <p className="draft-recipe-media-missing" role="note">
-        {`${messages.mediaMissing}: ${child.path}`}
+        {`${messages.mediaMissing}${messages.colon} ${child.path}`}
       </p>
     );
   }

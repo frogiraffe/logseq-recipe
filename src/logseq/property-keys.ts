@@ -17,6 +17,7 @@ export const PROPERTY_KEYS = {
   coverRef: "cover_ref",
   sectionRole: "section_role",
   scaleMode: "scale_mode",
+  lastCooked: "recipe_last_cooked",
 } as const;
 
 export type RecipePropertyKey =

@@ -2,6 +2,99 @@
 
 Only user-visible changes are listed here.
 
+## 1.6.0 — 2026-10-22
+
+### Cooking Mode
+
+- **Next** and **Finish cooking** in the step bar are larger primary
+  buttons, easy to hit with a busy hand, and **Previous** steps back
+  quietly. Finish cooking in the header is a button like the others.
+- **Finish cooking** notes when the recipe was cooked: the recipe shows
+  **Last cooked**, the Recipes screen can sort by it, and it is the Logseq
+  property `recipe_last_cooked`
+  (`{{query (property recipe_last_cooked)}}`).
+- **Finish cooking** always asks first, so a double click on **Next** at
+  the second-to-last step no longer ends the cook.
+- A converted temperature below oven heat is shown to the degree: 100 °C
+  water is 212 °F, not 210. Oven temperatures still read like a dial
+  (350 °F → 175 °C).
+- Freezer and fridge temperatures keep their minus: "-18°C" is no longer
+  shown as 18 °C.
+
+### On the recipe card
+
+- Click an ingredient's amount on a recipe and type how much of it you
+  have: the servings, and every other amount, follow.
+- **More actions → Copy as text** copies the recipe as plain text, at the
+  servings and in the units shown, to paste into a message or another app.
+
+### Units
+
+- Pints, quarts and gallons are read ("1 pint heavy cream", "1 qt stock"),
+  as US or imperial measures by the recipe's measurement system, and scale
+  and convert like cups.
+- In US and imperial units a volume under a fluid ounce shows in spoons
+  ("5 ml" is "1 tsp", not "0.17 fl oz"), and 1000 mg or more in grams.
+- A spoon converted between systems shows as the whole spoons it is: an
+  English "2 tsp" in metric is "2 tsp", not "1.97 tsp".
+
+### Look
+
+- The Recipes screen's search and sort sit in a light toolbar, a recipe
+  without a cover shows its initial on a soft wash of the theme's accent,
+  and each recipe shows its time with a clock.
+
+### Fixes
+
+- Text typed in an editor's **Add ingredient**, **Add step**, **Add note**
+  or a step's notes is saved with **Save** even when Enter or **Add** wasn't
+  pressed. Cancel, Escape and Close ask before dropping it.
+- Create Recipe asks before Escape, Cancel, Close or Import from Text drop
+  a typed title, and Close asks before leaving the Import preview.
+- An open recipe keeps refreshing when its ingredients, steps or notes
+  change in another Logseq window or through sync.
+- The categories and tags move skips recipes saved by a newer Logseq
+  Recipe instead of rewriting them, and **Review…** shows the spelling of
+  each new page as it will be created.
+- Convert keeps every step of a paste Logseq split into flat blocks whose
+  headings carry indented items.
+- Converting a title block whose sections are the blocks after it also
+  takes in the blocks between those section headings, such as a step
+  Logseq split off on its own.
+- "Save incomplete" stays shown when Logseq reloads the recipe, and a
+  refused save's error goes away when the edit is cancelled.
+- Escape closes Cooking Mode's timer field.
+- In a tall window Cooking Mode's ingredients sit just under its header,
+  not a third of the way down.
+- The Import preview is titled **Import from Text**, not Convert to Recipe.
+- Steps in Spanish, French, German and English keep their timer when only
+  a later clause says "not" ("10 minutos para que no se pegue").
+- "30 minutos hasta que esté dorado" and "30 minutes jusqu'à ce que…" are
+  exactly 30 minutes, not "up to 30".
+- "Cuire 1 h 30 à 180 °C" keeps its temperature.
+- "1 kg 500 de pommes de terre" is left for review instead of being read
+  as 1 kg.
+- "¼ de tasse de farine" and "1/4 de taza de azúcar" are read as a
+  quarter cup, so they convert and scale like "¼ tasse".
+- An amount shown as 1 reads "1 cup", not "1 cups", and "1 tsp", not
+  "0.99 tsp".
+- "2 eggs" halved reads "1 egg", in every language.
+- "2 pots of cream" in an English recipe is no longer read as French "2
+  jars"; only a measure moves a line to another language.
+- An ingredient named with a curly apostrophe ("confectioners’ sugar")
+  finds its built-in conversion.
+- A paste indented partly with tabs and partly with spaces nests as it
+  looks.
+- A category or tag typed before Escape in Recipe settings is kept.
+- Conversion grams and the original servings use the language's decimal
+  comma, and category names with "$" show as written.
+- The Turkish, French, German and Spanish interface reads better: correct
+  suffixes and terms in Turkish ("Logseq'te", "graf"), consistent words for
+  plugin, servings and properties, French spacing before ? and :, and "Von"
+  and "Bis" for the German time filters.
+- Updated DOMPurify, which ships inside the plugin, past two sanitizing
+  advisories.
+
 ## 1.5.0 — 2026-09-30
 
 ### Categories and tags in Logseq

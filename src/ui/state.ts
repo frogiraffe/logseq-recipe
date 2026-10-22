@@ -76,6 +76,8 @@ export interface DraftRecipeUiController {
   canMoveToRecipeLibrary(id: string): Promise<boolean>;
   moveToRecipeLibrary(id: string): Promise<void>;
   archiveRecipe(id: string): Promise<void>;
+  // Records a finished cook ("last cooked"); absent where nothing records it.
+  markRecipeCooked?(id: string): Promise<void>;
   restoreRecipe(id: string): Promise<void>;
   deleteArchivedRecipe(id: string): Promise<void>;
   openInLogseq(id: string): void;

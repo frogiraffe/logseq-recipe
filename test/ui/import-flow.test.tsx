@@ -74,7 +74,10 @@ describe("Import from Text", () => {
   it("previews without writing, and Cancel returns to the pasted text", () => {
     const commit = renderImport();
 
-    expect(screen.getByText(enMessages.convertToRecipe)).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: enMessages.importRecipe }),
+    ).toBeTruthy();
+    expect(screen.getByText(`${enMessages.importing}:`)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: enMessages.cancel }));
 
     expect(
@@ -100,5 +103,42 @@ describe("Import from Text", () => {
     expect(draft.ingredients.map((i) => i.parsed.rawText)).toEqual([
       "200 g flour",
     ]);
+  });
+});
+
+describe("leaving a form with typed text", () => {
+  it("asks before Close drops the pasted text from the import preview", () => {
+    renderImport();
+    fireEvent.click(screen.getByRole("button", { name: enMessages.close }));
+
+    expect(screen.getByRole("alertdialog").textContent).toContain(
+      enMessages.discardChangesConfirm,
+    );
+  });
+
+  it("asks before Escape drops a new recipe's typed title", () => {
+    render(
+      <DraftRecipeApp
+        controller={controller(vi.fn())}
+        messages={enMessages}
+        config={{
+          initialView: { kind: "create" },
+          globalMeasurementSystem: "metric",
+          defaultParserLocale: "en",
+          defaultSourceMeasurementSystem: "us",
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(enMessages.title), {
+      target: { value: "Pancakes" },
+    });
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.getByRole("alertdialog").textContent).toContain(
+      enMessages.discardChangesConfirm,
+    );
+    expect(
+      (screen.getByLabelText(enMessages.title) as HTMLInputElement).value,
+    ).toBe("Pancakes");
   });
 });

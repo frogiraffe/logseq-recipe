@@ -95,6 +95,9 @@ export interface ConvertPreviewProps {
   // What confirming will write, when it is more than marking these blocks:
   // a notice, and the outline the blocks become.
   notice?: string;
+  // The screen's heading and the label before the recipe's title: Convert's
+  // own unless the preview is of something else (Import from Text).
+  heading?: { title: string; label: string };
   outline?: OutlineNode;
   messages: UiMessages;
   pending?: boolean;
@@ -148,6 +151,7 @@ export function ConvertPreview({
   draft,
   detectedLocale,
   notice,
+  heading,
   outline,
   messages,
   pending = false,
@@ -362,9 +366,9 @@ export function ConvertPreview({
 
   return (
     <section className="draft-recipe-convert-preview">
-      <h1>{messages.convertToRecipe}</h1>
+      <h1>{heading?.title ?? messages.convertToRecipe}</h1>
       <p className="draft-recipe-convert-source">
-        {`${messages.converting}: `}
+        {`${heading?.label ?? messages.converting}${messages.colon} `}
         <strong>{resolvedDraft.title}</strong>
       </p>
       {notice && (

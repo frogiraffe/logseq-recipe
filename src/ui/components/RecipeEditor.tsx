@@ -196,6 +196,15 @@ export function RecipeEditor({
       recipe.steps.map((step) => [step.id, originalStepChildren(step.id)]),
     ),
   );
+  // Text typed in a list's add field but not added yet, by list ("steps",
+  // or a step's id for its notes): Save adds it, and it counts as unsaved.
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const typedInto = (list: string) => (text: string) =>
+    setTyped((current) => ({ ...current, [list]: text }));
+  const withTyped = (list: string, items: EditableItem[]): EditableItem[] => {
+    const text = typed[list]?.trim();
+    return text ? [...items, { id: "new:typed", text }] : items;
+  };
   const [mediaAssets, setMediaAssets] = useState<string[]>([]);
   useEffect(() => {
     if (!listStepMediaAssets) return undefined;
@@ -246,7 +255,8 @@ export function RecipeEditor({
     steps.some((step) =>
       itemsChanged(childrenOf(step.id), originalStepChildren(step.id)),
     ) ||
-    recipe.ingredients.some((i) => scaleModeById[i.id] !== i.scaleMode);
+    recipe.ingredients.some((i) => scaleModeById[i.id] !== i.scaleMode) ||
+    Object.values(typed).some((text) => text.trim() !== "");
   useDirtyReport(isDirty, onDirtyChange);
 
   function parseMinutesField(text: string): number | undefined {
@@ -282,6 +292,11 @@ export function RecipeEditor({
 
   function save() {
     if (!formValid) return;
+    const savedIngredients = withTyped("ingredients", ingredients);
+    const savedSteps = withTyped("steps", steps);
+    const savedNotes = withTyped("notes", notes);
+    const savedChildrenOf = (stepId: string) =>
+      withTyped(stepId, childrenOf(stepId));
 
     const timePatch = Object.fromEntries(
       TIME_FIELDS.flatMap(([field]) => {
@@ -302,7 +317,7 @@ export function RecipeEditor({
         : trimmedYieldUnit ||
           (recipe.yieldUnit !== undefined ? null : undefined);
 
-    const remainingIds = new Set(ingredients.map((item) => item.id));
+    const remainingIds = new Set(savedIngredients.map((item) => item.id));
     const scaleModeChanges = Object.entries(scaleModeById)
       .filter(([id, mode]) => {
         if (!remainingIds.has(id)) return false;
@@ -316,33 +331,35 @@ export function RecipeEditor({
     // land at the end of the section until it is applied); otherwise the
     // flat order, as before.
     const grouped =
-      ingredients.some((item) => item.heading) ||
+      savedIngredients.some((item) => item.heading) ||
       originalIngredients.some((item) => item.heading);
-    const layout = ingredientLayout(ingredients);
+    const layout = ingredientLayout(savedIngredients);
     const ingredientLayoutPatch =
       grouped &&
       (JSON.stringify(layout) !==
         JSON.stringify(ingredientLayout(originalIngredients)) ||
-        ingredients.some((item) => item.id.startsWith("new:")))
+        savedIngredients.some((item) => item.id.startsWith("new:")))
         ? layout
         : undefined;
     const ingredientOrder = grouped
       ? undefined
-      : orderDiff(recipe.ingredients, ingredients);
-    const stepOrder = orderDiff(recipe.steps, steps);
-    const noteOrder = orderDiff(recipe.notes, notes);
-    const stepChildrenPatch: StepChildrenPatch[] = steps.flatMap((step) => {
-      const original = originalStepChildren(step.id);
-      const current = childrenOf(step.id);
-      const diff = sectionDiff(original, current);
-      const order = orderDiff(original, current);
-      const changed =
-        diff.added.length + diff.updated.length + diff.removed.length > 0 ||
-        order !== undefined;
-      return changed
-        ? [{ stepId: step.id, diff, ...(order ? { order } : {}) }]
-        : [];
-    });
+      : orderDiff(recipe.ingredients, savedIngredients);
+    const stepOrder = orderDiff(recipe.steps, savedSteps);
+    const noteOrder = orderDiff(recipe.notes, savedNotes);
+    const stepChildrenPatch: StepChildrenPatch[] = savedSteps.flatMap(
+      (step) => {
+        const original = originalStepChildren(step.id);
+        const current = savedChildrenOf(step.id);
+        const diff = sectionDiff(original, current);
+        const order = orderDiff(original, current);
+        const changed =
+          diff.added.length + diff.updated.length + diff.removed.length > 0 ||
+          order !== undefined;
+        return changed
+          ? [{ stepId: step.id, diff, ...(order ? { order } : {}) }]
+          : [];
+      },
+    );
 
     const patch: RecipeEditPatch = {
       ...(title.trim() !== recipe.title ? { title: title.trim() } : {}),
@@ -352,13 +369,13 @@ export function RecipeEditor({
       ...(sourceUrlPatch !== undefined ? { sourceUrl: sourceUrlPatch } : {}),
       ingredients: sectionDiff(
         originalIngredients,
-        withReadableHeadings(ingredients),
+        withReadableHeadings(savedIngredients),
       ),
       steps: sectionDiff(
         recipe.steps.map((s) => ({ id: s.id, text: s.rawText })),
-        steps,
+        savedSteps,
       ),
-      notes: sectionDiff(recipe.notes, notes),
+      notes: sectionDiff(recipe.notes, savedNotes),
       ...(scaleModeChanges.length > 0
         ? { ingredientScaleModeChanges: scaleModeChanges }
         : {}),
@@ -473,6 +490,7 @@ export function RecipeEditor({
         addLabel={messages.addIngredient}
         messages={messages}
         onChange={setIngredients}
+        onDraftChange={typedInto("ingredients")}
         addHeadingLabel={messages.addIngredientGroup}
         headingLabel={messages.ingredientGroup}
         renderItemExtra={(item) =>
@@ -508,6 +526,7 @@ export function RecipeEditor({
         addLabel={messages.addStep}
         messages={messages}
         onChange={setSteps}
+        onDraftChange={typedInto("steps")}
         renderItemBelow={(step) => {
           const children = childrenOf(step.id);
           return (
@@ -532,6 +551,7 @@ export function RecipeEditor({
                     [step.id]: next,
                   }))
                 }
+                onDraftChange={typedInto(step.id)}
                 renderItemContent={(item) => {
                   const child = parseStepChild(item.id, item.text);
                   if (child.kind === "note") return null;
@@ -576,6 +596,7 @@ export function RecipeEditor({
         addLabel={messages.addNote}
         messages={messages}
         onChange={setNotes}
+        onDraftChange={typedInto("notes")}
       />
 
       {(!noBlankItems(ingredients) ||

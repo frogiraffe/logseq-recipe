@@ -357,7 +357,7 @@ export function RecipeSettingsPanel({
             <ul>
               {overrides.map((rule) => (
                 <li key={`${rule.ingredientKey}-${rule.volumeUnit}`}>
-                  <span>{`${rule.ingredientKey}: 1 ${ingredientUnitOptionLabel(rule.volumeUnit, messages.uiLocale)} = ${rule.gramsPerVolumeUnit} g`}</span>
+                  <span>{`${rule.ingredientKey}: 1 ${ingredientUnitOptionLabel(rule.volumeUnit, messages.uiLocale)} = ${rule.gramsPerVolumeUnit.toLocaleString(messages.uiLocale)} g`}</span>
                   <button
                     type="button"
                     onClick={() =>

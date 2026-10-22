@@ -60,11 +60,14 @@ export function convertUnit(
 
 function cookingUnitKind(
   unit: CanonicalUnit,
-): "tsp" | "tbsp" | "cup" | "flOz" | null {
+): "tsp" | "tbsp" | "cup" | "flOz" | "pint" | "quart" | "gallon" | null {
   if (unit.startsWith("tsp_")) return "tsp";
   if (unit.startsWith("tbsp_")) return "tbsp";
   if (unit.startsWith("cup_")) return "cup";
   if (unit.startsWith("fl_oz_")) return "flOz";
+  if (unit.startsWith("pint_")) return "pint";
+  if (unit.startsWith("quart_")) return "quart";
+  if (unit.startsWith("gallon_")) return "gallon";
   return null;
 }
 

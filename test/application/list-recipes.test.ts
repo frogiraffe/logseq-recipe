@@ -167,6 +167,23 @@ describe("sortRecipeSummaries", () => {
     ).toEqual(["eggplant-pasta", "eggplant-bake", "cookie", "mystery"]);
   });
 
+  it("sorts by last cooked, most recent first, never cooked last by title", () => {
+    const summary = (id: string, lastCookedAt?: number) => ({
+      id,
+      title: id,
+      categories: [],
+      tags: [],
+      ingredientTexts: [],
+      ...(lastCookedAt !== undefined ? { lastCookedAt } : {}),
+    });
+    expect(
+      sortRecipeSummaries(
+        [summary("b"), summary("old", 1), summary("a"), summary("new", 2)],
+        "lastCooked",
+      ).map((r) => r.id),
+    ).toEqual(["new", "old", "a", "b"]);
+  });
+
   it("orders titles by the interface language's alphabet", () => {
     const titled = ["Sütlaç", "Şakşuka", "Irmik helvası", "İçli köfte"].map(
       (title) => ({

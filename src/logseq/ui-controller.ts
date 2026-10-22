@@ -195,6 +195,8 @@ export async function createRuntimeUiContext(
       repository.canMoveToRecipeLibrary(id),
     moveToRecipeLibrary: (id: string) => repository.moveToRecipeLibrary(id),
     archiveRecipe: (id: string) => repository.archiveRecipe(id),
+    markRecipeCooked: (id: string) =>
+      repository.markRecipeCooked(id, Date.now()),
     restoreRecipe: (id: string) => repository.restoreRecipe(id),
     deleteArchivedRecipe: (id: string) => repository.deleteArchivedRecipe(id),
     openInLogseq: (id: string) => {

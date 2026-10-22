@@ -174,6 +174,29 @@ describe("Convert rebuilds grouped recipes", () => {
     });
   });
 
+  it("moves steps chunked beside an indented heading under it", () => {
+    const plan = planRecipeConversion(
+      node("r", "Soup\nYield: 2", [
+        node("i", "Ingredients\n  1 l water"),
+        node("s", "Steps\n  Boil the water."),
+        node("s2", "Simmer for 10 min."),
+        node("s3", "Season to taste."),
+      ]),
+      en,
+    );
+    expect(plan.kind).toBe("split");
+    if (plan.kind !== "split") return;
+    expect(shape(plan.outline)).toEqual({
+      Soup: [
+        "Yield: 2",
+        { Ingredients: ["1 l water"] },
+        {
+          Steps: ["Boil the water.", "Simmer for 10 min.", "Season to taste."],
+        },
+      ],
+    });
+  });
+
   it("converts an already grouped outline as it is", () => {
     const plan = planRecipeConversion(
       node("r", "Pie", [

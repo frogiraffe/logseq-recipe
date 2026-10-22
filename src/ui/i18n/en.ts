@@ -69,6 +69,8 @@ export const enMessages: UiMessages = {
   rangeMax: "Max",
   minutesUnit: "min",
   converting: "Converting",
+  colon: ":",
+  importing: "Importing",
   alreadyRecipe: "This is already a recipe:",
   openRecipe: "Open recipe",
   missingYieldPrompt:
@@ -80,6 +82,9 @@ export const enMessages: UiMessages = {
     "Logseq Recipe automatically converts fixed units such as g ↔ kg and ml ↔ L. For supported ingredients, it also automatically converts between mass and volume (e.g. cups to grams) using built-in data. Add a custom conversion only when an ingredient is unsupported, or to override its built-in conversion for this recipe. This does not add an ingredient to the recipe — author ingredients as normal lines under Ingredients.",
   editRecipe: "Edit recipe",
   duplicateRecipe: "Duplicate recipe",
+  copyAsText: "Copy as text",
+  copiedNotice: "Copied as text",
+  copyFailed: "Couldn’t copy to the clipboard.",
   archivedRecipes: "Archived Recipes",
   noArchivedRecipes: "No archived recipes",
   archiveRecipe: "Archive recipe",
@@ -98,6 +103,8 @@ export const enMessages: UiMessages = {
   sortBy: "Sort by",
   sortByTitle: "Title (A–Z)",
   sortByTotalTime: "Total time (shortest first)",
+  sortByLastCooked: "Last cooked (most recent first)",
+  lastCooked: "Last cooked",
   doesNotScale: "Doesn't scale with servings",
   resumeCooking: "Resume cooking",
   finishCooking: "Finish cooking",
@@ -134,6 +141,8 @@ export const enMessages: UiMessages = {
   fewerServings: "Fewer servings",
   moreServings: "More servings",
   resetServings: "Original servings: {count}",
+  scaleToIngredient: "Scale the recipe to the {ingredient} you have",
+  scaleToIngredientAmount: "How much {ingredient} you have",
   noRecipesHint:
     'Create one here, paste one with Import from Text, or turn an existing page into a recipe with "Logseq Recipe: Convert to Recipe" in its block menu.',
   saveIncomplete:
@@ -209,6 +218,8 @@ export const enMessages: UiMessages = {
   insideRecipe: "This block is part of a recipe already:",
   finishCookingConfirm:
     "A timer is still running. Finish cooking and clear the timers, the current step, and the ticked ingredients?",
+  finishCookingQuestion:
+    "Finish cooking and clear the current step, the ticked ingredients and any timers?",
   fixedAmountShort: "Fixed",
   sourceMeasurementHelp:
     'The units the recipe is written in: whether its "cup" or "tbsp" is a US, metric, or imperial one.',

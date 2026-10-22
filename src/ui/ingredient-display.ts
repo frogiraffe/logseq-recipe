@@ -102,6 +102,7 @@ function representativeMagnitude(quantity: Quantity): number {
 // the automatic display path uses this; an explicitly picked display unit
 // (ingredientTargetUnitParts) is never re-scaled.
 const STEP_UP: Partial<Record<CanonicalUnit, [CanonicalUnit, number]>> = {
+  mg: ["g", 1000],
   g: ["kg", 1000],
   ml: ["l", 1000],
   oz_mass: ["lb", 16],
@@ -115,11 +116,29 @@ const STEP_DOWN: Partial<Record<CanonicalUnit, CanonicalUnit>> = {
   lb: "oz_mass",
 };
 
+// Under a fluid ounce, a volume reads in spoons: 5 ml is 1 tsp, not 0.17 fl
+// oz. A spoon the cook wrote ("½ tbsp") is never stepped.
+const SPOONS: Partial<Record<CanonicalUnit, [CanonicalUnit, CanonicalUnit]>> = {
+  fl_oz_us: ["tbsp_us", "tsp_us"],
+  fl_oz_imperial: ["tbsp_imperial", "tsp_imperial"],
+};
+
 function applyAdaptiveDisplay(
   quantity: Quantity,
   unit: CanonicalUnit,
 ): { quantity: Quantity; unit: CanonicalUnit } {
   const magnitude = representativeMagnitude(quantity);
+  const spoons = SPOONS[unit];
+  if (spoons && magnitude > 0 && magnitude < 1) {
+    const [tbsp, tsp] = spoons;
+    const spoon = convertUnit(magnitude, unit, tbsp) < 1 ? tsp : tbsp;
+    return {
+      quantity: mapQuantity(quantity, (value) =>
+        convertUnit(value, unit, spoon),
+      ),
+      unit: spoon,
+    };
+  }
   const up = STEP_UP[unit];
   const down = STEP_DOWN[unit];
   const target =
@@ -201,6 +220,26 @@ function writtenConnector(ingredient: Ingredient): string {
   return match?.[1] ?? match?.[2] ?? "";
 }
 
+// "2 eggs" scaled to one reads "1 egg": an egg's own word, in whichever
+// language it is written, is the name and agrees with the count. Not "egg
+// yolk", where it describes another noun.
+function eggName(text: string, quantity: Quantity): string {
+  const word = text.match(/^\p{L}+(?=$|\s*[,;(])/u)?.[0];
+  if (!word) return text;
+  const lower = word.toLocaleLowerCase();
+  for (const locale of RECIPE_LOCALES) {
+    const forms = [unitLabel("egg", locale, 1), unitLabel("egg", locale, 2)];
+    if (!forms.some((form) => form.toLocaleLowerCase() === lower)) continue;
+    const label = unitLabel("egg", locale, representativeCount(quantity));
+    const cased =
+      word[0] === word[0].toLocaleUpperCase()
+        ? label[0].toLocaleUpperCase() + label.slice(1)
+        : label;
+    return cased + text.slice(word.length);
+  }
+  return text;
+}
+
 function formatIngredientParts(
   ingredient: Ingredient,
   quantity: Quantity,
@@ -217,7 +256,11 @@ function formatIngredientParts(
   return {
     quantity:
       `${formatQuantity(quantity, locale, unit)}${visibleUnitText(unit, quantity, locale)}`.trim(),
-    name: `${joined}${ingredient.ingredientText.trim()}${note}`.trim(),
+    name: `${joined}${
+      unit === "egg"
+        ? eggName(ingredient.ingredientText.trim(), quantity)
+        : ingredient.ingredientText.trim()
+    }${note}`.trim(),
   };
 }
 
@@ -347,4 +390,46 @@ export function ingredientTargetUnitParts(
   });
   if (failed) return null;
   return formatIngredientParts(scaled, converted, targetUnit, locale);
+}
+
+/**
+ * The single number an ingredient line shows, in the unit it shows it in,
+ * so the recipe can be scaled to how much of it the cook has. Null when
+ * the line has no one number to match (no amount, a range, "a pinch") or
+ * doesn't scale with the servings.
+ */
+export function shownAmount(
+  ingredient: Ingredient,
+  baseYield: number,
+  targetYield: number,
+  system: MeasurementSystem,
+  override: CanonicalUnit | undefined,
+  provider: IngredientConversionProvider,
+): { value: number; unit?: CanonicalUnit } | null {
+  if (ingredient.scaleMode === "fixed") return null;
+  const scaled = scaleIngredient(ingredient, baseYield, targetYield);
+  const amount = scaled.amount;
+  if (amount?.kind !== "exact" && amount?.kind !== "approximate") return null;
+  if (override && scaled.unit) {
+    try {
+      const value = convertIngredientMassVolume(
+        amount.value,
+        scaled.unit,
+        override,
+        scaled.ingredientText,
+        provider,
+      );
+      return value === null ? null : { value, unit: override };
+    } catch {
+      return null;
+    }
+  }
+  const display = displayQuantityAndUnit(amount, scaled.unit, system);
+  return display.quantity.kind === "exact" ||
+    display.quantity.kind === "approximate"
+    ? {
+        value: display.quantity.value,
+        ...(display.unit ? { unit: display.unit } : {}),
+      }
+    : null;
 }

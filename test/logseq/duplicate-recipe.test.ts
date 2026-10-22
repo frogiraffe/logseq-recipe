@@ -620,3 +620,48 @@ describe("duplicateRecipe", () => {
     ).toEqual(["Cookie"]);
   });
 });
+
+describe("marking a recipe cooked", () => {
+  const draftRepository = (fake: ReturnType<typeof fakeHost>) =>
+    createDraftRecipeRepository(fake.host, {
+      settings,
+      schemaCapabilities: { coverReference: "asset-path" },
+    });
+
+  it("creates the date-time property once, then writes the time", async () => {
+    const fake = fakeHost();
+    const created: Array<[string, string]> = [];
+    fake.host.editor.upsertProperty = async (key, schema) => {
+      created.push([key, schema.type]);
+    };
+    const repository = draftRepository(fake);
+    await repository.markRecipeCooked(fake.root.uuid, 1000);
+    await repository.markRecipeCooked(fake.root.uuid, 2000);
+
+    expect(created).toEqual([["recipe_last_cooked", "datetime"]]);
+    expect(fake.properties.get(`${fake.root.uuid}:recipe_last_cooked`)).toBe(
+      2000,
+    );
+    expect((await repository.getRecipe(fake.root.uuid))?.lastCookedAt).toBe(
+      2000,
+    );
+  });
+
+  it("leaves out a value that is no date", async () => {
+    const fake = fakeHost();
+    fake.properties.set(`${fake.root.uuid}:recipe_last_cooked`, 1e20);
+    const recipe = await draftRepository(fake).getRecipe(fake.root.uuid);
+    expect(recipe?.lastCookedAt).toBeUndefined();
+  });
+
+  it("writes nothing where Logseq has no date-time properties", async () => {
+    const fake = fakeHost();
+    fake.host.editor.upsertProperty = async () => {
+      throw new Error("unknown type datetime");
+    };
+    await draftRepository(fake).markRecipeCooked(fake.root.uuid, 1000);
+    expect(fake.properties.has(`${fake.root.uuid}:recipe_last_cooked`)).toBe(
+      false,
+    );
+  });
+});

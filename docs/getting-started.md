@@ -2,9 +2,9 @@
 
 ## Requirements
 
-Logseq Recipe works with **Logseq DB graphs** only. When it starts, it
-checks the Logseq APIs it needs; on a file graph, or a Logseq build without
-those APIs, it shows a warning and writes nothing.
+Logseq Recipe works with **Logseq DB graphs** only. When you run one of its
+commands, it checks the Logseq APIs it needs; on a file graph, or a Logseq
+build without those APIs, it shows a warning and writes nothing.
 
 ## Install
 
@@ -47,6 +47,11 @@ If Logseq split a pasted recipe along the wrong lines, the preview offers to
 rebuild the blocks as sections first and shows the new structure. Only the
 text carries over in that case: links to the old blocks, and properties set
 on them, are not kept, and the preview says so.
+
+When the sections landed as the blocks after the recipe's title, the
+blocks between its section headings are taken in too. Blocks after the
+last heading are not, since they can't be told from what follows the
+recipe: move them under that heading before converting.
 
 ## The recipe outline
 

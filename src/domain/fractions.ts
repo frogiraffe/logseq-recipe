@@ -30,6 +30,9 @@ export function formatRecipeNumber(value: number): string {
   if (remainder < EPSILON && (whole > 0 || absolute === 0)) {
     return `${sign}${whole}`;
   }
+  if (1 - remainder < EPSILON) {
+    return `${sign}${whole + 1}`;
+  }
 
   for (const [fractionValue, symbol] of FRACTIONS) {
     if (Math.abs(remainder - fractionValue) < EPSILON) {

@@ -263,6 +263,7 @@ export const BUILTIN_INGREDIENT_RULES: readonly IngredientMassVolumeRule[] = [
 
 export function normalizeIngredientText(value: string): string {
   return foldCaseLocaleIndependent(value)
+    .replace(/[’‘ʼ]/gu, "'")
     .replace(/[(),.;:]+/gu, " ")
     .replace(/\s+/gu, " ")
     .trim();

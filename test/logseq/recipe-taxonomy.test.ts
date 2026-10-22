@@ -205,6 +205,22 @@ describe("moving categories and tags from the JSON into properties", () => {
     expect(graph.writes).toEqual([]);
   });
 
+  it("leaves a recipe from a newer Logseq Recipe alone", async () => {
+    const graph = fakeGraph();
+    graph.legacy("cake", meta(["Tatlı"]));
+    await graph.host.upsertBlockProperty(
+      "cake",
+      PROPERTY_KEYS.schemaVersion,
+      2,
+    );
+    graph.writes.length = 0;
+
+    const plan = await planRecipeTaxonomy(graph.host, [{ id: "cake" }]);
+    expect(plan.recipeCount).toBe(0);
+    expect(await moveRecipeTaxonomy(graph.host, [{ id: "cake" }])).toBe(0);
+    expect(graph.writes).toEqual([]);
+  });
+
   it("finishes an interrupted move on the next run, with nothing doubled", async () => {
     const graph = fakeGraph();
     graph.legacy("cake", meta(["Tatlı"], ["Kek"]));
@@ -342,6 +358,17 @@ describe("syncing the category and tag properties", () => {
     const writes = graph.writes.length;
     expect(await syncRecipeTaxonomy(graph.host, "cake", meta([]))).toBe(false);
     expect(graph.writes).toHaveLength(writes);
+  });
+
+  it("plans the spelling the move creates when recipes differ in case", async () => {
+    const graph = fakeGraph();
+    graph.legacy("cake", meta(["dessert"]));
+    graph.legacy("pie", meta(["Dessert"]));
+    const recipes = [{ id: "cake" }, { id: "pie" }];
+
+    const plan = await planRecipeTaxonomy(graph.host, recipes);
+    await moveRecipeTaxonomy(graph.host, recipes);
+    expect(plan.pagesToCreate).toEqual(graph.created.map((page) => page.name));
   });
 
   it("names one page once, whatever its spacing or case", async () => {

@@ -44,8 +44,9 @@ export function stripCodeFence(text: string): string {
   return match ? match[1] : text;
 }
 
+// A tab counts as four spaces, so a paste mixing them nests as it looks.
 export function indentOf(line: string): number {
-  return line.match(/^[ \t]*/)?.[0].length ?? 0;
+  return line.match(/^[ \t]*/)?.[0].replace(/\t/g, "    ").length ?? 0;
 }
 
 /**

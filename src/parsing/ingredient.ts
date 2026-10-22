@@ -39,7 +39,10 @@ function resolveUnitLexeme(
     case "cup":
       return `${unit}_${system}`;
     case "fl_oz":
-      return system === "imperial" ? "fl_oz_imperial" : "fl_oz_us";
+    case "pint":
+    case "quart":
+    case "gallon":
+      return `${unit}_${system === "imperial" ? "imperial" : "us"}`;
     default:
       return unit;
   }
@@ -136,6 +139,9 @@ const MEASURE_UNITS = new Set<string>([
   "tbsp",
   "cup",
   "fl_oz",
+  "pint",
+  "quart",
+  "gallon",
   "su_bardagi",
   "cay_bardagi",
   "tatli_kasigi",
@@ -410,6 +416,18 @@ function readIngredient(text: string, context: ParseContext): ParsedIngredient {
   let unit: CanonicalUnit | undefined;
   let ingredientStartOffset = consumedEnd;
 
+  // "¼ de tasse", "1/4 de taza": the amount joined to its unit.
+  const joiner = tokens[nextIndex];
+  if (
+    joiner?.kind === "word" &&
+    getLocalePack(context.locale).unitConnectors.includes(
+      String(joiner.normalized),
+    ) &&
+    tokens[nextIndex + 1]?.kind === "unit"
+  ) {
+    nextIndex += 1;
+  }
+
   // "1 heaped tbsp", "1 gestr. TL": kept as a note, never extra volume.
   const leadingQualifier = unitQualifier(tokens, nextIndex, context.locale);
   let leadingNote: string | undefined;
@@ -481,6 +499,20 @@ function readIngredient(text: string, context: ParseContext): ParsedIngredient {
   }
 
   if (hasSecondAmount(tokens, nextIndex, tokens.length, context.locale)) {
+    return unparsedIngredient(text, true);
+  }
+  // "1 kg 500 de pommes de terre" is 1.5 kg, so the 500 is part of the
+  // amount; "200 g 70% dark chocolate", "1 tsp 5-spice" and "500 g 00
+  // flour" name the kind.
+  const afterUnit = tokens[nextIndex];
+  if (
+    unitToken?.kind === "unit" &&
+    MEASURE_UNITS.has(String(unitToken.normalized)) &&
+    afterUnit?.kind === "number" &&
+    /^[1-9]\d\d$/.test(afterUnit.raw) &&
+    tokens[nextIndex + 1]?.kind !== "range" &&
+    tokens[nextIndex + 1]?.raw !== "%"
+  ) {
     return unparsedIngredient(text, true);
   }
 

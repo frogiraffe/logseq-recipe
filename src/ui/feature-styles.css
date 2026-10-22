@@ -1013,3 +1013,108 @@
 .draft-recipe-read-lines small {
   color: var(--ls-secondary-text-color);
 }
+
+/* ---- In reach while cooking, lighter while browsing --------------------
+   Cooking Mode's step bar is what a cook presses most, often with a wet or
+   floury hand: Next and Finish are its primary actions, at touch size.
+   The Recipes screen's search and sort read as a toolbar, not a form. */
+.draft-recipe-app .draft-recipe-step-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  min-width: 8rem;
+  padding: 10px 20px;
+  border-radius: var(--dr-radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.draft-recipe-app
+  .draft-recipe-step-nav-button:not(.draft-recipe-primary-action) {
+  background: transparent;
+}
+
+.draft-recipe-step-segment::before {
+  inset: 8px 0;
+}
+
+/* A phone keeps the steps track readable between the two buttons. */
+@media (max-width: 640px) {
+  .draft-recipe-app .draft-recipe-step-nav-button {
+    min-width: 0;
+    padding: 10px 14px;
+  }
+}
+
+.draft-recipe-app .draft-recipe-cooking-header-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.draft-recipe-app .draft-recipe-filters {
+  padding: 0;
+  border: none;
+  background: none;
+  gap: 10px 12px;
+}
+
+.draft-recipe-app .draft-recipe-search-field {
+  display: block;
+  position: relative;
+}
+
+.draft-recipe-search-field > .draft-recipe-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--ls-secondary-text-color);
+  pointer-events: none;
+}
+
+.draft-recipe-app .draft-recipe-search-field > input {
+  width: 100%;
+  min-height: 40px;
+  padding-left: 36px;
+}
+
+.draft-recipe-app .draft-recipe-filters select {
+  min-height: 40px;
+}
+
+/* A recipe with no cover: its initial on a soft wash of the theme's
+   accent, so a wall of them still reads as a gallery. */
+.draft-recipe-thumb {
+  background: linear-gradient(
+    135deg,
+    color-mix(
+      in srgb,
+      var(--ls-link-text-color) 18%,
+      var(--ls-secondary-background-color)
+    ),
+    color-mix(
+      in srgb,
+      var(--ls-link-text-color) 4%,
+      var(--ls-secondary-background-color)
+    )
+  );
+}
+
+.draft-recipe-thumb-letter {
+  font-size: 3rem;
+  opacity: 0.55;
+}
+
+.draft-recipe-recipe-list-heading small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.draft-recipe-card > .draft-recipe-card-header h1 {
+  font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.1rem);
+}

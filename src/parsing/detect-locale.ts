@@ -62,11 +62,30 @@ export function ingredientParseContext(
   primary: ParseContext,
   sourceOverride?: MeasurementSystem,
 ): ParseContext {
-  // Bare numbers parse in any language; only a recognized unit is signal.
-  return bestContext(primary, sourceOverride, (context) =>
-    parseIngredient(text, context).unit ? 1 : 0,
-  );
+  // Bare numbers parse in any language; only a recognized unit is signal,
+  // and a word that is also an ordinary word elsewhere is not enough to read
+  // the line in another language (see OWN_LANGUAGE_UNITS).
+  return bestContext(primary, sourceOverride, (context) => {
+    const { unit } = parseIngredient(text, context);
+    return unit && (context === primary || !OWN_LANGUAGE_UNITS.has(unit))
+      ? 1
+      : 0;
+  });
 }
+
+// Units that count only in the recipe's own language: container words ("2
+// pots of cream" is not French "2 jars", "2 dal pakoras" not Turkish "2
+// sprigs"), and pints, quarts and gallons ("1 quart de tasse" is a quarter
+// of a cup in French, not a US quart).
+const OWN_LANGUAGE_UNITS = new Set<CanonicalUnit>([
+  ...COUNT_UNITS,
+  "pint_us",
+  "quart_us",
+  "gallon_us",
+  "pint_imperial",
+  "quart_imperial",
+  "gallon_imperial",
+]);
 
 const UNIT_WORDS = new Map(
   RECIPE_LOCALES.map((locale) => [

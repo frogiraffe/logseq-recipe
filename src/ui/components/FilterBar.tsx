@@ -7,6 +7,7 @@ import {
 } from "../../application/list-recipes";
 import type { UiMessages } from "../i18n";
 import { ChipInput } from "./ChipInput";
+import { Icon } from "./Icon";
 
 export interface FilterBarProps {
   filter: RecipeFilter;
@@ -60,7 +61,10 @@ export function FilterBar({
   return (
     <section className="draft-recipe-filters" aria-label={messages.filters}>
       <label className="draft-recipe-search-field">
-        {messages.searchRecipes}
+        <span className="draft-recipe-visually-hidden">
+          {messages.searchRecipes}
+        </span>
+        <Icon name="search" />
         <input
           aria-label={messages.searchRecipes}
           type="search"
@@ -88,6 +92,7 @@ export function FilterBar({
         >
           <option value="title">{messages.sortByTitle}</option>
           <option value="totalTime">{messages.sortByTotalTime}</option>
+          <option value="lastCooked">{messages.sortByLastCooked}</option>
         </select>
       </label>
 

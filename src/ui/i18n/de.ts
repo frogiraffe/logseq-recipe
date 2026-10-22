@@ -24,7 +24,7 @@ export const deMessages: UiMessages = {
   measurementSystem: "Maßsystem",
   metric: "Metrisch",
   usCustomary: "US-amerikanisch",
-  imperial: "Imperial",
+  imperial: "Britisch (imperial)",
   addConversion: "Eigene Umrechnungsregel hinzufügen",
   conversionUnavailable: "Umrechnung nicht verfügbar",
   convertToRecipe: "In Rezept umwandeln",
@@ -65,21 +65,26 @@ export const deMessages: UiMessages = {
   noUnit: "Keine Einheit",
   keepAsWritten: "Wie geschrieben behalten",
   useStructuredAmount: "Strukturierte Menge verwenden",
-  rangeMin: "Min.",
-  rangeMax: "Max.",
+  rangeMin: "Von",
+  rangeMax: "Bis",
   minutesUnit: "Min.",
   converting: "Umwandlung",
+  colon: ":",
+  importing: "Import",
   alreadyRecipe: "Das ist bereits ein Rezept:",
   openRecipe: "Rezept öffnen",
   missingYieldPrompt:
     "Wie viele Portionen oder Stück ergibt dieses Rezept? Nichts gefunden – bis Sie es angeben, zählt es als 1 (das Rezept wie geschrieben).",
   yieldUnitHelp: "Portionen, Kekse, Stück …",
-  useThisYield: "Diese Menge verwenden",
+  useThisYield: "Diese Angabe übernehmen",
   conversionRulesTitle: "Eigene Zutatenumrechnung",
   conversionRulesHelp:
     "Logseq Recipe rechnet feste Einheiten wie g ↔ kg und ml ↔ l automatisch um. Für unterstützte Zutaten rechnet es mithilfe integrierter Daten auch automatisch zwischen Gewicht und Volumen um (z. B. Tassen in Gramm). Fügen Sie eine eigene Umrechnung nur hinzu, wenn eine Zutat nicht unterstützt wird oder Sie ihre integrierte Umrechnung für dieses Rezept ersetzen möchten. Dadurch wird dem Rezept keine Zutat hinzugefügt – Zutaten schreiben Sie als normale Zeilen unter Zutaten.",
   editRecipe: "Rezept bearbeiten",
   duplicateRecipe: "Rezept duplizieren",
+  copyAsText: "Als Text kopieren",
+  copiedNotice: "Als Text kopiert",
+  copyFailed: "Konnte nicht in die Zwischenablage kopiert werden.",
   archivedRecipes: "Archivierte Rezepte",
   noArchivedRecipes: "Keine archivierten Rezepte",
   archiveRecipe: "Rezept archivieren",
@@ -98,6 +103,8 @@ export const deMessages: UiMessages = {
   sortBy: "Sortieren nach",
   sortByTitle: "Titel (A–Z)",
   sortByTotalTime: "Gesamtzeit (kürzeste zuerst)",
+  sortByLastCooked: "Zuletzt gekocht (neueste zuerst)",
+  lastCooked: "Zuletzt gekocht",
   doesNotScale: "Skaliert nicht mit den Portionen",
   resumeCooking: "Weiterkochen",
   finishCooking: "Kochen beenden",
@@ -134,6 +141,8 @@ export const deMessages: UiMessages = {
   fewerServings: "Weniger Portionen",
   moreServings: "Mehr Portionen",
   resetServings: "Ursprüngliche Portionen: {count}",
+  scaleToIngredient: "Rezept an die vorhandene Menge {ingredient} anpassen",
+  scaleToIngredientAmount: "Vorhandene Menge {ingredient}",
   noRecipesHint:
     "Legen Sie hier eines an, fügen Sie eines mit „Aus Text importieren“ ein, oder machen Sie eine bestehende Seite mit „Logseq Recipe: Convert to Recipe“ im Blockmenü zum Rezept.",
   saveIncomplete:
@@ -209,12 +218,14 @@ export const deMessages: UiMessages = {
     "Logseq Recipe: Öffnen Sie zuerst eine Seite oder klicken Sie mit der rechten Maustaste auf einen Block mit einem Rezept.",
   insideRecipe: "Dieser Block gehört bereits zu einem Rezept:",
   finishCookingConfirm:
-    "Ein Timer läuft noch. Kochen beenden und Timer, aktuellen Schritt und abgehakte Zutaten löschen?",
+    "Ein Timer läuft noch. Kochen beenden und Timer, aktuellen Schritt und Häkchen bei den Zutaten zurücksetzen?",
+  finishCookingQuestion:
+    "Kochen beenden und aktuellen Schritt, Häkchen bei den Zutaten und Timer zurücksetzen?",
   fixedAmountShort: "Fest",
   sourceMeasurementHelp:
-    "Die Einheiten, in denen das Rezept geschrieben ist: ob seine „Tasse“ oder sein „EL“ amerikanisch, metrisch oder imperial ist.",
+    "Die Einheiten, in denen das Rezept geschrieben ist: ob seine „Tasse“ oder sein „EL“ amerikanisch, metrisch oder britisch ist.",
   displayMeasurementHelp:
-    "Die Einheiten, in denen Mengen dieses Rezepts angezeigt werden; sonst gilt die Plugin-Einstellung.",
+    "Die Einheiten, in denen Mengen dieses Rezepts angezeigt werden; bei „Standard verwenden“ gilt die Plugin-Einstellung.",
   noAmountLinesNote:
     "Diese Zeilen haben keine Menge; sie bleiben wie geschrieben und ändern sich nicht mit den Portionen:",
   enterAmount: "Menge eingeben",
@@ -222,9 +233,9 @@ export const deMessages: UiMessages = {
   recipeCountOther: "{shown} / {total} Rezepte",
   exportTaxonomy: "Kategorien und Tags zu Logseq hinzufügen…",
   exportTaxonomyConfirmOne:
-    "Die Kategorien und Tags von {count} Rezept werden in die Logseq-Eigenschaften {properties} geschrieben. Danach gelten diese Eigenschaften: Ändern Sie sie im Plugin oder in Logseq.",
+    "Die Kategorien und Tags von {count} Rezept werden in die Logseq-Eigenschaften {properties} geschrieben. Ab dann gelten diese Eigenschaften als Kategorien und Tags des Rezepts: Ändern Sie sie im Plugin oder in Logseq.",
   exportTaxonomyConfirmOther:
-    "Die Kategorien und Tags von {count} Rezepten werden in die Logseq-Eigenschaften {properties} geschrieben. Danach gelten diese Eigenschaften: Ändern Sie sie im Plugin oder in Logseq.",
+    "Die Kategorien und Tags von {count} Rezepten werden in die Logseq-Eigenschaften {properties} geschrieben. Ab dann gelten diese Eigenschaften als Kategorien und Tags der Rezepte: Ändern Sie sie im Plugin oder in Logseq.",
   exportTaxonomyNewPages: "Neue Seiten: {pages}",
   exportTaxonomyExistingPages: "Vorhandene Seiten: {pages}",
   exportTaxonomyKeptNames:

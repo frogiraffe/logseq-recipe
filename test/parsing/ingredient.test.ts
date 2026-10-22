@@ -414,6 +414,7 @@ describe("parseIngredient", () => {
     ["en", "1 tbsp olive oil, plus 1 tsp for greasing"],
     ["en", "1 cup butter or 225 g margarine"],
     ["de", "500 g Mehl und 1 EL Zucker"],
+    ["fr", "1 kg 500 de pommes de terre"],
   ] as const)(
     "keeps a line with a second amount %s %s unparsed for review",
     (locale, text) => {
@@ -426,6 +427,19 @@ describe("parseIngredient", () => {
       ).toBeUndefined();
     },
   );
+
+  it.each([
+    ["200 g 70% dark chocolate", "g"],
+    ["500 g 00 flour", "g"],
+    ["1 tsp 5-spice powder", "tsp_us"],
+    ["2 cups 1-inch bread cubes", "cup_us"],
+    ["1 lb 100% grass-fed beef", "lb"],
+  ])("reads a number naming the kind after the unit: %s", (text, unit) => {
+    expect(parseIngredient(text, defaultParseContext("en"))).toMatchObject({
+      unit,
+      confidence: "exact",
+    });
+  });
 
   it.each([
     ["en", "2 eggs (about 100 g)", 2, "egg", "eggs", "about 100 g"],
@@ -811,4 +825,57 @@ describe("parseIngredient", () => {
       expect(parsed.ingredientText).toBe(name);
     },
   );
+});
+
+describe("ingredientParseContext", () => {
+  it("keeps a French quarter of a cup from being read as a US quart", () => {
+    const text = "1 quart de tasse de farine";
+    expect(ingredientParseContext(text, defaultParseContext("fr")).locale).toBe(
+      "fr",
+    );
+  });
+
+  it("reads a pint in an English recipe", () => {
+    expect(
+      parseIngredient("1 pint heavy cream", defaultParseContext("en")).unit,
+    ).toBe("pint_us");
+  });
+
+  it.each(["2 pots of cream", "2 dal pakoras", "1 pot plain yogurt"])(
+    "keeps the recipe's language for another's container word: %s",
+    (text) => {
+      expect(
+        ingredientParseContext(text, defaultParseContext("en")).locale,
+      ).toBe("en");
+    },
+  );
+
+  it("still reads a line in the language of its measure", () => {
+    expect(
+      ingredientParseContext("2 yemek kaşığı un", defaultParseContext("en"))
+        .locale,
+    ).toBe("tr");
+  });
+});
+
+describe("an amount joined to its unit", () => {
+  it.each([
+    ["fr", "¼ de tasse de farine", 0.25, "cup_metric", "farine"],
+    ["fr", "un quart de tasse de sucre", 0.25, "cup_metric", "sucre"],
+    ["es", "1/4 de taza de azúcar", 0.25, "cup_metric", "azúcar"],
+    ["es", "½ de cucharadita de sal", 0.5, "tsp_metric", "sal"],
+  ] as const)("%s %s", (locale, text, value, unit, ingredientText) => {
+    expect(parseIngredient(text, defaultParseContext(locale))).toMatchObject({
+      amount: { kind: "exact", value },
+      unit,
+      ingredientText,
+      confidence: "exact",
+    });
+  });
+
+  it("leaves a name that only starts with the connector alone", () => {
+    expect(
+      parseIngredient("2 de pommes", defaultParseContext("fr")).unit,
+    ).toBeUndefined();
+  });
 });

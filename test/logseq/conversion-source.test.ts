@@ -90,6 +90,73 @@ describe("loadTrailingSectionSiblings", () => {
   });
 });
 
+describe("loadTrailingSectionSiblings with chunks between headings", () => {
+  function install(titles: string[]) {
+    const blocks = titles.map((title, index) => ({
+      id: index + 1,
+      uuid: `b${index}`,
+      title,
+      children: [],
+    }));
+    globalThis.logseq = {
+      Editor: {
+        getNextSiblingBlock: async (uuid: string) =>
+          blocks[blocks.findIndex((block) => block.uuid === uuid) + 1] ?? null,
+        getBlock: async (uuid: string) =>
+          blocks.find((block) => block.uuid === uuid) ?? null,
+      },
+    } as unknown as typeof globalThis.logseq;
+  }
+
+  it("takes chunks lying between the recipe's headings, not after the last", async () => {
+    install([
+      "Soup\nYield: 2",
+      "Ingredients\n  1 l water",
+      "2 g salt",
+      "Steps\n  Boil the water.",
+      "Simmer for 10 min.",
+      "Notes\n  Keeps for a week.",
+      "Unrelated journal entry",
+    ]);
+    const siblings = await loadTrailingSectionSiblings("b0");
+    expect(siblings.map((sibling) => sibling.id)).toEqual([
+      "b1",
+      "b2",
+      "b3",
+      "b4",
+      "b5",
+    ]);
+
+    const plan = planRecipeConversion(
+      { id: "b0", title: "Soup\nYield: 2", children: siblings },
+      defaultParseContext("en"),
+    );
+    if (plan.kind !== "split") throw new Error("expected a split");
+    const [, ingredients, steps] = plan.outline.children;
+    expect(ingredients.children.map((line) => line.text)).toEqual([
+      "1 l water",
+      "2 g salt",
+    ]);
+    expect(steps.children.map((line) => line.text)).toEqual([
+      "Boil the water.",
+      "Simmer for 10 min.",
+    ]);
+  });
+
+  it("stops before the next recipe's sections", async () => {
+    install([
+      "Soup",
+      "Ingredients\n  1 l water",
+      "Steps\n  Boil the water.",
+      "Pancakes",
+      "Ingredients\n  200 g flour",
+      "Steps\n  Mix.",
+    ]);
+    const siblings = await loadTrailingSectionSiblings("b0");
+    expect(siblings.map((sibling) => sibling.id)).toEqual(["b1", "b2"]);
+  });
+});
+
 describe("loadTrailingSectionSiblings when Logseq has none to give", () => {
   it("treats a refused sibling lookup (a page) as no siblings", async () => {
     globalThis.logseq = {

@@ -41,7 +41,10 @@ import {
   setRecipeCover,
 } from "../../src/logseq/assets";
 import { unwrapBlockPropertyValue } from "../../src/logseq/block-reader";
-import { loadConversionRoot } from "../../src/logseq/conversion-source";
+import {
+  loadConversionRoot,
+  loadTrailingSectionSiblings,
+} from "../../src/logseq/conversion-source";
 import { PROPERTY_KEYS } from "../../src/logseq/property-keys";
 import {
   moveRecipeTaxonomy,
@@ -474,6 +477,12 @@ describe.skipIf(!TOKEN && !CDP_PORT).sequential("live Logseq graph", () => {
     expect(after?.notes).toHaveLength(2);
   }, 120_000);
 
+  it("records a finished cook as a date and time Logseq shows", async () => {
+    const at = Date.now();
+    await repository.markRecipeCooked(rootUuid, at);
+    expect((await repository.getRecipe(rootUuid))?.lastCookedAt).toBe(at);
+  });
+
   it("archives and restores a recipe converted outside the library in place", async () => {
     await repository.archiveRecipe(rootUuid);
     expect(await pageIdOf(rootUuid)).toBe(pageId);
@@ -534,6 +543,60 @@ describe.skipIf(!TOKEN && !CDP_PORT).sequential("live Logseq graph", () => {
     );
     expect(url).toMatch(/^assets:\/\/.+\/assets\//);
   }, 60_000);
+
+  it("folds a title block's sections and the chunks between them", async () => {
+    const titles = [
+      "Soup\nYield: 2",
+      "Ingredients\n  1 l water",
+      "2 g salt",
+      "Steps\n  Boil the water.",
+      "Simmer for 10 min.",
+      "Notes\n  Keeps for a week.",
+      "Unrelated journal entry",
+    ];
+    const ids: string[] = [];
+    for (const title of titles) {
+      const block = (await call(
+        "logseq.Editor.appendBlockInPage",
+        pageName,
+        title,
+      )) as { uuid: string };
+      ids.push(block.uuid);
+    }
+
+    const siblings = await loadTrailingSectionSiblings(ids[0]);
+    expect(siblings.map((sibling) => sibling.id)).toEqual(ids.slice(1, 6));
+    const plan = planRecipeConversion(
+      { id: ids[0], title: titles[0], children: siblings },
+      defaultParseContext("en"),
+    );
+    expect(plan.kind).toBe("split");
+    if (plan.kind !== "split") return;
+    expect(outlineTexts(plan.outline)).toEqual([
+      "Soup",
+      [
+        ["Yield: 2", []],
+        [
+          "Ingredients",
+          [
+            ["1 l water", []],
+            ["2 g salt", []],
+          ],
+        ],
+        [
+          "Steps",
+          [
+            ["Boil the water.", []],
+            ["Simmer for 10 min.", []],
+          ],
+        ],
+        ["Notes", [["Keeps for a week.", []]]],
+      ],
+    ]);
+    for (const id of ids) {
+      await call("logseq.Editor.removeBlock", id).catch(() => undefined);
+    }
+  }, 120_000);
 
   describe("categories and tags as Logseq properties", () => {
     const name = (label: string) => {

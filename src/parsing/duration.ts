@@ -281,8 +281,16 @@ function parseDurationAt(
     }
   }
 
+  // After the time, a modifier only qualifies it as a postposition ("10
+  // dakika kadar") or as the phrase's last word ("2 hours at least"); one
+  // opening more words begins a clause ("30 minutos hasta que esté dorado").
   const suffixModifier = tokens[nextIndex];
-  if (suffixModifier?.kind === "modifier" && quantity.kind === "exact") {
+  if (
+    suffixModifier?.kind === "modifier" &&
+    quantity.kind === "exact" &&
+    (postposition(suffixModifier, pack) !== undefined ||
+      !/^\s*\p{L}/u.test(text.slice(suffixModifier.endOffset)))
+  ) {
     quantity = modifiedQuantity(
       suffixModifierMeaning(suffixModifier, tokens[nextIndex - 1], pack),
       quantity.value,
@@ -401,7 +409,13 @@ function inNegatedClause(
 ): boolean {
   const pack = getLocalePack(context.locale);
   const clause = clauseEnds(text, start, end);
-  const whole = text.slice(clause.from, clause.to);
+  const [conjunction] = findPhraseSpans(
+    text.slice(end, clause.to),
+    Object.fromEntries(pack.clauseConjunctions.map((word) => [word, true])),
+    context.locale,
+  );
+  const to = conjunction ? end + conjunction.startOffset : clause.to;
+  const whole = text.slice(clause.from, to);
   for (const word of pack.negationWords) {
     const elided = word.endsWith("'");
     const stem = escapeRegExp(elided ? word.slice(0, -1) : word);
@@ -411,7 +425,7 @@ function inNegatedClause(
     );
     if (pattern.test(whole)) return true;
   }
-  const words = text.slice(end, clause.to).match(/\p{L}+/gu);
+  const words = text.slice(end, to).match(/\p{L}+/gu);
   const last = words?.[words.length - 1]?.toLocaleLowerCase(context.locale);
   return Boolean(
     last &&

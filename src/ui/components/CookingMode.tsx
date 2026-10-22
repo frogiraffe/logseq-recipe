@@ -49,6 +49,8 @@ export interface CookingModeProps {
   sessionKey?: string | null;
   resolveAssetUrl?(path: string): Promise<string | null>;
   onExit(): void;
+  /** The cook finished the recipe (not "Exit for now"); then onExit. */
+  onFinish?(): void;
 }
 
 function relationLabel(
@@ -91,11 +93,19 @@ function temperatureLabel(
     parts.push(messages.conventionalOven);
   }
   // A converted oven temperature reads like a dial setting (350°F -> 175°C,
-  // not 176⅔°C); a temperature shown as written keeps its exact value.
+  // not 176⅔°C), a lower one to the degree (100°C water is 212°F, sugar
+  // at 245°F is 118°C); a temperature shown as written keeps its value.
+  const celsius =
+    converted.unit === "celsius"
+      ? converted.value
+      : ((converted.value - 32) * 5) / 9;
+  const oven = annotation.ovenMode || annotation.preheat || celsius >= 140;
   const value =
     converted.unit === annotation.unit
       ? converted.value
-      : Math.round(converted.value / 5) * 5;
+      : oven
+        ? Math.round(converted.value / 5) * 5
+        : Math.round(converted.value);
   parts.push(formatMeasurement(value, converted.unit, messages.uiLocale));
   if (annotation.preheat) parts.push(messages.preheated);
 
@@ -188,6 +198,7 @@ export function CookingMode({
   resolveAssetUrl,
   onTargetYieldChange,
   onExit,
+  onFinish,
 }: CookingModeProps) {
   const [restored] = useState(() => {
     const stored = sessionKey ? loadCookingSession(sessionKey) : null;
@@ -277,20 +288,20 @@ export function CookingMode({
     const finish = () => {
       finishedRef.current = true;
       if (sessionKey) clearCookingSession(sessionKey);
+      onFinish?.();
       onExit();
     };
-    // Finishing drops the saved step, ticks, and timers: ask first while a
-    // timer is still counting down.
-    if (!anyTimerCounting(timers, Date.now())) finish();
-    else {
-      confirm(
-        {
-          message: messages.finishCookingConfirm,
-          confirmLabel: messages.finishCooking,
-        },
-        finish,
-      );
-    }
+    // Finishing drops the saved step, ticks, and timers, and Finish takes
+    // Next's place on the last step, where a second click lands: ask first.
+    confirm(
+      {
+        message: anyTimerCounting(timers, Date.now())
+          ? messages.finishCookingConfirm
+          : messages.finishCookingQuestion,
+        confirmLabel: messages.finishCooking,
+      },
+      finish,
+    );
   };
 
   const toggleIngredient = (id: string) =>
@@ -391,12 +402,8 @@ export function CookingMode({
           </button>
           {/* On the last step, Finish moves to the step bar instead. */}
           {!onLastStep && (
-            <button
-              type="button"
-              className="draft-recipe-quiet-button"
-              onClick={finishCooking}
-            >
-              {messages.finishCooking}
+            <button type="button" onClick={finishCooking}>
+              <Icon name="check" /> {messages.finishCooking}
             </button>
           )}
           <button type="button" onClick={onExit}>
@@ -538,6 +545,11 @@ export function CookingMode({
                     onChange={(event) =>
                       setCustomMinutes(event.currentTarget.value)
                     }
+                    onKeyDown={(event) => {
+                      if (event.key !== "Escape") return;
+                      event.preventDefault();
+                      setCustomMinutes(null);
+                    }}
                     // biome-ignore lint/a11y/noAutofocus: the field appears in response to the cook's own click.
                     autoFocus
                   />
@@ -579,10 +591,11 @@ export function CookingMode({
       <footer className="draft-recipe-cooking-nav">
         <button
           type="button"
+          className="draft-recipe-step-nav-button"
           onClick={previous}
           disabled={activeStepIndex <= 0 || recipe.steps.length === 0}
         >
-          {messages.previous}
+          <Icon name="back" /> {messages.previous}
         </button>
         {/* One segment per step: shows where you are in the sequence and
             jumps straight to any step. */}
@@ -609,14 +622,18 @@ export function CookingMode({
         {onLastStep ? (
           <button
             type="button"
-            className="draft-recipe-primary-action"
+            className="draft-recipe-primary-action draft-recipe-step-nav-button"
             onClick={finishCooking}
           >
-            {messages.finishCooking}
+            <Icon name="check" /> {messages.finishCooking}
           </button>
         ) : (
-          <button type="button" onClick={next}>
-            {messages.next}
+          <button
+            type="button"
+            className="draft-recipe-primary-action draft-recipe-step-nav-button"
+            onClick={next}
+          >
+            {messages.next} <Icon name="forward" />
           </button>
         )}
       </footer>
